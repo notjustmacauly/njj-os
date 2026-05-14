@@ -43,8 +43,9 @@ export default async function PosSessionsPage() {
     .select("role")
     .eq("user_id", user.id)
     .single();
-  const role = roleRow?.role as "admin" | "manager" | "ops" | "staff" | null;
-  if (role !== "admin" && role !== "manager" && role !== "ops") {
+  const role = roleRow?.role as import("@/lib/roles").Role | null;
+  // Per matrix: owner/partner/manager can view all past shifts; staff only own.
+  if (role !== "owner" && role !== "partner" && role !== "manager") {
     redirect("/dashboard/pos");
   }
 

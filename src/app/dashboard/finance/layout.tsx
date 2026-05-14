@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { Role } from "@/lib/roles";
 import { FinanceSubNav } from "./sub-nav";
-
-type Role = "admin" | "manager" | "ops" | "staff";
 
 export default async function FinanceLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();

@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { BillDetailClient, type BillDetail, type LinkedOrder, type LedgerLink } from "./bill-detail-client";
+import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-const READ_ROLES: Role[] = ["admin", "manager"];
+const READ_ROLES = OWNER_PARTNER_MANAGER;
 
 export default async function BillDetailPage({
   params,
@@ -152,6 +152,7 @@ export default async function BillDetailPage({
       </Link>
 
       <BillDetailClient
+        role={role}
         bill={billDetail}
         accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
         linkedOrders={linkedOrders}

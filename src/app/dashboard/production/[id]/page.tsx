@@ -22,12 +22,11 @@ export default async function BatchDetailPage({
     .select("role")
     .eq("user_id", user.id)
     .single();
-  const role = roleRow?.role as "admin" | "manager" | "ops" | "staff" | null;
-  if (role !== "admin" && role !== "manager" && role !== "ops") {
-    redirect("/dashboard/production");
-  }
-  const canManage = role === "admin" || role === "manager" || role === "ops";
-  const canDelete = role === "admin" || role === "manager";
+  const role = roleRow?.role as import("@/lib/roles").Role | null;
+  if (!role) redirect("/dashboard");
+  // Per matrix: all roles view the batch; owner/partner/manager manage it.
+  const canManage = role === "owner" || role === "partner" || role === "manager";
+  const canDelete = canManage;
 
   const [
     { data: batchData },

@@ -3,12 +3,12 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PaymentDetailClient, type LedgerLink, type PaymentDetail } from "./payment-detail-client";
+import { ALL_ROLES, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
 // Staff is allowed in — RLS limits them to their own reimbursements, so the
 // payment row will simply come back null for anything else (rendered as
 // "Payment not found").
-const READ_ROLES: Role[] = ["admin", "manager", "ops", "staff"];
+const READ_ROLES = ALL_ROLES;
 
 export default async function PaymentDetailPage({
   params,

@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatPHP } from "@/lib/utils";
+import type { Role } from "@/lib/roles";
 import { FINANCE_CATEGORIES } from "../../categories";
 
 type PaymentType = "general" | "transfer";
@@ -20,15 +21,15 @@ export function NewPaymentForm({
   accounts,
   requestedByName,
 }: {
-  role: "admin" | "manager" | "ops";
+  role: Role;
   accounts: Array<{ code: string; name: string }>;
   requestedByName: string;
 }) {
   const router = useRouter();
   const toast = useToast();
 
-  // Transfers are admin/manager only at the RPC layer; gate the UI too.
-  const canTransfer = role === "admin" || role === "manager";
+  // Only owner can transfer (and only owner reaches this page anyway).
+  const canTransfer = role === "owner";
 
   const [type, setType] = React.useState<PaymentType>("general");
   const [purpose, setPurpose] = React.useState("");
@@ -56,7 +57,7 @@ export function NewPaymentForm({
     if (!accountCode) return setError("Pick a source account.");
 
     if (type === "transfer") {
-      if (!canTransfer) return setError("Only admin or manager can request transfers.");
+      if (!canTransfer) return setError("Only the owner can request transfers.");
       if (!transferTo) return setError("Pick a destination account.");
       if (transferTo === accountCode)
         return setError("Source and destination must differ.");
@@ -113,7 +114,7 @@ export function NewPaymentForm({
                     : "bg-white text-ink border-border hover:bg-cream",
                   disabled && "opacity-40 cursor-not-allowed",
                 )}
-                title={disabled ? "Transfers require admin or manager" : undefined}
+                title={disabled ? "Transfers require the owner" : undefined}
               >
                 {t === "general" ? "Payment" : "Transfer"}
               </button>

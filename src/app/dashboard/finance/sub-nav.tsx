@@ -3,22 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import type { Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-
-const ITEMS: { href: string; label: string; roles: Role[] }[] = [
-  { href: "/dashboard/finance", label: "Overview", roles: ["admin", "manager", "ops"] },
-  { href: "/dashboard/finance/revenue", label: "Revenue", roles: ["admin", "manager", "ops"] },
-  { href: "/dashboard/finance/expenses", label: "Expenses", roles: ["admin", "manager", "ops"] },
-  { href: "/dashboard/finance/payments", label: "Payments", roles: ["admin", "manager", "ops"] },
+const ITEMS: { href: string; label: string; roles: readonly Role[] }[] = [
+  { href: "/dashboard/finance", label: "Overview", roles: ["owner", "partner"] },
+  { href: "/dashboard/finance/revenue", label: "Revenue", roles: ["owner", "partner"] },
+  { href: "/dashboard/finance/expenses", label: "Expenses", roles: ["owner", "partner", "manager"] },
+  { href: "/dashboard/finance/payments", label: "Payments", roles: ["owner", "partner", "manager"] },
   {
     href: "/dashboard/finance/reimbursements",
     label: "Reimbursements",
-    roles: ["admin", "manager", "ops", "staff"],
+    roles: ["owner", "partner", "manager", "staff"],
   },
-  { href: "/dashboard/finance/bills", label: "Bills", roles: ["admin", "manager"] },
-  { href: "/dashboard/finance/receivables", label: "Receivables", roles: ["admin", "manager", "ops"] },
-  { href: "/dashboard/finance/accounts", label: "Accounts", roles: ["admin", "manager", "ops"] },
+  { href: "/dashboard/finance/bills", label: "Bills", roles: ["owner", "partner", "manager"] },
+  { href: "/dashboard/finance/receivables", label: "Receivables", roles: ["owner", "partner"] },
+  { href: "/dashboard/finance/accounts", label: "Accounts", roles: ["owner", "partner"] },
 ];
 
 export function FinanceSubNav({ role }: { role: Role }) {

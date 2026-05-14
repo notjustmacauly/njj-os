@@ -3,9 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { formatPHP } from "@/lib/utils";
 import { ActivityFeed, type ActivityRow } from "./activity-feed";
+import { OWNER_PARTNER, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-const FINANCE_ROLES: Role[] = ["admin", "manager", "ops"];
+const FINANCE_ROLES = OWNER_PARTNER;
 
 function mtdStart(): Date {
   const d = new Date();

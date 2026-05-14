@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ReceivablesView, type ReceivableRow } from "./receivables-view";
+import { OWNER_PARTNER, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-const FINANCE_ROLES: Role[] = ["admin", "manager", "ops"];
+const FINANCE_ROLES = OWNER_PARTNER;
 
 export default async function ReceivablesPage() {
   const supabase = await createClient();

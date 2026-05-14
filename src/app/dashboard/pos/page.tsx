@@ -13,7 +13,7 @@ import type {
   TicketTypeRef,
 } from "./types";
 
-const POS_ROLES: Role[] = ["admin", "manager", "ops", "staff"];
+const POS_ROLES: readonly Role[] = ["owner", "partner", "manager", "staff"];
 
 function displayNameFromEmail(email: string): string {
   const local = (email.split("@")[0] ?? "").replace(/^notjust/i, "");

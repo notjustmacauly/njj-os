@@ -77,4 +77,4 @@ export type ActiveShift = {
   default_batch_wpm: string | null;
 };
 
-export type Role = "admin" | "manager" | "ops" | "staff";
+export type { Role } from "@/lib/roles";

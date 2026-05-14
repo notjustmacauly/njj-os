@@ -28,7 +28,7 @@ const TABS: { key: TabKey; label: string }[] = [
 
 const SUB_NAV: { key: string; label: string; href: string; disabled?: boolean }[] = [
   { key: "catalog", label: "Catalog", href: "/dashboard/settings/catalog?tab=skus" },
-  { key: "team", label: "Team", href: "#", disabled: true },
+  { key: "team", label: "Team", href: "/dashboard/settings/team" },
   { key: "accounts", label: "Accounts", href: "#", disabled: true },
 ];
 
@@ -38,12 +38,14 @@ function parseTab(v: string | null): TabKey {
 }
 
 export function CatalogClient({
+  canEdit,
   skus,
   ticketTypes,
   posProducts,
   bundles,
   tiers,
 }: {
+  canEdit: boolean;
   skus: SkuRow[];
   ticketTypes: TicketTypeRow[];
   posProducts: PosProductRow[];
@@ -110,10 +112,18 @@ export function CatalogClient({
         })}
       </div>
 
-      {tab === "skus" ? <SkusTab initialSkus={skus} initialTiers={tiers} /> : null}
-      {tab === "tickets" ? <TicketTypesTab initial={ticketTypes} /> : null}
-      {tab === "pos" ? <PosProductsTab initial={posProducts} /> : null}
-      {tab === "bundles" ? <BundlesTab initial={bundles} /> : null}
+      {tab === "skus" ? (
+        <SkusTab initialSkus={skus} initialTiers={tiers} canEdit={canEdit} />
+      ) : null}
+      {tab === "tickets" ? (
+        <TicketTypesTab initial={ticketTypes} canEdit={canEdit} />
+      ) : null}
+      {tab === "pos" ? (
+        <PosProductsTab initial={posProducts} canEdit={canEdit} />
+      ) : null}
+      {tab === "bundles" ? (
+        <BundlesTab initial={bundles} canEdit={canEdit} />
+      ) : null}
     </div>
   );
 }

@@ -13,8 +13,10 @@ export default async function SettingsPage() {
     .select("role")
     .eq("user_id", user.id)
     .single();
-  const role = roleRow?.role as "admin" | "manager" | "ops" | "staff" | null;
-  if (role !== "admin" && role !== "manager") redirect("/dashboard");
+  const role = roleRow?.role as import("@/lib/roles").Role | null;
+  // Per matrix: catalog view is all-roles, so everyone with a role can hit
+  // /dashboard/settings and land on /dashboard/settings/catalog.
+  if (!role) redirect("/dashboard");
 
   redirect("/dashboard/settings/catalog?tab=skus");
 }

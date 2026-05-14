@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewPaymentForm } from "./new-payment-form";
+import { OWNER_ONLY, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-const WRITE_ROLES: Role[] = ["admin", "manager", "ops"];
+// Per matrix: Payments — create is owner-only.
+const WRITE_ROLES = OWNER_ONLY;
 
 function displayNameFromEmail(email: string): string {
   const local = (email.split("@")[0] ?? "").replace(/^notjust/i, "");
@@ -49,12 +50,12 @@ export default async function NewPaymentPage() {
           New payment request
         </h1>
         <p className="text-sm text-inkSoft mt-1">
-          Pending until an admin or manager marks it paid.
+          Pending until the owner marks it paid.
         </p>
       </header>
 
       <NewPaymentForm
-        role={role as "admin" | "manager" | "ops"}
+        role={role}
         accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
         requestedByName={displayNameFromEmail(user.email ?? "")}
       />

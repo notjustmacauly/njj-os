@@ -31,8 +31,12 @@ export function ShiftBanner({
   const [showForceClose, setShowForceClose] = React.useState(false);
   const [resuming, setResuming] = React.useState(false);
 
-  const canResume = viewerRole === "admin" || viewerRole === "manager";
-  const canForceClose = viewerRole === "admin";
+  // Per matrix: owner/partner/manager can resume someone else's open shift;
+  // force-close is owner-only (destructive: closes another user's shift with
+  // an admin-entered cash count).
+  const canResume =
+    viewerRole === "owner" || viewerRole === "partner" || viewerRole === "manager";
+  const canForceClose = viewerRole === "owner";
 
   const openedAt = new Date(openedAtIso).toLocaleTimeString("en-PH", {
     timeZone: "Asia/Manila",

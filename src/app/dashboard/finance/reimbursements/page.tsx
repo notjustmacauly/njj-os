@@ -4,10 +4,10 @@ import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { buttonClasses } from "@/components/ui/button";
 import { ReimbursementsList, type ReimbursementRow } from "./reimbursements-list";
+import { ALL_ROLES, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
 // Staff sees only their own — RLS does the row filtering.
-const READ_ROLES: Role[] = ["admin", "manager", "ops", "staff"];
+const READ_ROLES = ALL_ROLES;
 
 export default async function ReimbursementsPage() {
   const supabase = await createClient();

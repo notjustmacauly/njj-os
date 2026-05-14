@@ -103,8 +103,9 @@ export default async function ProductionListPage({
   const { data: roleRow } = user
     ? await supabase.from("user_roles").select("role").eq("user_id", user.id).single()
     : { data: null };
-  const role = roleRow?.role as "admin" | "manager" | "ops" | "staff" | null;
-  const canCreate = role === "admin" || role === "manager" || role === "ops";
+  const role = roleRow?.role as import("@/lib/roles").Role | null;
+  // Per matrix: owner/partner/manager can create batches; staff is view-only.
+  const canCreate = role === "owner" || role === "partner" || role === "manager";
 
   // KPI: month batches (count + units_produced sum + wastage sum + units_planned sum for %)
   const { data: monthBatches } = await supabase

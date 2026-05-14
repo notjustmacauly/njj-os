@@ -19,13 +19,14 @@ import {
   Plus,
 } from "lucide-react";
 
-type Role = "admin" | "manager" | "ops" | "staff";
+import type { Role } from "@/lib/roles";
+import { ALL_ROLES } from "@/lib/roles";
 
 type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles: Role[];
+  roles: readonly Role[];
 };
 
 type Section = {
@@ -37,49 +38,49 @@ const SECTIONS: Section[] = [
   {
     label: "Overview",
     items: [
-      {
-        href: "/dashboard",
-        label: "Dashboard",
-        icon: LayoutDashboard,
-        roles: ["admin", "manager", "ops", "staff"],
-      },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ALL_ROLES },
     ],
   },
   {
     label: "Operations",
     items: [
-      { href: "/dashboard/orders",     label: "Orders",     icon: Package,  roles: ["admin", "manager", "ops"] },
-      { href: "/dashboard/production", label: "Production", icon: Factory,  roles: ["admin", "manager", "ops"] },
-      { href: "/dashboard/partners",   label: "Partners",   icon: Users,    roles: ["admin", "manager", "ops"] },
+      // All roles can view operational lists; matrix gates staff to read-only
+      // at the component level inside each page.
+      { href: "/dashboard/orders",     label: "Orders",     icon: Package,  roles: ALL_ROLES },
+      { href: "/dashboard/production", label: "Production", icon: Factory,  roles: ALL_ROLES },
+      { href: "/dashboard/partners",   label: "Partners",   icon: Users,    roles: ALL_ROLES },
     ],
   },
   {
     label: "Events",
     items: [
-      { href: "/dashboard/tickets", label: "Tickets", icon: Ticket, roles: ["admin", "manager", "ops", "staff"] },
+      // Tickets list/check-in is owner/partner/manager; staff sell via POS.
+      { href: "/dashboard/tickets", label: "Tickets", icon: Ticket, roles: ["owner", "partner", "manager"] },
     ],
   },
   {
     label: "Accounting",
     items: [
-      { href: "/dashboard/finance", label: "Finance", icon: Wallet, roles: ["admin", "manager", "ops"] },
-      {
-        href: "/dashboard/finance/reimbursements",
-        label: "Reimbursement",
-        icon: Wallet,
-        roles: ["staff"],
-      },
+      // Owner + partner land on Finance overview.
+      { href: "/dashboard/finance", label: "Finance", icon: Wallet, roles: ["owner", "partner"] },
+      // Manager can read expenses/payments/reimbursements/bills — deep-link to
+      // their first allowed page so they aren't bounced from the overview.
+      { href: "/dashboard/finance/expenses", label: "Finance", icon: Wallet, roles: ["manager"] },
+      // Staff only has reimbursements.
+      { href: "/dashboard/finance/reimbursements", label: "Reimbursement", icon: Wallet, roles: ["staff"] },
     ],
   },
   {
     label: "Settings",
     items: [
-      { href: "/dashboard/settings", label: "Settings", icon: Settings, roles: ["admin", "manager"] },
+      // Catalog view is all-roles, so everyone can hit /dashboard/settings;
+      // the page redirects to /dashboard/settings/catalog.
+      { href: "/dashboard/settings", label: "Settings", icon: Settings, roles: ALL_ROLES },
     ],
   },
 ];
 
-const POS_ROLES: Role[] = ["admin", "manager", "ops", "staff"];
+const POS_ROLES: readonly Role[] = ALL_ROLES;
 
 function displayNameFromEmail(email: string): string {
   const local = (email.split("@")[0] ?? "").replace(/^notjust/i, "");

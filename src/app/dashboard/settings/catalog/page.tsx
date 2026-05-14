@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CatalogClient } from "./catalog-client";
 import type { PartnerTierRow } from "./types";
+import { OWNER_PARTNER, hasRole, type Role } from "@/lib/roles";
 
 export default async function CatalogPage() {
   const supabase = await createClient();
@@ -15,8 +16,11 @@ export default async function CatalogPage() {
     .select("role")
     .eq("user_id", user.id)
     .single();
-  const role = roleRow?.role as "admin" | "manager" | "ops" | "staff" | null;
-  if (role !== "admin" && role !== "manager") redirect("/dashboard");
+  const role = roleRow?.role as Role | null;
+  // Per matrix: every role can VIEW the catalog. Only owner/partner can EDIT —
+  // canEdit is threaded into the tabs so they render read-only for others.
+  if (!role) redirect("/dashboard");
+  const canEdit = hasRole(role, OWNER_PARTNER);
 
   const [
     { data: skusData },
@@ -57,6 +61,7 @@ export default async function CatalogPage() {
 
   return (
     <CatalogClient
+      canEdit={canEdit}
       skus={skusData ?? []}
       ticketTypes={ticketTypesData ?? []}
       posProducts={posProductsData ?? []}

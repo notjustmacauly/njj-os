@@ -4,9 +4,9 @@ import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { buttonClasses } from "@/components/ui/button";
 import { PaymentsList, type PaymentRow } from "./payments-list";
+import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-const READ_ROLES: Role[] = ["admin", "manager", "ops"];
+const READ_ROLES = OWNER_PARTNER_MANAGER;
 
 export default async function PaymentsPage() {
   const supabase = await createClient();
@@ -53,14 +53,16 @@ export default async function PaymentsPage() {
             Vendor payments and account transfers. Reimbursements live on their own tab.
           </p>
         </div>
-        <Link href="/dashboard/finance/payments/new" className={buttonClasses()}>
-          <Plus className="w-4 h-4" />
-          New payment
-        </Link>
+        {role === "owner" ? (
+          <Link href="/dashboard/finance/payments/new" className={buttonClasses()}>
+            <Plus className="w-4 h-4" />
+            New payment
+          </Link>
+        ) : null}
       </header>
 
       <PaymentsList
-        role={role as "admin" | "manager" | "ops"}
+        role={role}
         accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
         initial={(payments ?? []) as PaymentRow[]}
       />

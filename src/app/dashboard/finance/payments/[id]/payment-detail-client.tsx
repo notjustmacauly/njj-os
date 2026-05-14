@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import type { Role } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
@@ -78,7 +79,7 @@ export function PaymentDetailClient({
   ledgerEntries,
   linkedExpense,
 }: {
-  role: "admin" | "manager" | "ops" | "staff";
+  role: Role;
   currentUserId: string;
   payment: PaymentDetail;
   accounts: Array<{ code: string; name: string }>;
@@ -88,14 +89,14 @@ export function PaymentDetailClient({
   const router = useRouter();
   const toast = useToast();
 
-  const canManage = role === "admin" || role === "manager";
-  const canPay = canManage && payment.status === "pending";
-  // Staff can cancel their own pending reimbursements (per migration
-  // 20260512004322_staff_can_submit_reimbursements).
+  // Per access matrix: only owner can pay or cancel payments. Staff can
+  // additionally cancel their own pending reimbursements (RLS-gated UPDATE).
+  const canPay = role === "owner" && payment.status === "pending";
   const isOwnReimbursement =
     payment.type === "reimbursement" && payment.requested_by_user_id === currentUserId;
   const canCancel =
-    payment.status === "pending" && (canManage || (role === "staff" && isOwnReimbursement));
+    payment.status === "pending" &&
+    (role === "owner" || (role === "staff" && isOwnReimbursement));
 
   const accountNameByCode: Record<string, string> = {};
   for (const a of accounts) accountNameByCode[a.code] = a.name;

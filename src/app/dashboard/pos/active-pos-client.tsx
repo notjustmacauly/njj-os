@@ -386,7 +386,7 @@ export function ActivePosClient({
   });
 
   const canSeeSessions =
-    viewerRole === "admin" || viewerRole === "manager" || viewerRole === "ops";
+    viewerRole === "owner" || viewerRole === "partner" || viewerRole === "manager";
 
   return (
     <div className="space-y-5">

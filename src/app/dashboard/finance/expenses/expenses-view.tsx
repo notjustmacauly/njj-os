@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
 import { accountEmoji } from "../account-icons";
+import type { Role } from "@/lib/roles";
 import { ExpenseFormModal } from "./expense-form-modal";
 import { ExpenseDetailModal } from "./expense-detail-modal";
 
@@ -46,7 +47,7 @@ export function ExpensesView({
   accounts,
   expenses,
 }: {
-  role: "admin" | "manager" | "ops";
+  role: Role;
   canManage: boolean;
   defaultLoggedByName: string;
   accounts: Array<{ code: string; name: string }>;
@@ -123,7 +124,7 @@ export function ExpensesView({
             Log expense
           </Button>
         ) : (
-          <p className="text-xs text-inkSoft">Ops can view; admin/manager can log + void.</p>
+          <p className="text-xs text-inkSoft">Partner and manager can view; only owner logs and voids.</p>
         )}
       </header>
 

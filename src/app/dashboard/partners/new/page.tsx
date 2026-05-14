@@ -17,11 +17,11 @@ export default async function NewPartnerPage() {
     .select("role")
     .eq("user_id", user.id)
     .single();
-  const role = roleRow?.role as "admin" | "manager" | "ops" | "staff" | null;
-  const canEdit = role === "admin" || role === "manager";
+  const role = roleRow?.role as import("@/lib/roles").Role | null;
+  // Per matrix: owner/partner/manager can create partners.
+  const canEdit = role === "owner" || role === "partner" || role === "manager";
 
   if (!canEdit) {
-    // Ops users shouldn't be on this page; bounce them back to the list
     redirect("/dashboard/partners");
   }
 

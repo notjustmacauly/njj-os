@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ExpensesView, type ExpenseRow } from "./expenses-view";
+import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-const READ_ROLES: Role[] = ["admin", "manager", "ops"];
+const READ_ROLES = OWNER_PARTNER_MANAGER;
 
 function displayNameFromEmail(email: string): string {
   const local = (email.split("@")[0] ?? "").replace(/^notjust/i, "");
@@ -26,7 +26,8 @@ export default async function ExpensesPage() {
   const role = roleRow?.role as Role | null;
   if (!role || !READ_ROLES.includes(role)) redirect("/dashboard");
 
-  const canManage = role === "admin" || role === "manager";
+  // Only owner can log or void expenses (per access matrix).
+  const canManage = role === "owner";
 
   // 18-month rolling window.
   const windowStart = new Date();
@@ -54,7 +55,7 @@ export default async function ExpensesPage() {
 
   return (
     <ExpensesView
-      role={role as "admin" | "manager" | "ops"}
+      role={role}
       canManage={canManage}
       defaultLoggedByName={displayNameFromEmail(user.email ?? "")}
       accounts={accountList}

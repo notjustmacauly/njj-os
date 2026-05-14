@@ -65,8 +65,8 @@ export default async function PosSessionDetailPage({
     .select("role")
     .eq("user_id", user.id)
     .single();
-  const role = roleRow?.role as "admin" | "manager" | "ops" | "staff" | null;
-  if (role !== "admin" && role !== "manager" && role !== "ops") {
+  const role = roleRow?.role as import("@/lib/roles").Role | null;
+  if (role !== "owner" && role !== "partner" && role !== "manager") {
     redirect("/dashboard/pos");
   }
 

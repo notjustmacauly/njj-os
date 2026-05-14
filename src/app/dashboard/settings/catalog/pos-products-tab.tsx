@@ -23,7 +23,13 @@ type EditingState =
   | { mode: "create" }
   | { mode: "edit"; row: PosProductRow };
 
-export function PosProductsTab({ initial }: { initial: PosProductRow[] }) {
+export function PosProductsTab({
+  initial,
+  canEdit,
+}: {
+  initial: PosProductRow[];
+  canEdit: boolean;
+}) {
   const router = useRouter();
   const toast = useToast();
 
@@ -87,10 +93,12 @@ export function PosProductsTab({ initial }: { initial: PosProductRow[] }) {
           Active only
         </label>
         <div className="ml-auto">
-          <Button onClick={() => setEditing({ mode: "create" })}>
-            <Plus className="w-4 h-4" />
-            New POS product
-          </Button>
+          {canEdit ? (
+            <Button onClick={() => setEditing({ mode: "create" })}>
+              <Plus className="w-4 h-4" />
+              New POS product
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -139,24 +147,28 @@ export function PosProductsTab({ initial }: { initial: PosProductRow[] }) {
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <div className="inline-flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setEditing({ mode: "edit", row: r })}
-                        className="p-1.5 rounded-md text-inkSoft hover:bg-cream hover:text-ink"
-                        aria-label={`Edit ${r.code}`}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingDelete(r)}
-                        className="p-1.5 rounded-md text-inkSoft hover:bg-salmonBg hover:text-coral"
-                        aria-label={`Remove ${r.code}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {canEdit ? (
+                      <div className="inline-flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditing({ mode: "edit", row: r })}
+                          className="p-1.5 rounded-md text-inkSoft hover:bg-cream hover:text-ink"
+                          aria-label={`Edit ${r.code}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingDelete(r)}
+                          className="p-1.5 rounded-md text-inkSoft hover:bg-salmonBg hover:text-coral"
+                          aria-label={`Remove ${r.code}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-inkSoft">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -82,8 +82,9 @@ export default async function OrdersListPage({
   const { data: roleRow } = user
     ? await supabase.from("user_roles").select("role").eq("user_id", user.id).single()
     : { data: null };
-  const role = roleRow?.role as "admin" | "manager" | "ops" | "staff" | null;
-  const canCreate = role === "admin" || role === "manager" || role === "ops";
+  const role = roleRow?.role as import("@/lib/roles").Role | null;
+  // Per access matrix: owner/partner/manager can create orders; staff view-only.
+  const canCreate = role === "owner" || role === "partner" || role === "manager";
 
   // KPI counts (unfiltered)
   const [

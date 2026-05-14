@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ToastProvider } from "@/components/ui/toast";
 import { Sidebar } from "./sidebar";
+import type { Role } from "@/lib/roles";
 
 export default async function DashboardLayout({
   children,
@@ -22,7 +23,7 @@ export default async function DashboardLayout({
     .eq("user_id", user.id)
     .single();
 
-  const role = roleRow?.role ?? null;
+  const role = (roleRow?.role as Role | null) ?? null;
 
   if (!role) {
     return (

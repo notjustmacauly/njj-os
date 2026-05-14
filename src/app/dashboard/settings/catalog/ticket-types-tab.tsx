@@ -22,7 +22,13 @@ type EditingState =
   | { mode: "create" }
   | { mode: "edit"; row: TicketTypeRow };
 
-export function TicketTypesTab({ initial }: { initial: TicketTypeRow[] }) {
+export function TicketTypesTab({
+  initial,
+  canEdit,
+}: {
+  initial: TicketTypeRow[];
+  canEdit: boolean;
+}) {
   const router = useRouter();
   const toast = useToast();
 
@@ -98,10 +104,12 @@ export function TicketTypesTab({ initial }: { initial: TicketTypeRow[] }) {
           Show inactive
         </label>
         <div className="ml-auto">
-          <Button onClick={() => setEditing({ mode: "create" })}>
-            <Plus className="w-4 h-4" />
-            New ticket type
-          </Button>
+          {canEdit ? (
+            <Button onClick={() => setEditing({ mode: "create" })}>
+              <Plus className="w-4 h-4" />
+              New ticket type
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -144,26 +152,30 @@ export function TicketTypesTab({ initial }: { initial: TicketTypeRow[] }) {
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <div className="inline-flex gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setEditing({ mode: "edit", row: r })}
-                            className="p-1.5 rounded-md text-inkSoft hover:bg-cream hover:text-ink"
-                            aria-label={`Edit ${r.code}`}
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          {r.is_active ? (
+                        {canEdit ? (
+                          <div className="inline-flex gap-1">
                             <button
                               type="button"
-                              onClick={() => setPendingDelete(r)}
-                              className="p-1.5 rounded-md text-inkSoft hover:bg-salmonBg hover:text-coral"
-                              aria-label={`Disable ${r.code}`}
+                              onClick={() => setEditing({ mode: "edit", row: r })}
+                              className="p-1.5 rounded-md text-inkSoft hover:bg-cream hover:text-ink"
+                              aria-label={`Edit ${r.code}`}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Pencil className="w-3.5 h-3.5" />
                             </button>
-                          ) : null}
-                        </div>
+                            {r.is_active ? (
+                              <button
+                                type="button"
+                                onClick={() => setPendingDelete(r)}
+                                className="p-1.5 rounded-md text-inkSoft hover:bg-salmonBg hover:text-coral"
+                                aria-label={`Disable ${r.code}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-inkSoft">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}

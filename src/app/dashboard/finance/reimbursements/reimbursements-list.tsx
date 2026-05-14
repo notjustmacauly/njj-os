@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
+import type { Role } from "@/lib/roles";
 import { accountEmoji } from "../account-icons";
 
 export type ReimbursementRow = {
@@ -63,7 +64,7 @@ export function ReimbursementsList({
   accounts,
   initial,
 }: {
-  role: "admin" | "manager" | "ops" | "staff";
+  role: Role;
   accounts: Array<{ code: string; name: string }>;
   initial: ReimbursementRow[];
 }) {

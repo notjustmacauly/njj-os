@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
+import type { Role } from "@/lib/roles";
 import { accountEmoji } from "../../account-icons";
 
 export type BillDetail = {
@@ -74,11 +75,13 @@ function todayIso(): string {
 }
 
 export function BillDetailClient({
+  role,
   bill,
   accounts,
   linkedOrders,
   ledgerEntries,
 }: {
+  role: Role;
   bill: BillDetail;
   accounts: Array<{ code: string; name: string }>;
   linkedOrders: LinkedOrder[];
@@ -185,9 +188,15 @@ export function BillDetailClient({
     );
   }
 
-  const canIssue = bill.status === "draft";
-  const canPay = bill.status === "issued";
-  const canCancel = bill.status === "draft" || bill.status === "issued";
+  // Per access matrix:
+  //  - Issue (draft → issued): owner only
+  //  - Cancel: owner only
+  //  - Mark paid (inflow reconciliation): owner / partner / manager
+  const isOwner = role === "owner";
+  const isManagerOrAbove = role === "owner" || role === "partner" || role === "manager";
+  const canIssue = isOwner && bill.status === "draft";
+  const canPay = isManagerOrAbove && bill.status === "issued";
+  const canCancel = isOwner && (bill.status === "draft" || bill.status === "issued");
 
   return (
     <div className="space-y-6">

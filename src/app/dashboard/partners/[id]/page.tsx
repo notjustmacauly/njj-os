@@ -22,8 +22,9 @@ export default async function PartnerDetailPage({
     .select("role")
     .eq("user_id", user.id)
     .single();
-  const role = roleRow?.role as "admin" | "manager" | "ops" | "staff" | null;
-  const canEdit = role === "admin" || role === "manager";
+  const role = roleRow?.role as import("@/lib/roles").Role | null;
+  // Per access matrix: owner/partner/manager can edit partner records.
+  const canEdit = role === "owner" || role === "partner" || role === "manager";
 
   const [{ data: partnerData }, { data: tiersData }] = await Promise.all([
     supabase

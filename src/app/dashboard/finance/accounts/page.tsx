@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AccountCard, type AccountCardData } from "./account-card";
+import { OWNER_PARTNER, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-const FINANCE_ROLES: Role[] = ["admin", "manager", "ops"];
+const FINANCE_ROLES = OWNER_PARTNER;
 
 function todayManilaStartUtc(): Date {
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -102,7 +102,7 @@ export default async function FinanceAccountsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {cards.map((c) => (
-            <AccountCard key={c.code} data={c} canEditOpening={role === "admin"} />
+            <AccountCard key={c.code} data={c} canEditOpening={role === "owner"} />
           ))}
         </div>
       )}

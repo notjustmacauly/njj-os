@@ -16,9 +16,11 @@ type TierDraft = { price_pcl: string; price_acg: string; price_wpm: string };
 export function SkusTab({
   initialSkus,
   initialTiers,
+  canEdit,
 }: {
   initialSkus: SkuRow[];
   initialTiers: PartnerTierRow[];
+  canEdit: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -156,29 +158,37 @@ export function SkusTab({
                   </span>
                 </td>
                 <td className="px-5 py-3">
-                  <Input
-                    value={skuDrafts[s.code]?.name ?? ""}
-                    onChange={(e) => setSkuField(s.code, "name", e.target.value)}
-                    disabled={submitting}
-                    aria-label={`Name for ${s.code}`}
-                  />
+                  {canEdit ? (
+                    <Input
+                      value={skuDrafts[s.code]?.name ?? ""}
+                      onChange={(e) => setSkuField(s.code, "name", e.target.value)}
+                      disabled={submitting}
+                      aria-label={`Name for ${s.code}`}
+                    />
+                  ) : (
+                    <span className="text-ink">{s.name}</span>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-inkSoft font-mono text-xs">
                   {s.size_ml} mL
                 </td>
                 <td className="px-5 py-3 text-right">
-                  <div className="inline-block w-32">
-                    <NumberInput
-                      prefix="₱"
-                      min="0"
-                      step="1"
-                      value={skuDrafts[s.code]?.retail_price ?? ""}
-                      onChange={(e) => setSkuField(s.code, "retail_price", e.target.value)}
-                      disabled={submitting}
-                      className="text-right"
-                      aria-label={`Retail price for ${s.code}`}
-                    />
-                  </div>
+                  {canEdit ? (
+                    <div className="inline-block w-32">
+                      <NumberInput
+                        prefix="₱"
+                        min="0"
+                        step="1"
+                        value={skuDrafts[s.code]?.retail_price ?? ""}
+                        onChange={(e) => setSkuField(s.code, "retail_price", e.target.value)}
+                        disabled={submitting}
+                        className="text-right"
+                        aria-label={`Retail price for ${s.code}`}
+                      />
+                    </div>
+                  ) : (
+                    <span className="font-mono">₱{Number(s.retail_price ?? 0).toFixed(2)}</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -215,18 +225,24 @@ export function SkusTab({
                   <td className="px-5 py-3 text-ink">{t.name}</td>
                   {(["price_pcl", "price_acg", "price_wpm"] as const).map((k) => (
                     <td key={k} className="px-5 py-3 text-right">
-                      <div className="inline-block w-28">
-                        <NumberInput
-                          prefix="₱"
-                          min="0"
-                          step="1"
-                          value={tierDrafts[t.code]?.[k] ?? ""}
-                          onChange={(e) => setTierField(t.code, k, e.target.value)}
-                          disabled={submitting}
-                          className="text-right"
-                          aria-label={`Tier ${t.code} ${k}`}
-                        />
-                      </div>
+                      {canEdit ? (
+                        <div className="inline-block w-28">
+                          <NumberInput
+                            prefix="₱"
+                            min="0"
+                            step="1"
+                            value={tierDrafts[t.code]?.[k] ?? ""}
+                            onChange={(e) => setTierField(t.code, k, e.target.value)}
+                            disabled={submitting}
+                            className="text-right"
+                            aria-label={`Tier ${t.code} ${k}`}
+                          />
+                        </div>
+                      ) : (
+                        <span className="font-mono">
+                          ₱{Number(t[k] ?? 0).toFixed(2)}
+                        </span>
+                      )}
                     </td>
                   ))}
                 </tr>
@@ -236,16 +252,22 @@ export function SkusTab({
         )}
       </div>
 
-      <div className="bg-white border border-border rounded-lg shadow-card px-5 py-4 flex items-center justify-between sticky bottom-0">
-        <p className="text-xs text-inkSoft">
-          {totalChanges === 0
-            ? "No pending changes."
-            : `${totalChanges} pending change${totalChanges === 1 ? "" : "s"} across SKUs + tiers.`}
+      {canEdit ? (
+        <div className="bg-white border border-border rounded-lg shadow-card px-5 py-4 flex items-center justify-between sticky bottom-0">
+          <p className="text-xs text-inkSoft">
+            {totalChanges === 0
+              ? "No pending changes."
+              : `${totalChanges} pending change${totalChanges === 1 ? "" : "s"} across SKUs + tiers.`}
+          </p>
+          <Button onClick={handleSave} disabled={submitting || totalChanges === 0}>
+            {submitting ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-xs text-inkSoft px-1">
+          View-only. Only owner and partner roles can edit catalog prices.
         </p>
-        <Button onClick={handleSave} disabled={submitting || totalChanges === 0}>
-          {submitting ? "Saving…" : "Save changes"}
-        </Button>
-      </div>
+      )}
     </div>
   );
 }

@@ -5,9 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { formatPHP } from "@/lib/utils";
 import { accountEmoji } from "../../account-icons";
 import { LedgerTable, type LedgerRow } from "./ledger-table";
+import { OWNER_PARTNER, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-const FINANCE_ROLES: Role[] = ["admin", "manager", "ops"];
+const FINANCE_ROLES = OWNER_PARTNER;
 
 function todayManilaStartUtc(): Date {
   const fmt = new Intl.DateTimeFormat("en-CA", {

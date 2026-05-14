@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BillsList, type BillRow } from "./bills-list";
+import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-const READ_ROLES: Role[] = ["admin", "manager"];
+const READ_ROLES = OWNER_PARTNER_MANAGER;
 
 export default async function BillsPage() {
   const supabase = await createClient();
