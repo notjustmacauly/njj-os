@@ -3,12 +3,11 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewReimbursementForm } from "./new-reimbursement-form";
+import { ALL_ROLES, type Role } from "@/lib/roles";
 
-type Role = "admin" | "manager" | "ops" | "staff";
-// All roles can submit reimbursements — see migration
-// 20260512004322_staff_can_submit_reimbursements. Staff can only ever see /
-// edit their own, enforced by RLS.
-const WRITE_ROLES: Role[] = ["admin", "manager", "ops", "staff"];
+// All roles can submit reimbursements (staff sees / edits their own only,
+// enforced by RLS).
+const WRITE_ROLES = ALL_ROLES;
 
 function displayNameFromEmail(email: string): string {
   const local = (email.split("@")[0] ?? "").replace(/^notjust/i, "");
@@ -31,11 +30,19 @@ export default async function NewReimbursementPage() {
   const role = roleRow?.role as Role | null;
   if (!role || !WRITE_ROLES.includes(role)) redirect("/dashboard/finance/reimbursements");
 
-  const { data: accounts } = await supabase
-    .from("accounts")
-    .select("code, name")
-    .eq("is_active", true)
-    .order("name");
+  const [{ data: accounts }, { data: teamMembers }] = await Promise.all([
+    supabase
+      .from("accounts")
+      .select("code, name")
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("team_members")
+      .select("user_id, display_name")
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .order("display_name"),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -52,13 +59,14 @@ export default async function NewReimbursementPage() {
           Request reimbursement
         </h1>
         <p className="text-sm text-inkSoft mt-1">
-          Pay back a team member who bought something for the business. Pending until paid by
-          an admin or manager.
+          Pay back a team member who bought something for the business. Pending until the owner
+          marks it paid.
         </p>
       </header>
 
       <NewReimbursementForm
         accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
+        teamMembers={(teamMembers ?? []) as Array<{ user_id: string; display_name: string }>}
         requestedByName={displayNameFromEmail(user.email ?? "")}
       />
     </div>

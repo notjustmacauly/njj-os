@@ -14,24 +14,27 @@ import { useToast } from "@/components/ui/toast";
 import { formatPHP } from "@/lib/utils";
 import { FINANCE_CATEGORIES } from "../../categories";
 
-// v1: hardcoded list. Phase 3 will link to a real team-members table.
-const TEAM_PRESETS = ["Mac", "Hanneh", "Chrissia"] as const;
-
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
 export function NewReimbursementForm({
   accounts,
+  teamMembers,
   requestedByName,
 }: {
   accounts: Array<{ code: string; name: string }>;
+  teamMembers: Array<{ user_id: string; display_name: string }>;
   requestedByName: string;
 }) {
   const router = useRouter();
   const toast = useToast();
 
-  const [personChoice, setPersonChoice] = React.useState<string>(TEAM_PRESETS[0]);
+  // Default to "Other" if the team list is empty (e.g. fresh install before
+  // anyone is seeded into team_members).
+  const [personChoice, setPersonChoice] = React.useState<string>(
+    teamMembers[0]?.display_name ?? "Other",
+  );
   const [otherName, setOtherName] = React.useState("");
   const [originalDate, setOriginalDate] = React.useState(todayIso());
   const [category, setCategory] = React.useState<string>(FINANCE_CATEGORIES[0]);
@@ -108,12 +111,12 @@ export function NewReimbursementForm({
           onChange={(e) => setPersonChoice(e.target.value)}
           disabled={submitting}
         >
-          {TEAM_PRESETS.map((n) => (
-            <option key={n} value={n}>
-              {n}
+          {teamMembers.map((m) => (
+            <option key={m.user_id} value={m.display_name}>
+              {m.display_name}
             </option>
           ))}
-          <option value="Other">Other…</option>
+          <option value="Other">Other (type a name)…</option>
         </Select>
         {personChoice === "Other" ? (
           <Input
