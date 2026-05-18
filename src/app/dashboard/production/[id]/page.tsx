@@ -45,7 +45,9 @@ export default async function BatchDetailPage({
       .maybeSingle(),
     supabase
       .from("batch_inputs")
-      .select("id, batch_id, ingredient_code, qty_used, unit, cost_per_unit, ingredient:ingredients(name, type, unit, cost_per_unit)")
+      .select(
+        "id, batch_id, ingredient_code, qty_used, unit, cost_per_unit, lot_id, cost_per_unit_at_use, ingredient:ingredients(name, type, unit, cost_per_unit), lot:ingredient_lots(external_id, received_date, vendor)",
+      )
       .eq("batch_id", params.id),
     supabase
       .from("inventory_summary")
@@ -124,7 +126,13 @@ export default async function BatchDetailPage({
             qty_used: number | string;
             unit: string;
             cost_per_unit: number | string;
+            lot_id: string | null;
+            cost_per_unit_at_use: number | string | null;
             ingredient: { name: string; type: string; unit: string; cost_per_unit: number | string } | null;
+            lot:
+              | { external_id: string | null; received_date: string; vendor: string | null }
+              | { external_id: string | null; received_date: string; vendor: string | null }[]
+              | null;
           }>
         }
         inventory={

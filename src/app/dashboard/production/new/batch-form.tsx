@@ -16,7 +16,17 @@ import { useToast } from "@/components/ui/toast";
 import {
   BatchInputsEditor,
   type BatchInputDraft,
+  type LotOption,
 } from "../batch-inputs-editor";
+
+type LotInput = {
+  id: string;
+  external_id: string | null;
+  ingredient_code: string;
+  qty_remaining: number | string;
+  cost_per_unit: number | string;
+  received_date: string;
+};
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -25,12 +35,27 @@ function todayIso(): string {
 export function NewBatchForm({
   skus,
   ingredients,
+  lots,
   defaultStaffName,
 }: {
   skus: Array<{ code: string; name: string; short_label: string }>;
   ingredients: IngredientRef[];
+  lots: LotInput[];
   defaultStaffName: string;
 }) {
+  // Normalize lot numeric fields once for the editor.
+  const lotOptions: LotOption[] = React.useMemo(
+    () =>
+      lots.map((l) => ({
+        id: l.id,
+        external_id: l.external_id,
+        ingredient_code: l.ingredient_code,
+        qty_remaining: Number(l.qty_remaining ?? 0),
+        cost_per_unit: Number(l.cost_per_unit ?? 0),
+        received_date: l.received_date,
+      })),
+    [lots],
+  );
   const router = useRouter();
   const toast = useToast();
 
@@ -115,7 +140,8 @@ export function NewBatchForm({
         ingredient_code: it.ingredient_code,
         qty_used: it.qty_used,
         unit: it.unit,
-        cost_per_unit: it.cost_per_unit,
+        // Empty string = FIFO mode (server picks the oldest active lot).
+        lot_id: it.lot_id ?? "",
       })),
     });
 
@@ -329,6 +355,7 @@ export function NewBatchForm({
           inputs={inputs}
           onChange={setInputs}
           ingredients={ingredients}
+          lots={lotOptions}
           skuFilter={skuCode}
           unitsProduced={producedNum}
           disabled={submitting}

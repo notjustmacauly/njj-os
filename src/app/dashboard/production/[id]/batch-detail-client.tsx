@@ -18,10 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TriStateRadio } from "@/components/ui/tri-state-radio";
 import { useToast } from "@/components/ui/toast";
 import { formatDate, formatPHP } from "@/lib/utils";
-import {
-  BatchInputsEditor,
-  type BatchInputDraft,
-} from "../batch-inputs-editor";
+import { ingredientEmoji } from "@/lib/ingredient-icons";
 
 const SKU_TONE = {
   PCL: "berry",
@@ -53,7 +50,13 @@ type InputRow = {
   qty_used: number | string;
   unit: string;
   cost_per_unit: number | string;
+  lot_id: string | null;
+  cost_per_unit_at_use: number | string | null;
   ingredient: { name: string; type: string; unit: string; cost_per_unit: number | string } | null;
+  lot:
+    | { external_id: string | null; received_date: string; vendor: string | null }
+    | { external_id: string | null; received_date: string; vendor: string | null }[]
+    | null;
 };
 
 type Inventory = {
@@ -98,17 +101,6 @@ type DeductionUse = {
 function pickRel<T>(rel: T | T[] | null): T | null {
   if (!rel) return null;
   return Array.isArray(rel) ? rel[0] ?? null : rel;
-}
-
-function toDraft(r: InputRow): BatchInputDraft {
-  return {
-    tempId: r.id,
-    id: r.id,
-    ingredient_code: r.ingredient_code,
-    qty_used: Number(r.qty_used),
-    unit: r.unit,
-    cost_per_unit: Number(r.cost_per_unit),
-  };
 }
 
 export function BatchDetailClient({
@@ -192,91 +184,21 @@ export function BatchDetailClient({
     router.refresh();
   }
 
-  // ── Inputs state ────────────────────────────────────────────
-  const initialDrafts = React.useMemo(
-    () => initialInputs.map(toDraft),
-    [initialInputs],
-  );
-  const [inputs, setInputs] = React.useState<BatchInputDraft[]>(initialDrafts);
-  const [savingInputs, setSavingInputs] = React.useState(false);
-
-  const inputsDirty =
-    inputs.length !== initialDrafts.length ||
-    inputs.some((it) => {
-      const prev = initialDrafts.find((d) => d.id === it.id);
-      if (!prev) return true;
-      return (
-        prev.ingredient_code !== it.ingredient_code ||
-        Number(prev.qty_used) !== Number(it.qty_used) ||
-        Number(prev.cost_per_unit) !== Number(it.cost_per_unit)
-      );
-    });
-
-  async function saveInputs() {
-    if (!canManage || !inputsDirty || savingInputs) return;
-    setSavingInputs(true);
-    const supabase = createClient();
-
-    const initialIds = new Set(initialDrafts.map((d) => d.id));
-    const currentIds = new Set(inputs.filter((i) => i.id).map((i) => i.id!));
-    const removed = initialDrafts.filter((d) => d.id && !currentIds.has(d.id));
-    const added = inputs.filter((i) => !i.id);
-    const updated = inputs.filter((i) => {
-      if (!i.id || !initialIds.has(i.id)) return false;
-      const prev = initialDrafts.find((d) => d.id === i.id)!;
-      return (
-        prev.ingredient_code !== i.ingredient_code ||
-        Number(prev.qty_used) !== Number(i.qty_used) ||
-        Number(prev.cost_per_unit) !== Number(i.cost_per_unit)
-      );
-    });
-
-    try {
-      // Delete first to avoid (batch_id, ingredient_code) unique collisions
-      if (removed.length > 0) {
-        const { error } = await supabase
-          .from("batch_inputs")
-          .delete()
-          .in("id", removed.map((d) => d.id!));
-        if (error) throw error;
-      }
-      for (const u of updated) {
-        const { error } = await supabase
-          .from("batch_inputs")
-          .update({
-            ingredient_code: u.ingredient_code,
-            qty_used: u.qty_used,
-            unit: u.unit,
-            cost_per_unit: u.cost_per_unit,
-          })
-          .eq("id", u.id!);
-        if (error) throw error;
-      }
-      if (added.length > 0) {
-        const { error } = await supabase.from("batch_inputs").insert(
-          added.map((a) => ({
-            batch_id: batch.id,
-            ingredient_code: a.ingredient_code,
-            qty_used: a.qty_used,
-            unit: a.unit,
-            cost_per_unit: a.cost_per_unit,
-          })),
-        );
-        if (error) throw error;
-      }
-      toast.push("Ingredients saved", "success");
-      router.refresh();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Couldn't save inputs";
-      toast.push(msg, "error");
-    } finally {
-      setSavingInputs(false);
-    }
-  }
-
-  function resetInputs() {
-    setInputs(initialDrafts.map((d) => ({ ...d })));
-  }
+  // ── Inputs: read-only in Phase 1 of inventory ────────────────
+  // Editing batch inputs post-creation is deferred — adjusting qty_used
+  // without also adjusting the source lot's qty_remaining would desync
+  // inventory. Phase 2 will reintroduce edits with proper lot awareness.
+  const inputsRows = initialInputs;
+  const realCost = inputsRows.reduce((sum, r) => {
+    const cost =
+      r.cost_per_unit_at_use != null
+        ? Number(r.cost_per_unit_at_use)
+        : Number(r.cost_per_unit ?? 0);
+    return sum + Number(r.qty_used) * cost;
+  }, 0);
+  const inputsMissingLot = inputsRows.filter(
+    (r) => r.cost_per_unit_at_use == null,
+  ).length;
 
   // ── Soft-delete ──────────────────────────────────────────────
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -308,11 +230,9 @@ export function BatchDetailClient({
     router.refresh();
   }
 
-  // Live cost preview on the inputs side
-  const liveCogs = inputs.reduce(
-    (s, it) => s + Number(it.qty_used) * Number(it.cost_per_unit),
-    0,
-  );
+  // Live cost preview on the inputs side. Inputs are read-only in Phase 1,
+  // so this just mirrors the saved real cost.
+  const liveCogs = realCost;
   const producedNum = Number(unitsProduced) || 0;
   const liveCostPerCan = producedNum > 0 ? liveCogs / producedNum : null;
 
@@ -587,48 +507,103 @@ export function BatchDetailClient({
         ) : null}
       </div>
 
-      {/* Ingredients */}
+      {/* Ingredients (read-only — Phase 1 of inventory) */}
       <div className="bg-white border border-border rounded-lg shadow-card p-6 space-y-4">
         <div className="flex items-baseline justify-between">
           <h3 className="font-serif font-bold text-xl text-ink">Ingredients</h3>
-          {inputsDirty ? (
-            <span className="text-xs text-yellow font-semibold">Unsaved changes</span>
-          ) : null}
+          <span className="text-[10px] uppercase tracking-smallcaps text-inkSoft">
+            Read-only
+          </span>
         </div>
 
-        <BatchInputsEditor
-          inputs={inputs}
-          onChange={setInputs}
-          ingredients={ingredients}
-          skuFilter={batch.sku_code}
-          unitsProduced={producedNum}
-          disabled={!canManage || savingInputs}
-        />
-
-        <div className="border-t border-border pt-3 text-xs text-inkSoft">
-          Saved COGS on the batch row: <span className="font-semibold text-berry">{formatPHP(batch.cogs_total)}</span>
-          {inputsDirty ? " · live preview shown above" : ""}
-        </div>
-
-        {canManage ? (
-          <div className="flex justify-end gap-2 border-t border-border pt-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={resetInputs}
-              disabled={!inputsDirty || savingInputs}
-            >
-              Reset
-            </Button>
-            <Button
-              size="sm"
-              onClick={saveInputs}
-              disabled={!inputsDirty || savingInputs}
-            >
-              {savingInputs ? "Saving…" : "Save ingredients"}
-            </Button>
+        {inputsRows.length === 0 ? (
+          <p className="text-sm text-inkSoft text-center py-6">
+            No ingredient inputs recorded.
+          </p>
+        ) : (
+          <div className="overflow-x-auto -mx-2">
+            <table className="w-full text-sm">
+              <thead className="bg-cream text-inkSoft">
+                <tr className="text-left">
+                  <th className="px-3 py-2 font-semibold">Ingredient</th>
+                  <th className="px-3 py-2 font-semibold w-32 text-right">Qty used</th>
+                  <th className="px-3 py-2 font-semibold w-44">Lot</th>
+                  <th className="px-3 py-2 font-semibold w-32 text-right">Cost / unit</th>
+                  <th className="px-3 py-2 font-semibold w-32 text-right">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inputsRows.map((r) => {
+                  const ingName = pickRel(r.ingredient)?.name ?? r.ingredient_code;
+                  const lot = pickRel(r.lot);
+                  const cost =
+                    r.cost_per_unit_at_use != null
+                      ? Number(r.cost_per_unit_at_use)
+                      : Number(r.cost_per_unit ?? 0);
+                  const sub = Number(r.qty_used) * cost;
+                  return (
+                    <tr key={r.id} className="border-t border-border">
+                      <td className="px-3 py-2.5">
+                        <span aria-hidden className="mr-1.5">
+                          {ingredientEmoji(r.ingredient_code)}
+                        </span>
+                        <span className="text-ink font-semibold">{ingName}</span>
+                        <span className="ml-1 text-xs text-inkSoft font-mono">
+                          {r.ingredient_code}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">
+                        {Number(r.qty_used)} {r.unit}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-inkSoft font-mono">
+                        {lot?.external_id ?? (r.lot_id ? r.lot_id.slice(0, 8) : "—")}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">
+                        {formatPHP(cost)}
+                        {r.cost_per_unit_at_use == null ? (
+                          <span className="ml-1 text-[10px] uppercase tracking-smallcaps text-yellow">
+                            legacy
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono tabular-nums font-semibold text-berry">
+                        {formatPHP(sub)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-border bg-cream/40">
+                  <td colSpan={4} className="px-3 py-3 text-right text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
+                    Real cost
+                  </td>
+                  <td className="px-3 py-3 text-right font-serif font-bold text-lg text-berry">
+                    {formatPHP(realCost)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
-        ) : null}
+        )}
+
+        <div className="border-t border-border pt-3 text-xs text-inkSoft space-y-1">
+          <div>
+            Saved COGS on the batch row:{" "}
+            <span className="font-semibold text-berry">{formatPHP(batch.cogs_total)}</span>
+          </div>
+          {inputsMissingLot > 0 ? (
+            <div className="text-yellow">
+              Real cost incomplete — {inputsMissingLot} input
+              {inputsMissingLot === 1 ? "" : "s"} missing lot data (created before the
+              inventory cutover; legacy cost used as fallback).
+            </div>
+          ) : null}
+          <div className="text-[11px] text-inkSoft">
+            Lot-aware editing of saved inputs comes in Phase 2. To adjust a batch&rsquo;s
+            inputs now, soft-delete it and re-log.
+          </div>
+        </div>
       </div>
 
       {/* Linked records */}

@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Package,
   Factory,
+  Boxes,
   Ticket,
   Users,
   Wallet,
@@ -48,6 +49,8 @@ const SECTIONS: Section[] = [
       // at the component level inside each page.
       { href: "/dashboard/orders",     label: "Orders",     icon: Package,  roles: ALL_ROLES },
       { href: "/dashboard/production", label: "Production", icon: Factory,  roles: ALL_ROLES },
+      // Inventory: owner/partner/manager (staff has no access — page redirects).
+      { href: "/dashboard/inventory",  label: "Inventory",  icon: Boxes,    roles: ["owner", "partner", "manager"] },
       { href: "/dashboard/partners",   label: "Partners",   icon: Users,    roles: ALL_ROLES },
     ],
   },

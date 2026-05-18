@@ -31,19 +31,30 @@ export default async function NewBatchPage() {
     redirect("/dashboard/production");
   }
 
-  const [{ data: skusData }, { data: ingredientsData }] = await Promise.all([
-    supabase
-      .from("skus")
-      .select("code, name, short_label")
-      .eq("is_active", true)
-      .order("code"),
-    supabase
-      .from("ingredients")
-      .select("code, name, type, unit, cost_per_unit")
-      .is("deleted_at", null)
-      .eq("is_active", true)
-      .order("name"),
-  ]);
+  const [{ data: skusData }, { data: ingredientsData }, { data: lotsData }] =
+    await Promise.all([
+      supabase
+        .from("skus")
+        .select("code, name, short_label")
+        .eq("is_active", true)
+        .order("code"),
+      supabase
+        .from("ingredients")
+        .select("code, name, type, unit, cost_per_unit")
+        .is("deleted_at", null)
+        .eq("is_active", true)
+        .order("name"),
+      // Active lots only — depleted lots can't be drawn from.
+      supabase
+        .from("ingredient_lots")
+        .select(
+          "id, external_id, ingredient_code, qty_remaining, cost_per_unit, received_date",
+        )
+        .is("deleted_at", null)
+        .gt("qty_remaining", 0)
+        .order("received_date", { ascending: true })
+        .order("created_at", { ascending: true }),
+    ]);
 
   const skus = (skusData ?? []) as Array<{
     code: string;
@@ -51,6 +62,14 @@ export default async function NewBatchPage() {
     short_label: string;
   }>;
   const ingredients = (ingredientsData ?? []) as IngredientRef[];
+  const lots = (lotsData ?? []) as Array<{
+    id: string;
+    external_id: string | null;
+    ingredient_code: string;
+    qty_remaining: number | string;
+    cost_per_unit: number | string;
+    received_date: string;
+  }>;
 
   return (
     <div className="space-y-6">
@@ -74,6 +93,7 @@ export default async function NewBatchPage() {
       <NewBatchForm
         skus={skus}
         ingredients={ingredients}
+        lots={lots}
         defaultStaffName={defaultStaffName(user.email)}
       />
     </div>
