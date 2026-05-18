@@ -35,7 +35,7 @@ export default async function BillDetailPage({
     supabase
       .from("bills")
       .select(
-        "id, external_id, bill_date, due_date, payment_terms, status, subtotal, delivery_fees, discount, total, paid_amount, paid_date, paid_account_code, wix_invoice_id, wix_invoice_url, notes, cancel_reason, issued_at, cancelled_at, partner_id, partner:partners(name, external_id)",
+        "id, external_id, bill_date, due_date, payment_terms, status, subtotal, delivery_fees, discount, total, paid_amount, paid_date, paid_account_code, wix_invoice_id, wix_invoice_url, notes, cancel_reason, issued_at, cancelled_at, partner_id, partner:partners(name, external_id, address, registered_business_name, tin)",
       )
       .eq("id", params.id)
       .maybeSingle(),
@@ -73,7 +73,15 @@ export default async function BillDetailPage({
     );
   }
 
-  const partner = Array.isArray(bill.partner) ? bill.partner[0] : bill.partner;
+  const partner = (Array.isArray(bill.partner) ? bill.partner[0] : bill.partner) as
+    | {
+        name: string;
+        external_id: string | null;
+        address: string | null;
+        registered_business_name: string | null;
+        tin: string | null;
+      }
+    | null;
 
   // Flatten linked receivables/orders into a table-ready shape.
   const linkedOrders: LinkedOrder[] = ((linkedReceivables ?? []) as unknown as Array<{
@@ -139,6 +147,9 @@ export default async function BillDetailPage({
     partner_id: bill.partner_id,
     partner_name: partner?.name ?? "—",
     partner_external_id: partner?.external_id ?? null,
+    partner_address: partner?.address ?? null,
+    partner_registered_business_name: partner?.registered_business_name ?? null,
+    partner_tin: partner?.tin ?? null,
   };
 
   return (

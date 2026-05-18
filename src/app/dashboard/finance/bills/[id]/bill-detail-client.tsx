@@ -40,6 +40,9 @@ export type BillDetail = {
   partner_id: string;
   partner_name: string;
   partner_external_id: string | null;
+  partner_address: string | null;
+  partner_registered_business_name: string | null;
+  partner_tin: string | null;
 };
 
 export type LinkedOrder = {
@@ -198,6 +201,11 @@ export function BillDetailClient({
   const canPay = isManagerOrAbove && bill.status === "issued";
   const canCancel = isOwner && (bill.status === "draft" || bill.status === "issued");
 
+  const missingRegistered = !bill.partner_registered_business_name;
+  const missingTin = !bill.partner_tin;
+  const missingBillingInfo = missingRegistered && missingTin;
+  const partialBillingInfo = !missingBillingInfo && (missingRegistered || missingTin);
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -228,6 +236,70 @@ export function BillDetailClient({
           {canPay ? <Button onClick={() => setShowPay(true)}>Mark paid</Button> : null}
         </div>
       </header>
+
+      {missingBillingInfo ? (
+        <div className="bg-yellowBg border border-yellow/40 rounded-lg px-4 py-3 text-sm text-yellow flex flex-wrap items-center gap-2">
+          <span>
+            This partner is missing billing info.{" "}
+            <Link
+              href={`/dashboard/partners/${bill.partner_id}`}
+              className="font-semibold underline hover:no-underline"
+            >
+              Edit partner →
+            </Link>{" "}
+            to add Registered Business Name and TIN before issuing this bill.
+          </span>
+        </div>
+      ) : null}
+
+      <section className="bg-white border border-border rounded-lg shadow-card p-5">
+        <h2 className="font-serif font-bold text-lg text-ink mb-3">Addressed to</h2>
+        <dl className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-x-6 gap-y-2 text-sm">
+          <dt className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft self-center">
+            Partner
+          </dt>
+          <dd className="text-ink">{bill.partner_name}</dd>
+
+          <dt className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft self-center">
+            Registered Business Name
+          </dt>
+          <dd
+            className={cn(
+              bill.partner_registered_business_name ? "text-ink" : "text-inkSoft italic",
+            )}
+          >
+            {bill.partner_registered_business_name ?? "—"}
+          </dd>
+
+          <dt className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft self-center">
+            Business Address
+          </dt>
+          <dd
+            className={cn(
+              "whitespace-pre-wrap",
+              bill.partner_address ? "text-ink" : "text-inkSoft italic",
+            )}
+          >
+            {bill.partner_address ?? "—"}
+          </dd>
+
+          <dt className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft self-center">
+            TIN No
+          </dt>
+          <dd
+            className={cn(
+              "font-mono",
+              bill.partner_tin ? "text-ink" : "text-inkSoft italic",
+            )}
+          >
+            {bill.partner_tin ?? "—"}
+          </dd>
+        </dl>
+        <p className="text-xs text-inkSoft mt-3">
+          {bill.issued_at ? `Issued ${formatDate(bill.issued_at)}` : "Not yet issued"}
+          {bill.due_date ? `  ·  Due ${formatDate(bill.due_date)}` : ""}
+        </p>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 bg-white border border-border rounded-lg shadow-card p-5 space-y-3 text-sm">
@@ -386,20 +458,49 @@ export function BillDetailClient({
         description="Locks the bill at its current total. Linked receivables flip from pending → billed."
         size="sm"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setShowIssue(false)} disabled={issuing}>
-              Cancel
-            </Button>
-            <Button onClick={handleIssue} disabled={issuing}>
-              {issuing ? "Issuing…" : "Confirm issue"}
-            </Button>
-          </>
+          missingBillingInfo || partialBillingInfo ? (
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowIssue(false);
+                  router.push(`/dashboard/partners/${bill.partner_id}`);
+                }}
+                disabled={issuing}
+              >
+                Edit partner first
+              </Button>
+              <Button variant="dangerGhost" onClick={handleIssue} disabled={issuing}>
+                {issuing ? "Issuing…" : "Issue anyway"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => setShowIssue(false)} disabled={issuing}>
+                Cancel
+              </Button>
+              <Button onClick={handleIssue} disabled={issuing}>
+                {issuing ? "Issuing…" : "Confirm issue"}
+              </Button>
+            </>
+          )
         }
       >
         <p className="text-sm text-inkSoft">
           Total: <span className="font-mono">{formatPHP(bill.total)}</span> · Partner:{" "}
           <span className="font-semibold">{bill.partner_name}</span>
         </p>
+        {missingBillingInfo || partialBillingInfo ? (
+          <p className="text-sm text-yellow bg-yellowBg border border-yellow/30 rounded-md px-3 py-2 mt-3">
+            This partner is missing billing info. The issued bill will print with blanks for{" "}
+            {missingRegistered && missingTin
+              ? "Registered Business Name and TIN"
+              : missingRegistered
+                ? "Registered Business Name"
+                : "TIN"}
+            . Continue?
+          </p>
+        ) : null}
         {issueErr ? (
           <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2 mt-3">
             {issueErr}

@@ -28,6 +28,8 @@ export type PartnerRecord = {
   contact: string | null;
   email: string | null;
   address: string | null;
+  registered_business_name: string | null;
+  tin: string | null;
   price_pcl: number | string | null;
   price_acg: number | string | null;
   price_wpm: number | string | null;
@@ -42,6 +44,8 @@ type FormState = {
   contact: string;
   email: string;
   address: string;
+  registered_business_name: string;
+  tin: string;
   price_pcl: string;
   price_acg: string;
   price_wpm: string;
@@ -60,6 +64,8 @@ function fromRecord(p?: PartnerRecord, defaultTier?: string): FormState {
     contact: p?.contact ?? "",
     email: p?.email ?? "",
     address: p?.address ?? "",
+    registered_business_name: p?.registered_business_name ?? "",
+    tin: p?.tin ?? "",
     price_pcl: p?.price_pcl != null ? String(p.price_pcl) : "",
     price_acg: p?.price_acg != null ? String(p.price_acg) : "",
     price_wpm: p?.price_wpm != null ? String(p.price_wpm) : "",
@@ -83,6 +89,8 @@ function payloadFrom(form: FormState) {
     contact: form.contact.trim() || null,
     email: form.email.trim() || null,
     address: form.address.trim() || null,
+    registered_business_name: form.registered_business_name.trim() || null,
+    tin: form.tin.trim() || null,
     price_pcl: toNumberOrNull(form.price_pcl),
     price_acg: toNumberOrNull(form.price_acg),
     price_wpm: toNumberOrNull(form.price_wpm),
@@ -283,6 +291,37 @@ export function PartnerForm({
           onChange={(e) => set("address", e.target.value)}
           disabled={!canEdit || submitting}
         />
+        <p className="text-xs text-inkSoft">Used as the Business Address on issued bills.</p>
+      </div>
+
+      <div className="border-t border-border pt-5">
+        <h3 className="text-base font-bold text-ink mb-1">Billing info</h3>
+        <p className="text-xs text-inkSoft mb-3">
+          Legal entity name and TIN — required on B2B invoices. Both optional, but the
+          issue-bill flow will warn if either is missing.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="registered_business_name">Registered Business Name</Label>
+            <Input
+              id="registered_business_name"
+              value={form.registered_business_name}
+              onChange={(e) => set("registered_business_name", e.target.value)}
+              placeholder="e.g. Acme Hospitality Inc."
+              disabled={!canEdit || submitting}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="tin">TIN</Label>
+            <Input
+              id="tin"
+              value={form.tin}
+              onChange={(e) => set("tin", e.target.value)}
+              placeholder="XXX-XXX-XXX-XXX"
+              disabled={!canEdit || submitting}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="border-t border-border pt-5">
