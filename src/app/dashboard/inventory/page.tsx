@@ -25,8 +25,11 @@ type InventoryRow = {
 };
 
 function lowStockThreshold(type: string): number {
-  // Additives are used in much smaller quantities than produce, so warn earlier.
-  return type === "additive" ? 1 : 5;
+  // Different scales per type — additives are used in tiny amounts, produce
+  // by the kg, cans by the hundreds. Configurable later.
+  if (type === "packaging") return 50;
+  if (type === "additive") return 1;
+  return 5;
 }
 
 function lastReceivedLabel(iso: string | null): string {

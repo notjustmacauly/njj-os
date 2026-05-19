@@ -17,6 +17,9 @@ const ICONS: Record<string, string> = {
   COCONUT: "🥥",
   GINGER: "🫚",
   LIME: "🍋",
+  CAN_PCL: "🥫",
+  CAN_ACG: "🥫",
+  CAN_WPM: "🥫",
 };
 
 export function ingredientEmoji(code: string | null | undefined): string {

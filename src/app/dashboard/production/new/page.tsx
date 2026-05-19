@@ -35,7 +35,7 @@ export default async function NewBatchPage() {
     await Promise.all([
       supabase
         .from("skus")
-        .select("code, name, short_label")
+        .select("code, name, short_label, can_ingredient_code")
         .eq("is_active", true)
         .order("code"),
       supabase
@@ -60,6 +60,7 @@ export default async function NewBatchPage() {
     code: string;
     name: string;
     short_label: string;
+    can_ingredient_code: string | null;
   }>;
   const ingredients = (ingredientsData ?? []) as IngredientRef[];
   const lots = (lotsData ?? []) as Array<{

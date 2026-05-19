@@ -103,6 +103,66 @@ function pickRel<T>(rel: T | T[] | null): T | null {
   return Array.isArray(rel) ? rel[0] ?? null : rel;
 }
 
+function BatchInputsSection({
+  label,
+  rows,
+}: {
+  label: string;
+  rows: InputRow[];
+}) {
+  return (
+    <tbody>
+      <tr className="border-t border-border bg-cream/40">
+        <td
+          colSpan={5}
+          className="px-3 py-1.5 text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft"
+        >
+          {label}
+        </td>
+      </tr>
+      {rows.map((r) => {
+        const ingName = pickRel(r.ingredient)?.name ?? r.ingredient_code;
+        const lot = pickRel(r.lot);
+        const cost =
+          r.cost_per_unit_at_use != null
+            ? Number(r.cost_per_unit_at_use)
+            : Number(r.cost_per_unit ?? 0);
+        const sub = Number(r.qty_used) * cost;
+        return (
+          <tr key={r.id} className="border-t border-border">
+            <td className="px-3 py-2.5">
+              <span aria-hidden className="mr-1.5">
+                {ingredientEmoji(r.ingredient_code)}
+              </span>
+              <span className="text-ink font-semibold">{ingName}</span>
+              <span className="ml-1 text-xs text-inkSoft font-mono">
+                {r.ingredient_code}
+              </span>
+            </td>
+            <td className="px-3 py-2.5 text-right font-mono tabular-nums">
+              {Number(r.qty_used)} {r.unit}
+            </td>
+            <td className="px-3 py-2.5 text-xs text-inkSoft font-mono">
+              {lot?.external_id ?? (r.lot_id ? r.lot_id.slice(0, 8) : "—")}
+            </td>
+            <td className="px-3 py-2.5 text-right font-mono tabular-nums">
+              {formatPHP(cost)}
+              {r.cost_per_unit_at_use == null ? (
+                <span className="ml-1 text-[10px] uppercase tracking-smallcaps text-yellow">
+                  legacy
+                </span>
+              ) : null}
+            </td>
+            <td className="px-3 py-2.5 text-right font-mono tabular-nums font-semibold text-berry">
+              {formatPHP(sub)}
+            </td>
+          </tr>
+        );
+      })}
+    </tbody>
+  );
+}
+
 export function BatchDetailClient({
   batch,
   initialInputs,
@@ -521,70 +581,65 @@ export function BatchDetailClient({
             No ingredient inputs recorded.
           </p>
         ) : (
-          <div className="overflow-x-auto -mx-2">
-            <table className="w-full text-sm">
-              <thead className="bg-cream text-inkSoft">
-                <tr className="text-left">
-                  <th className="px-3 py-2 font-semibold">Ingredient</th>
-                  <th className="px-3 py-2 font-semibold w-32 text-right">Qty used</th>
-                  <th className="px-3 py-2 font-semibold w-44">Lot</th>
-                  <th className="px-3 py-2 font-semibold w-32 text-right">Cost / unit</th>
-                  <th className="px-3 py-2 font-semibold w-32 text-right">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inputsRows.map((r) => {
-                  const ingName = pickRel(r.ingredient)?.name ?? r.ingredient_code;
-                  const lot = pickRel(r.lot);
-                  const cost =
-                    r.cost_per_unit_at_use != null
-                      ? Number(r.cost_per_unit_at_use)
-                      : Number(r.cost_per_unit ?? 0);
-                  const sub = Number(r.qty_used) * cost;
-                  return (
-                    <tr key={r.id} className="border-t border-border">
-                      <td className="px-3 py-2.5">
-                        <span aria-hidden className="mr-1.5">
-                          {ingredientEmoji(r.ingredient_code)}
-                        </span>
-                        <span className="text-ink font-semibold">{ingName}</span>
-                        <span className="ml-1 text-xs text-inkSoft font-mono">
-                          {r.ingredient_code}
-                        </span>
+          (() => {
+            const ingredientRows = inputsRows.filter(
+              (r) => pickRel(r.ingredient)?.type !== "packaging",
+            );
+            const packagingRows = inputsRows.filter(
+              (r) => pickRel(r.ingredient)?.type === "packaging",
+            );
+            const perCan =
+              Number(batch.units_produced) > 0
+                ? realCost / Number(batch.units_produced)
+                : null;
+            return (
+              <div className="overflow-x-auto -mx-2">
+                <table className="w-full text-sm">
+                  <thead className="bg-cream text-inkSoft">
+                    <tr className="text-left">
+                      <th className="px-3 py-2 font-semibold">Item</th>
+                      <th className="px-3 py-2 font-semibold w-32 text-right">Qty used</th>
+                      <th className="px-3 py-2 font-semibold w-44">Lot</th>
+                      <th className="px-3 py-2 font-semibold w-32 text-right">Cost / unit</th>
+                      <th className="px-3 py-2 font-semibold w-32 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  {ingredientRows.length > 0 ? (
+                    <BatchInputsSection
+                      label="Ingredients"
+                      rows={ingredientRows}
+                    />
+                  ) : null}
+                  {packagingRows.length > 0 ? (
+                    <BatchInputsSection
+                      label="Packaging"
+                      rows={packagingRows}
+                    />
+                  ) : null}
+                  <tfoot>
+                    <tr className="border-t border-border bg-cream/60">
+                      <td colSpan={4} className="px-3 py-3 text-right text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
+                        Real cost
                       </td>
-                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">
-                        {Number(r.qty_used)} {r.unit}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-inkSoft font-mono">
-                        {lot?.external_id ?? (r.lot_id ? r.lot_id.slice(0, 8) : "—")}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">
-                        {formatPHP(cost)}
-                        {r.cost_per_unit_at_use == null ? (
-                          <span className="ml-1 text-[10px] uppercase tracking-smallcaps text-yellow">
-                            legacy
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-mono tabular-nums font-semibold text-berry">
-                        {formatPHP(sub)}
+                      <td className="px-3 py-3 text-right font-serif font-bold text-lg text-berry">
+                        {formatPHP(realCost)}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-border bg-cream/40">
-                  <td colSpan={4} className="px-3 py-3 text-right text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
-                    Real cost
-                  </td>
-                  <td className="px-3 py-3 text-right font-serif font-bold text-lg text-berry">
-                    {formatPHP(realCost)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                    {perCan != null ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 pb-3 text-right text-xs text-inkSoft">
+                          Per can ({batch.units_produced} produced)
+                        </td>
+                        <td className="px-3 pb-3 text-right font-mono text-peri">
+                          {formatPHP(perCan)}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tfoot>
+                </table>
+              </div>
+            );
+          })()
         )}
 
         <div className="border-t border-border pt-3 text-xs text-inkSoft space-y-1">

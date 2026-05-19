@@ -38,7 +38,12 @@ export function NewBatchForm({
   lots,
   defaultStaffName,
 }: {
-  skus: Array<{ code: string; name: string; short_label: string }>;
+  skus: Array<{
+    code: string;
+    name: string;
+    short_label: string;
+    can_ingredient_code: string | null;
+  }>;
   ingredients: IngredientRef[];
   lots: LotInput[];
   defaultStaffName: string;
@@ -81,6 +86,15 @@ export function NewBatchForm({
   const wastageNum = Number(wastage) || 0;
   const yieldOverPlanned = producedNum > plannedNum && plannedNum > 0;
   const wastageHigh = plannedNum > 0 && wastageNum > plannedNum * 0.1;
+
+  // Auto-can deduction: the create_batch RPC pulls cans matching the SKU's
+  // linked can ingredient from FIFO inventory based on units_produced —
+  // surface the upcoming deduction so it isn't surprising.
+  const currentSku = skus.find((s) => s.code === skuCode);
+  const canCode = currentSku?.can_ingredient_code ?? null;
+  const canIngredient = canCode
+    ? ingredients.find((i) => i.code === canCode) ?? null
+    : null;
 
   function validate(): boolean {
     const e: Record<string, string> = {};
@@ -232,6 +246,12 @@ export function NewBatchForm({
             {yieldOverPlanned ? (
               <p className="text-xs text-yellow font-semibold mt-1">
                 Yield {Math.round((producedNum / plannedNum) * 100)}% — above plan.
+              </p>
+            ) : null}
+            {canIngredient && producedNum > 0 ? (
+              <p className="text-xs text-peri mt-1">
+                Will also deduct {producedNum} {canIngredient.name}
+                {producedNum === 1 ? "" : "s"} from FIFO inventory.
               </p>
             ) : null}
             {errors.units_produced ? (
