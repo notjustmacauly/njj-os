@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ExpensesView, type ExpenseRow } from "./expenses-view";
 import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
+import { filterAllowedAccounts } from "@/lib/allowed-accounts";
 
 const READ_ROLES = OWNER_PARTNER_MANAGER;
 
@@ -26,8 +27,10 @@ export default async function ExpensesPage() {
   const role = roleRow?.role as Role | null;
   if (!role || !READ_ROLES.includes(role)) redirect("/dashboard");
 
-  // Only owner can log or void expenses (per access matrix).
-  const canManage = role === "owner";
+  // Per the approval brief: owner/partner/manager can log expenses (the
+  // RPC enforces the ₱20K threshold + role rules). Only owner can void.
+  const canManage = role === "owner" || role === "partner" || role === "manager";
+  const canVoid = role === "owner";
 
   // 18-month rolling window.
   const windowStart = new Date();
@@ -52,13 +55,16 @@ export default async function ExpensesPage() {
   ]);
 
   const accountList = (accounts ?? []) as Array<{ code: string; name: string }>;
+  const allowedAccounts = await filterAllowedAccounts(supabase, role, user.id, accountList);
 
   return (
     <ExpensesView
       role={role}
       canManage={canManage}
+      canVoid={canVoid}
       defaultLoggedByName={displayNameFromEmail(user.email ?? "")}
       accounts={accountList}
+      allowedAccounts={allowedAccounts}
       expenses={(expenses ?? []) as ExpenseRow[]}
     />
   );

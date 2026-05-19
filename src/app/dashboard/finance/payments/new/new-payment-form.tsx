@@ -20,10 +20,14 @@ export function NewPaymentForm({
   role,
   accounts,
   requestedByName,
+  defaultPurpose,
+  defaultAmount,
 }: {
   role: Role;
   accounts: Array<{ code: string; name: string }>;
   requestedByName: string;
+  defaultPurpose?: string;
+  defaultAmount?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -32,11 +36,13 @@ export function NewPaymentForm({
   const canTransfer = role === "owner";
 
   const [type, setType] = React.useState<PaymentType>("general");
-  const [purpose, setPurpose] = React.useState("");
+  const [purpose, setPurpose] = React.useState(defaultPurpose ?? "");
   const [payee, setPayee] = React.useState("");
   const [category, setCategory] = React.useState<string>(FINANCE_CATEGORIES[0]);
-  const [amount, setAmount] = React.useState("");
-  const [accountCode, setAccountCode] = React.useState(accounts[0]?.code ?? "");
+  const [amount, setAmount] = React.useState(defaultAmount ?? "");
+  // Empty string = "approver will pick at approval time" for general/transfer.
+  // Reimbursements need a real account at submit (see validation below).
+  const [accountCode, setAccountCode] = React.useState<string>("");
   const [transferTo, setTransferTo] = React.useState<string>(
     accounts[1]?.code ?? accounts[0]?.code ?? "",
   );
@@ -54,12 +60,13 @@ export function NewPaymentForm({
     if (!purpose.trim()) return setError("Purpose is required.");
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) return setError("Amount must be > 0.");
-    if (!accountCode) return setError("Pick a source account.");
-
+    // For general/transfer the approver locks the account at approve time.
+    // For reimbursements the submitter knows which company account pays them
+    // back, so it's required here.
     if (type === "transfer") {
       if (!canTransfer) return setError("Only the owner can request transfers.");
       if (!transferTo) return setError("Pick a destination account.");
-      if (transferTo === accountCode)
+      if (accountCode && transferTo === accountCode)
         return setError("Source and destination must differ.");
     }
 
@@ -69,7 +76,7 @@ export function NewPaymentForm({
       p_idempotency_key: idempotencyKey,
       p_purpose: purpose.trim(),
       p_amount: amt,
-      p_account_code: accountCode,
+      p_account_code: accountCode || null,
       p_type: type,
       p_payee: type === "transfer" ? null : payee.trim() || null,
       p_category: type === "transfer" ? null : category,
@@ -184,21 +191,24 @@ export function NewPaymentForm({
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="pay_from" required>
-            From account
-          </Label>
+          <Label htmlFor="pay_from">From account</Label>
           <Select
             id="pay_from"
             value={accountCode}
             onChange={(e) => setAccountCode(e.target.value)}
             disabled={submitting}
           >
+            <option value="">— approver picks at approve time —</option>
             {accounts.map((a) => (
               <option key={a.code} value={a.code}>
                 {a.name}
               </option>
             ))}
           </Select>
+          <p className="text-[11px] text-inkSoft">
+            Leave blank if you don&rsquo;t know which account — the approver picks at
+            approve time. Only accounts you have access to are listed.
+          </p>
         </div>
       </div>
 

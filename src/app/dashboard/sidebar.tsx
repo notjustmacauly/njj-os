@@ -22,6 +22,7 @@ import {
 
 import type { Role } from "@/lib/roles";
 import { ALL_ROLES } from "@/lib/roles";
+import { NotificationsBell } from "./notifications-bell";
 
 type NavItem = {
   href: string;
@@ -200,6 +201,9 @@ export function Sidebar({ role, email }: { role: Role; email: string }) {
             </div>
           </div>
         </div>
+        {role === "owner" || role === "partner" ? (
+          <NotificationsBell role={role} />
+        ) : null}
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-inkSoft hover:bg-cream hover:text-ink transition"

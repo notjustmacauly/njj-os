@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
 import type { Role } from "@/lib/roles";
@@ -16,18 +17,19 @@ export type PaymentRow = {
   payee: string | null;
   category: string | null;
   amount: number | string;
-  account_code: string;
+  account_code: string | null;
   transfer_to_account_code: string | null;
-  status: "pending" | "paid" | "cancelled";
+  status: "pending" | "approved" | "paid" | "cancelled";
   paid_date: string | null;
   requested_by_name: string | null;
   notes: string | null;
 };
 
-type TabKey = "all" | "pending" | "paid_month" | "cancelled";
+type TabKey = "all" | "pending" | "approved" | "paid_month" | "cancelled";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "pending", label: "Pending" },
+  { key: "pending", label: "Pending approval" },
+  { key: "approved", label: "Approved · ready to pay" },
   { key: "paid_month", label: "Paid this month" },
   { key: "cancelled", label: "Cancelled" },
   { key: "all", label: "All" },
@@ -35,8 +37,16 @@ const TABS: { key: TabKey; label: string }[] = [
 
 const STATUS_TONE: Record<PaymentRow["status"], string> = {
   pending: "bg-yellowBg text-yellow",
+  approved: "bg-periBg text-peri",
   paid: "bg-greenBg text-green",
   cancelled: "bg-creamDk text-inkSoft",
+};
+
+const STATUS_LABEL: Record<PaymentRow["status"], string> = {
+  pending: "pending approval",
+  approved: "approved",
+  paid: "paid",
+  cancelled: "cancelled",
 };
 
 function isPaidThisMonth(r: PaymentRow): boolean {
@@ -50,6 +60,8 @@ function isInTab(r: PaymentRow, tab: TabKey): boolean {
   switch (tab) {
     case "pending":
       return r.status === "pending";
+    case "approved":
+      return r.status === "approved";
     case "paid_month":
       return isPaidThisMonth(r);
     case "cancelled":
@@ -115,11 +127,25 @@ export function PaymentsList({
   const counts: Record<TabKey, number> = {
     all: rows.length,
     pending: rows.filter((r) => r.status === "pending").length,
+    approved: rows.filter((r) => r.status === "approved").length,
     paid_month: rows.filter(isPaidThisMonth).length,
     cancelled: rows.filter((r) => r.status === "cancelled").length,
   };
 
   const filtered = rows.filter((r) => isInTab(r, tab));
+
+  // CTA copy per (status, role) — the detail page hosts the actual modals.
+  function ctaForRow(r: PaymentRow): string | null {
+    if (r.status === "pending") {
+      if (role === "owner" || role === "partner") return "Review →";
+      if (role === "manager") return "Open →";
+    }
+    if (r.status === "approved") {
+      if (role === "owner" || role === "partner") return "Pay →";
+      return "Open →";
+    }
+    return null;
+  }
 
   return (
     <div className="space-y-4">
@@ -160,70 +186,90 @@ export function PaymentsList({
               <th className="px-4 py-2 font-semibold w-40">Payee / Dest.</th>
               <th className="px-4 py-2 font-semibold w-32">From</th>
               <th className="px-4 py-2 font-semibold w-28 text-right">Amount</th>
-              <th className="px-4 py-2 font-semibold w-24">Status</th>
+              <th className="px-4 py-2 font-semibold w-32">Status</th>
+              <th className="px-4 py-2 font-semibold w-24" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr className="border-t border-border">
-                <td colSpan={8} className="px-4 py-8 text-center text-sm text-inkSoft">
+                <td colSpan={9} className="px-4 py-8 text-center text-sm text-inkSoft">
                   No payments in this tab.
                 </td>
               </tr>
             ) : (
-              filtered.map((r) => (
-                <tr key={r.id} className="border-t border-border hover:bg-cream/30">
-                  <td className="px-4 py-2.5 text-xs text-inkSoft whitespace-nowrap">
-                    {formatDate(r.created_at)}
-                  </td>
-                  <td className="px-4 py-2.5 text-xs font-mono">
-                    <Link
-                      href={`/dashboard/finance/payments/${r.id}`}
-                      className="text-ink hover:text-berry"
-                    >
-                      {r.external_id ?? r.id.slice(0, 8)}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2.5 text-xs capitalize text-inkSoft">{r.type}</td>
-                  <td className="px-4 py-2.5 truncate" title={r.purpose}>
-                    <Link
-                      href={`/dashboard/finance/payments/${r.id}`}
-                      className="text-ink hover:text-berry block truncate"
-                    >
-                      {r.purpose}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2.5 text-xs text-ink">
-                    {r.type === "transfer" && r.transfer_to_account_code ? (
-                      <span>
-                        <span aria-hidden className="mr-1">
-                          {accountEmoji(r.transfer_to_account_code)}
+              filtered.map((r) => {
+                const cta = ctaForRow(r);
+                return (
+                  <tr key={r.id} className="border-t border-border hover:bg-cream/30">
+                    <td className="px-4 py-2.5 text-xs text-inkSoft whitespace-nowrap">
+                      {formatDate(r.created_at)}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs font-mono">
+                      <Link
+                        href={`/dashboard/finance/payments/${r.id}`}
+                        className="text-ink hover:text-berry"
+                      >
+                        {r.external_id ?? r.id.slice(0, 8)}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs capitalize text-inkSoft">{r.type}</td>
+                    <td className="px-4 py-2.5 truncate" title={r.purpose}>
+                      <Link
+                        href={`/dashboard/finance/payments/${r.id}`}
+                        className="text-ink hover:text-berry block truncate"
+                      >
+                        {r.purpose}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-ink">
+                      {r.type === "transfer" && r.transfer_to_account_code ? (
+                        <span>
+                          <span aria-hidden className="mr-1">
+                            {accountEmoji(r.transfer_to_account_code)}
+                          </span>
+                          {accountNameByCode[r.transfer_to_account_code] ?? r.transfer_to_account_code}
                         </span>
-                        {accountNameByCode[r.transfer_to_account_code] ?? r.transfer_to_account_code}
-                      </span>
-                    ) : (
-                      r.payee || "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-xs">
-                    <span aria-hidden className="mr-1">{accountEmoji(r.account_code)}</span>
-                    {accountNameByCode[r.account_code] ?? r.account_code}
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-mono font-semibold text-coral tabular-nums">
-                    {formatPHP(r.amount)}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize",
-                        STATUS_TONE[r.status],
+                      ) : (
+                        r.payee || "—"
                       )}
-                    >
-                      {r.status}
-                    </span>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td className="px-4 py-2.5 text-xs">
+                      {r.account_code ? (
+                        <>
+                          <span aria-hidden className="mr-1">{accountEmoji(r.account_code)}</span>
+                          {accountNameByCode[r.account_code] ?? r.account_code}
+                        </>
+                      ) : (
+                        <span className="text-inkSoft italic">(approver picks)</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono font-semibold text-coral tabular-nums">
+                      {formatPHP(r.amount)}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize",
+                          STATUS_TONE[r.status],
+                        )}
+                      >
+                        {STATUS_LABEL[r.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {cta ? (
+                        <Link
+                          href={`/dashboard/finance/payments/${r.id}`}
+                          className="inline-flex items-center gap-1 text-xs text-berry hover:underline whitespace-nowrap"
+                        >
+                          {cta}
+                        </Link>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -231,7 +277,16 @@ export function PaymentsList({
 
       <p className="text-[11px] text-inkSoft px-1">
         Window: rolling 12 months. Role: {role}. Live counts update via Supabase realtime.
+        Approve / Pay / Cancel actions live on the payment detail page.
+        {role === "owner" || role === "partner" ? (
+          <span>
+            {" "}You and {role === "owner" ? "Partner" : "Owner"} both see Pending and
+            Approved tabs for the queue.
+          </span>
+        ) : null}
       </p>
     </div>
   );
 }
+
+export { ArrowRight };

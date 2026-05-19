@@ -3,10 +3,12 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewPaymentForm } from "./new-payment-form";
-import { OWNER_ONLY, type Role } from "@/lib/roles";
+import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
+import { filterAllowedAccounts } from "@/lib/allowed-accounts";
 
-// Per matrix: Payments — create is owner-only.
-const WRITE_ROLES = OWNER_ONLY;
+// Submission of a payment request is owner/partner/manager — the actual
+// approve/pay still requires owner-or-partner.
+const WRITE_ROLES = OWNER_PARTNER_MANAGER;
 
 function displayNameFromEmail(email: string): string {
   const local = (email.split("@")[0] ?? "").replace(/^notjust/i, "");
@@ -14,7 +16,11 @@ function displayNameFromEmail(email: string): string {
   return local.charAt(0).toUpperCase() + local.slice(1);
 }
 
-export default async function NewPaymentPage() {
+export default async function NewPaymentPage({
+  searchParams,
+}: {
+  searchParams?: { purpose?: string; amount?: string };
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -29,11 +35,13 @@ export default async function NewPaymentPage() {
   const role = roleRow?.role as Role | null;
   if (!role || !WRITE_ROLES.includes(role)) redirect("/dashboard/finance/payments");
 
-  const { data: accounts } = await supabase
+  const { data: accountsData } = await supabase
     .from("accounts")
     .select("code, name")
     .eq("is_active", true)
     .order("name");
+  const accounts = (accountsData ?? []) as Array<{ code: string; name: string }>;
+  const allowedAccounts = await filterAllowedAccounts(supabase, role, user.id, accounts);
 
   return (
     <div className="space-y-6">
@@ -50,14 +58,16 @@ export default async function NewPaymentPage() {
           New payment request
         </h1>
         <p className="text-sm text-inkSoft mt-1">
-          Pending until the owner marks it paid.
+          Pending until an owner or partner approves it and marks it paid.
         </p>
       </header>
 
       <NewPaymentForm
         role={role}
-        accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
+        accounts={allowedAccounts}
         requestedByName={displayNameFromEmail(user.email ?? "")}
+        defaultPurpose={searchParams?.purpose ?? ""}
+        defaultAmount={searchParams?.amount ?? ""}
       />
     </div>
   );

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewReimbursementForm } from "./new-reimbursement-form";
 import { ALL_ROLES, type Role } from "@/lib/roles";
+import { filterAllowedAccounts } from "@/lib/allowed-accounts";
 
 // All roles can submit reimbursements (staff sees / edits their own only,
 // enforced by RLS).
@@ -30,7 +31,7 @@ export default async function NewReimbursementPage() {
   const role = roleRow?.role as Role | null;
   if (!role || !WRITE_ROLES.includes(role)) redirect("/dashboard/finance/reimbursements");
 
-  const [{ data: accounts }, { data: teamMembers }] = await Promise.all([
+  const [{ data: accountsData }, { data: teamMembers }] = await Promise.all([
     supabase
       .from("accounts")
       .select("code, name")
@@ -43,6 +44,8 @@ export default async function NewReimbursementPage() {
       .is("deleted_at", null)
       .order("display_name"),
   ]);
+  const accounts = (accountsData ?? []) as Array<{ code: string; name: string }>;
+  const allowedAccounts = await filterAllowedAccounts(supabase, role, user.id, accounts);
 
   return (
     <div className="space-y-6">
@@ -65,7 +68,7 @@ export default async function NewReimbursementPage() {
       </header>
 
       <NewReimbursementForm
-        accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
+        accounts={allowedAccounts}
         teamMembers={(teamMembers ?? []) as Array<{ user_id: string; display_name: string }>}
         requestedByName={displayNameFromEmail(user.email ?? "")}
       />

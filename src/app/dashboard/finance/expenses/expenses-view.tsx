@@ -43,14 +43,18 @@ function daysAgoIso(n: number): string {
 export function ExpensesView({
   role,
   canManage,
+  canVoid,
   defaultLoggedByName,
   accounts,
+  allowedAccounts,
   expenses,
 }: {
   role: Role;
   canManage: boolean;
+  canVoid: boolean;
   defaultLoggedByName: string;
   accounts: Array<{ code: string; name: string }>;
+  allowedAccounts: Array<{ code: string; name: string }>;
   expenses: ExpenseRow[];
 }) {
   const router = useRouter();
@@ -337,7 +341,8 @@ export function ExpensesView({
       <ExpenseFormModal
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        accounts={accounts}
+        role={role}
+        accounts={allowedAccounts}
         defaultLoggedByName={defaultLoggedByName}
         onSaved={() => {
           setShowCreate(false);
@@ -348,7 +353,7 @@ export function ExpensesView({
       <ExpenseDetailModal
         expense={openDetail}
         accounts={accounts}
-        canVoid={canManage}
+        canVoid={canVoid}
         onClose={() => setOpenDetail(null)}
         onVoided={() => {
           setOpenDetail(null);

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -11,7 +12,10 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
+import type { Role } from "@/lib/roles";
 import { FINANCE_CATEGORIES } from "../categories";
+
+const THRESHOLD = 20000;
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -20,20 +24,20 @@ function todayIso(): string {
 export function ExpenseFormModal({
   open,
   onClose,
+  role,
   accounts,
   defaultLoggedByName,
   onSaved,
 }: {
   open: boolean;
   onClose: () => void;
+  role: Role;
   accounts: Array<{ code: string; name: string }>;
   defaultLoggedByName: string;
   onSaved: () => void;
 }) {
   const toast = useToast();
 
-  // Idempotency key persists across re-renders for one open-of-the-modal.
-  // Reset when the modal opens.
   const [idempotencyKey, setIdempotencyKey] = React.useState(() => crypto.randomUUID());
   const [expenseDate, setExpenseDate] = React.useState(todayIso());
   const [category, setCategory] = React.useState<string>(FINANCE_CATEGORIES[0]);
@@ -43,6 +47,7 @@ export function ExpenseFormModal({
   const [accountCode, setAccountCode] = React.useState<string>(accounts[0]?.code ?? "");
   const [receiptUrl, setReceiptUrl] = React.useState("");
   const [notes, setNotes] = React.useState("");
+  const [overrideThreshold, setOverrideThreshold] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -57,16 +62,38 @@ export function ExpenseFormModal({
       setAccountCode(accounts[0]?.code ?? "");
       setReceiptUrl("");
       setNotes("");
+      setOverrideThreshold(false);
       setError(null);
     }
   }, [open, accounts]);
 
+  const amt = Number(amount);
+  const amountValid = Number.isFinite(amt) && amt > 0;
+  const overThreshold = amountValid && amt >= THRESHOLD;
+  const isManager = role === "manager";
+  const isOwnerOrPartner = role === "owner" || role === "partner";
+
+  // Submit gate per the access matrix:
+  //  - Manager + ≥ ₱20K → blocked (must go through Payments approval).
+  //  - Owner/Partner + ≥ ₱20K → unblocked only when the retroactive
+  //    checkbox is ticked (passes p_override_threshold to the RPC).
+  const blockedByThreshold = isManager && overThreshold;
+  const needsOverride = isOwnerOrPartner && overThreshold;
+  const canSubmit =
+    !submitting &&
+    amountValid &&
+    !blockedByThreshold &&
+    (!needsOverride || overrideThreshold);
+
+  // Pre-fill the Payments form so a manager can submit ≥ ₱20K cleanly.
+  const paymentLink = `/dashboard/finance/payments/new?purpose=${encodeURIComponent(
+    description || vendor || "",
+  )}&amount=${encodeURIComponent(amount || "")}`;
+
   async function handleSubmit() {
-    if (submitting) return;
+    if (!canSubmit) return;
     setError(null);
     if (!description.trim()) return setError("Description is required.");
-    const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt <= 0) return setError("Amount must be > 0.");
     if (!accountCode) return setError("Pick an account.");
 
     setSubmitting(true);
@@ -83,6 +110,7 @@ export function ExpenseFormModal({
       p_receipt_url: receiptUrl.trim() || null,
       p_notes: notes.trim() || null,
       p_logged_by_name: defaultLoggedByName,
+      p_override_threshold: needsOverride && overrideThreshold,
     });
     setSubmitting(false);
     if (rpcErr) {
@@ -90,7 +118,13 @@ export function ExpenseFormModal({
       toast.push(rpcErr.message, "error");
       return;
     }
-    toast.push(`✓ Logged ${new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(amt)} expense`, "success");
+    const fmt = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
+    toast.push(
+      overrideThreshold
+        ? `✓ ${fmt.format(amt)} retroactive expense logged. Threshold override used.`
+        : `✓ Logged ${fmt.format(amt)} expense`,
+      "success",
+    );
     onSaved();
   }
 
@@ -106,7 +140,7 @@ export function ExpenseFormModal({
           <Button variant="ghost" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+          <Button onClick={handleSubmit} disabled={!canSubmit}>
             {submitting ? "Logging…" : "Log expense"}
           </Button>
         </>
@@ -191,16 +225,45 @@ export function ExpenseFormModal({
               id="exp_account"
               value={accountCode}
               onChange={(e) => setAccountCode(e.target.value)}
-              disabled={submitting}
+              disabled={submitting || accounts.length === 0}
             >
-              {accounts.map((a) => (
-                <option key={a.code} value={a.code}>
-                  {a.name}
-                </option>
-              ))}
+              {accounts.length === 0 ? (
+                <option value="">No accessible accounts</option>
+              ) : (
+                accounts.map((a) => (
+                  <option key={a.code} value={a.code}>
+                    {a.name}
+                  </option>
+                ))
+              )}
             </Select>
           </div>
         </div>
+
+        {blockedByThreshold ? (
+          <p className="text-sm bg-yellowBg border border-yellow/40 text-yellow rounded-md px-3 py-2">
+            Expenses ≥ ₱20,000 require approval —{" "}
+            <Link href={paymentLink} className="font-semibold underline hover:no-underline">
+              Submit as Payment request →
+            </Link>
+          </p>
+        ) : null}
+
+        {needsOverride ? (
+          <label className="flex items-start gap-2 text-sm bg-cream/40 border border-border rounded-md px-3 py-2">
+            <input
+              type="checkbox"
+              checked={overrideThreshold}
+              onChange={(e) => setOverrideThreshold(e.target.checked)}
+              disabled={submitting}
+              className="mt-0.5"
+            />
+            <span>
+              This was already paid — log retroactively (skips approval flow). Use only when
+              the payment really happened and you&rsquo;re recording it after the fact.
+            </span>
+          </label>
+        ) : null}
 
         <div className="space-y-1">
           <Label htmlFor="exp_receipt">Receipt URL</Label>

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
@@ -24,9 +25,11 @@ export type PaymentDetail = {
   payee: string | null;
   category: string | null;
   amount: number | string;
-  account_code: string;
+  account_code: string | null;
   transfer_to_account_code: string | null;
-  status: "pending" | "paid" | "cancelled";
+  status: "pending" | "approved" | "paid" | "cancelled";
+  approved_at: string | null;
+  approved_by_user_id: string | null;
   paid_at: string | null;
   paid_date: string | null;
   requested_by_user_id: string | null;
@@ -50,8 +53,16 @@ export type LedgerLink = {
 
 const STATUS_TONE: Record<PaymentDetail["status"], string> = {
   pending: "bg-yellowBg text-yellow",
+  approved: "bg-periBg text-peri",
   paid: "bg-greenBg text-green",
   cancelled: "bg-creamDk text-inkSoft",
+};
+
+const STATUS_LABEL: Record<PaymentDetail["status"], string> = {
+  pending: "pending approval",
+  approved: "approved",
+  paid: "paid",
+  cancelled: "cancelled",
 };
 
 function todayIso(): string {
@@ -76,6 +87,7 @@ export function PaymentDetailClient({
   currentUserId,
   payment,
   accounts,
+  allowedAccounts,
   ledgerEntries,
   linkedExpense,
 }: {
@@ -83,20 +95,38 @@ export function PaymentDetailClient({
   currentUserId: string;
   payment: PaymentDetail;
   accounts: Array<{ code: string; name: string }>;
+  allowedAccounts: Array<{ code: string; name: string }>;
   ledgerEntries: LedgerLink[];
   linkedExpense: { id: string; external_id: string | null; category: string } | null;
 }) {
   const router = useRouter();
   const toast = useToast();
 
-  // Per access matrix: only owner can pay or cancel payments. Staff can
-  // additionally cancel their own pending reimbursements (RLS-gated UPDATE).
-  const canPay = role === "owner" && payment.status === "pending";
-  const isOwnReimbursement =
-    payment.type === "reimbursement" && payment.requested_by_user_id === currentUserId;
-  const canCancel =
+  const isOwnRequest = payment.requested_by_user_id === currentUserId;
+  const isReimb = payment.type === "reimbursement";
+
+  // State-machine action gates per the approval brief:
+  //  - Approve (non-reimb only):     pending → approved by owner/partner
+  //  - Pay   (non-reimb):            approved → paid by owner/partner
+  //  - Pay   (reimb):                pending → paid by owner only (auto-creates expense)
+  //  - Cancel: pending OR approved
+  //      owner/partner: any non-reimb (and reimb if owner)
+  //      manager: own non-reimb pending only
+  //      staff: own pending reimbursement only
+  const canApprove =
+    !isReimb &&
     payment.status === "pending" &&
-    (role === "owner" || (role === "staff" && isOwnReimbursement));
+    (role === "owner" || role === "partner");
+  const canPay = isReimb
+    ? payment.status === "pending" && role === "owner"
+    : payment.status === "approved" && (role === "owner" || role === "partner");
+  const canCancel =
+    payment.status === "pending" || payment.status === "approved"
+      ? role === "owner" ||
+        (role === "partner" && !isReimb) ||
+        (role === "manager" && !isReimb && isOwnRequest && payment.status === "pending") ||
+        (role === "staff" && isReimb && isOwnRequest && payment.status === "pending")
+      : false;
 
   const accountNameByCode: Record<string, string> = {};
   for (const a of accounts) accountNameByCode[a.code] = a.name;
@@ -110,6 +140,39 @@ export function PaymentDetailClient({
   const [cancelReason, setCancelReason] = React.useState("");
   const [cancelling, setCancelling] = React.useState(false);
   const [cancelError, setCancelError] = React.useState<string | null>(null);
+
+  // Approve modal — locks the account at approval time.
+  const [showApprove, setShowApprove] = React.useState(false);
+  const [approveAccount, setApproveAccount] = React.useState<string>(
+    payment.account_code ?? allowedAccounts[0]?.code ?? "",
+  );
+  const [approveNotes, setApproveNotes] = React.useState("");
+  const [approving, setApproving] = React.useState(false);
+  const [approveError, setApproveError] = React.useState<string | null>(null);
+
+  async function handleApprove() {
+    if (approving) return;
+    if (!approveAccount) {
+      setApproveError("Pick an account to lock for payment.");
+      return;
+    }
+    setApproving(true);
+    setApproveError(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("approve_payment", {
+      p_payment_id: payment.id,
+      p_account_code: approveAccount,
+      p_notes: approveNotes.trim() || null,
+    });
+    setApproving(false);
+    if (error) {
+      setApproveError(error.message);
+      return;
+    }
+    toast.push("Payment approved · account locked", "success");
+    setShowApprove(false);
+    router.refresh();
+  }
 
   async function handlePay() {
     if (paying) return;
@@ -167,7 +230,6 @@ export function PaymentDetailClient({
   }
 
   const isTransfer = payment.type === "transfer";
-  const isReimb = payment.type === "reimbursement";
 
   return (
     <div className="space-y-6">
@@ -183,20 +245,23 @@ export function PaymentDetailClient({
             <span className="font-mono">{payment.external_id ?? payment.id.slice(0, 8)}</span>
             <span
               className={cn(
-                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize",
+                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
                 STATUS_TONE[payment.status],
               )}
             >
-              {payment.status}
+              {STATUS_LABEL[payment.status]}
             </span>
             <span className="capitalize">· {payment.type}</span>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {canCancel ? (
             <Button variant="dangerGhost" onClick={() => setShowCancel(true)}>
               Cancel
             </Button>
+          ) : null}
+          {canApprove ? (
+            <Button onClick={() => setShowApprove(true)}>Approve</Button>
           ) : null}
           {canPay ? <Button onClick={() => setShowPay(true)}>Mark paid</Button> : null}
         </div>
@@ -208,10 +273,16 @@ export function PaymentDetailClient({
           <Row
             label="From"
             value={
-              <span>
-                <span aria-hidden className="mr-1">{accountEmoji(payment.account_code)}</span>
-                {accountNameByCode[payment.account_code] ?? payment.account_code}
-              </span>
+              payment.account_code ? (
+                <span>
+                  <span aria-hidden className="mr-1">{accountEmoji(payment.account_code)}</span>
+                  {accountNameByCode[payment.account_code] ?? payment.account_code}
+                </span>
+              ) : (
+                <span className="text-inkSoft italic">
+                  Not yet picked · approver locks the account
+                </span>
+              )
             }
           />
           {isTransfer && payment.transfer_to_account_code ? (
@@ -257,6 +328,18 @@ export function PaymentDetailClient({
             actor={payment.requested_by_name ?? "—"}
             active
           />
+          {payment.approved_at ? (
+            <Step
+              label="Approved"
+              stamp={payment.approved_at}
+              actor={
+                payment.account_code
+                  ? `Locked: ${accountNameByCode[payment.account_code] ?? payment.account_code}`
+                  : "—"
+              }
+              active
+            />
+          ) : null}
           {payment.status === "paid" ? (
             <Step
               label="Paid"
@@ -276,7 +359,15 @@ export function PaymentDetailClient({
             />
           ) : null}
           {payment.status === "pending" ? (
-            <Step label="Awaiting payment" stamp={null} actor="—" tone="muted" />
+            <Step
+              label={isReimb ? "Awaiting payout" : "Awaiting approval"}
+              stamp={null}
+              actor="—"
+              tone="muted"
+            />
+          ) : null}
+          {payment.status === "approved" ? (
+            <Step label="Awaiting payout" stamp={null} actor="—" tone="muted" />
           ) : null}
         </div>
       </div>
@@ -335,10 +426,77 @@ export function PaymentDetailClient({
       </section>
 
       <Modal
+        open={showApprove}
+        onClose={approving ? () => {} : () => setShowApprove(false)}
+        title={`Approve payment to ${payment.payee ?? "—"} for ${formatPHP(payment.amount)}?`}
+        description={`Purpose: ${payment.purpose} · Submitted by: ${payment.requested_by_name ?? "—"}`}
+        size="md"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setShowApprove(false)} disabled={approving}>
+              Cancel
+            </Button>
+            <Button onClick={handleApprove} disabled={approving || !approveAccount}>
+              {approving ? "Approving…" : "Approve & lock account →"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="approve_account" required>
+              Pay from
+            </Label>
+            {allowedAccounts.length === 0 ? (
+              <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">
+                You don&rsquo;t have access to any accounts. Ask the owner to grant access.
+              </p>
+            ) : (
+              <Select
+                id="approve_account"
+                value={approveAccount}
+                onChange={(e) => setApproveAccount(e.target.value)}
+                disabled={approving}
+              >
+                {allowedAccounts.map((a) => (
+                  <option key={a.code} value={a.code}>
+                    {a.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+            <p className="text-[11px] text-inkSoft">
+              The chosen account is locked for the eventual payout. Only accounts you have
+              access to are listed.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="approve_notes">Notes (optional)</Label>
+            <Textarea
+              id="approve_notes"
+              value={approveNotes}
+              onChange={(e) => setApproveNotes(e.target.value)}
+              rows={2}
+              disabled={approving}
+            />
+          </div>
+          {approveError ? (
+            <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">
+              {approveError}
+            </p>
+          ) : null}
+        </div>
+      </Modal>
+
+      <Modal
         open={showPay}
         onClose={paying ? () => {} : () => setShowPay(false)}
         title="Mark payment paid"
-        description={`Pay ${formatPHP(payment.amount)} from ${accountNameByCode[payment.account_code] ?? payment.account_code}?`}
+        description={
+          payment.account_code
+            ? `Pay ${formatPHP(payment.amount)} from ${accountNameByCode[payment.account_code] ?? payment.account_code}?`
+            : `Pay ${formatPHP(payment.amount)}?`
+        }
         size="sm"
         footer={
           <>

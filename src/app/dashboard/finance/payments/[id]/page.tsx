@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PaymentDetailClient, type LedgerLink, type PaymentDetail } from "./payment-detail-client";
 import { ALL_ROLES, type Role } from "@/lib/roles";
+import { filterAllowedAccounts } from "@/lib/allowed-accounts";
 
 // Staff is allowed in — RLS limits them to their own reimbursements, so the
 // payment row will simply come back null for anything else (rendered as
@@ -33,11 +34,11 @@ export default async function PaymentDetailPage({
     supabase
       .from("payments")
       .select(
-        "id, external_id, created_at, type, purpose, payee, category, amount, account_code, transfer_to_account_code, status, paid_at, paid_date, paid_by_user_id, requested_by_user_id, requested_by_name, ledger_entry_id_out, ledger_entry_id_in, cancelled_at, cancelled_by_user_id, cancel_reason, notes",
+        "id, external_id, created_at, type, purpose, payee, category, amount, account_code, transfer_to_account_code, status, approved_at, approved_by_user_id, paid_at, paid_date, paid_by_user_id, requested_by_user_id, requested_by_name, ledger_entry_id_out, ledger_entry_id_in, cancelled_at, cancelled_by_user_id, cancel_reason, notes",
       )
       .eq("id", params.id)
       .maybeSingle(),
-    supabase.from("accounts").select("code, name").order("name"),
+    supabase.from("accounts").select("code, name").eq("is_active", true).order("name"),
     // Staff can't read ledger_entries (RLS is ops+); for staff this just
     // returns an empty list, which the detail page renders gracefully.
     role === "staff"
@@ -98,6 +99,12 @@ export default async function PaymentDetailPage({
         currentUserId={user.id}
         payment={payment as PaymentDetail}
         accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
+        allowedAccounts={await filterAllowedAccounts(
+          supabase,
+          role,
+          user.id,
+          (accounts ?? []) as Array<{ code: string; name: string }>,
+        )}
         ledgerEntries={(ledgerEntries ?? []) as LedgerLink[]}
         linkedExpense={linkedExpense}
       />
