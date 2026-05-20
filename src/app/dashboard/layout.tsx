@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ToastProvider } from "@/components/ui/toast";
-import { Sidebar } from "./sidebar";
+import { AppShell } from "./app-shell";
 import type { Role } from "@/lib/roles";
 
 export default async function DashboardLayout({
@@ -40,10 +40,9 @@ export default async function DashboardLayout({
 
   return (
     <ToastProvider>
-      <div className="min-h-screen flex bg-cream">
-        <Sidebar role={role} email={user.email ?? ""} />
-        <main className="flex-1 px-6 py-8 max-w-6xl mx-auto w-full">{children}</main>
-      </div>
+      <AppShell role={role} email={user.email ?? ""}>
+        {children}
+      </AppShell>
     </ToastProvider>
   );
 }
