@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Plus } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { buttonClasses } from "@/components/ui/button";
-import { formatDate, formatPHP } from "@/lib/utils";
+import { formatPHP } from "@/lib/utils";
 import { ingredientEmoji } from "@/lib/ingredient-icons";
 import {
   hasRole,
@@ -11,8 +11,9 @@ import {
   OWNER_PARTNER_MANAGER,
   type Role,
 } from "@/lib/roles";
+import { LotsView, type LotRow } from "./lots-view";
 
-type LotRow = {
+type LotRecord = {
   id: string;
   external_id: string | null;
   received_date: string;
@@ -27,6 +28,7 @@ type LotRow = {
   notes: string | null;
   received_by_name: string | null;
   ledger_entry_id: string | null;
+  account_code: string;
 };
 
 export default async function IngredientLotsPage({
@@ -49,6 +51,7 @@ export default async function IngredientLotsPage({
   if (!hasRole(role, OWNER_PARTNER_MANAGER)) redirect("/dashboard");
 
   const canReceive = hasRole(role, OWNER_PARTNER);
+  const canEdit = hasRole(role, OWNER_PARTNER);
   const code = decodeURIComponent(params.code).toUpperCase();
 
   const [{ data: ingredient }, { data: lotsData }, { data: onHand }] = await Promise.all([
@@ -61,7 +64,7 @@ export default async function IngredientLotsPage({
     supabase
       .from("ingredient_lots")
       .select(
-        "id, external_id, received_date, vendor, purchase_qty, purchase_unit, converted_qty, converted_unit, total_cost, cost_per_unit, qty_remaining, notes, received_by_name, ledger_entry_id",
+        "id, external_id, received_date, vendor, purchase_qty, purchase_unit, converted_qty, converted_unit, total_cost, cost_per_unit, qty_remaining, notes, received_by_name, ledger_entry_id, account_code",
       )
       .eq("ingredient_code", code)
       .is("deleted_at", null)
@@ -76,9 +79,31 @@ export default async function IngredientLotsPage({
 
   if (!ingredient) notFound();
 
-  const lots = (lotsData ?? []) as LotRow[];
-  const activeLots = lots.filter((l) => Number(l.qty_remaining) > 0);
-  const depletedLots = lots.filter((l) => Number(l.qty_remaining) <= 0);
+  const lots = (lotsData ?? []) as LotRecord[];
+
+  // Per-lot consumption count: how many batch_inputs reference each lot.
+  // RPC void_ingredient_lot rejects consumed lots; UI hides the Void button
+  // to match. Fetched only when there are lots to ask about.
+  const consumedByLot: Record<string, number> = {};
+  if (lots.length > 0) {
+    const { data: consRows } = await supabase
+      .from("batch_inputs")
+      .select("lot_id")
+      .in(
+        "lot_id",
+        lots.map((l) => l.id),
+      );
+    for (const r of (consRows ?? []) as Array<{ lot_id: string }>) {
+      consumedByLot[r.lot_id] = (consumedByLot[r.lot_id] ?? 0) + 1;
+    }
+  }
+
+  const decoratedLots: LotRow[] = lots.map((l) => ({
+    ...l,
+    consumed_count: consumedByLot[l.id] ?? 0,
+  }));
+  const activeLots = decoratedLots.filter((l) => Number(l.qty_remaining) > 0);
+  const depletedLots = decoratedLots.filter((l) => Number(l.qty_remaining) <= 0);
 
   const totalOnHand = Number(onHand?.qty_on_hand ?? 0);
   const avgCost = onHand?.avg_cost_per_unit != null ? Number(onHand.avg_cost_per_unit) : null;
@@ -134,29 +159,16 @@ export default async function IngredientLotsPage({
         />
       </div>
 
-      <section className="space-y-2">
-        <h2 className="font-serif font-bold text-lg text-ink">
-          Active lots ({activeLots.length})
-        </h2>
-        {activeLots.length === 0 ? (
-          <p className="text-sm text-inkSoft">No active lots. Log a receipt to add stock.</p>
-        ) : (
-          <LotsTable rows={activeLots} unit={ingredient.unit} depleted={false} />
-        )}
-      </section>
-
-      {depletedLots.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="font-serif font-bold text-lg text-ink">
-            Depleted lots ({depletedLots.length})
-          </h2>
-          <LotsTable rows={depletedLots} unit={ingredient.unit} depleted />
-        </section>
-      ) : null}
+      <LotsView
+        unit={ingredient.unit}
+        activeLots={activeLots}
+        depletedLots={depletedLots}
+        canEdit={canEdit}
+      />
 
       <p className="text-[11px] text-inkSoft px-1">
-        Lot quantities decrement only via batch consumption. To correct a mistake on a
-        lot, soft-delete it via SQL and log a new receipt — never edit qty in place.
+        Click a lot to edit vendor / received date / notes. Material fields (cost, qty,
+        ingredient, account) are locked — fix mistakes by voiding and logging a new lot.
       </p>
     </div>
   );
@@ -184,87 +196,6 @@ function Stat({
         </div>
         <div className={`font-serif font-bold text-2xl ${num} tabular-nums`}>{value}</div>
       </div>
-    </div>
-  );
-}
-
-function LotsTable({
-  rows,
-  unit,
-  depleted,
-}: {
-  rows: LotRow[];
-  unit: string;
-  depleted: boolean;
-}) {
-  return (
-    <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-cream text-inkSoft">
-          <tr className="text-left">
-            <th className="px-4 py-2 font-semibold w-36">Lot</th>
-            <th className="px-4 py-2 font-semibold w-28">Received</th>
-            <th className="px-4 py-2 font-semibold">Vendor</th>
-            <th className="px-4 py-2 font-semibold w-32">Purchase</th>
-            <th className="px-4 py-2 font-semibold w-32 text-right">Remaining</th>
-            <th className="px-4 py-2 font-semibold w-32 text-right">Total cost</th>
-            <th className="px-4 py-2 font-semibold w-28 text-right">Per unit</th>
-            <th className="px-4 py-2 font-semibold w-16 text-center">Ledger</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const qtyRemaining = Number(r.qty_remaining);
-            const convertedQty = Number(r.converted_qty);
-            const rowClass = depleted ? "opacity-60" : "";
-            return (
-              <tr key={r.id} className={`border-t border-border ${rowClass}`}>
-                <td className="px-4 py-2.5 font-mono text-xs text-ink">
-                  {r.external_id ?? r.id.slice(0, 8)}
-                </td>
-                <td className="px-4 py-2.5 text-xs text-inkSoft whitespace-nowrap">
-                  {formatDate(r.received_date)}
-                </td>
-                <td className="px-4 py-2.5 text-sm text-ink truncate">
-                  {r.vendor || <span className="text-inkSoft">—</span>}
-                </td>
-                <td className="px-4 py-2.5 text-xs text-inkSoft font-mono">
-                  {Number(r.purchase_qty)} {r.purchase_unit}
-                </td>
-                <td className="px-4 py-2.5 text-right font-mono tabular-nums">
-                  {depleted ? (
-                    <span className="text-inkSoft italic">depleted</span>
-                  ) : (
-                    <span>
-                      {qtyRemaining.toFixed(1)} / {convertedQty.toFixed(1)} {unit}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-2.5 text-right font-mono tabular-nums">
-                  {formatPHP(r.total_cost)}
-                </td>
-                <td className="px-4 py-2.5 text-right font-mono tabular-nums text-berry">
-                  {formatPHP(r.cost_per_unit)}
-                </td>
-                <td className="px-4 py-2.5 text-center">
-                  {r.ledger_entry_id ? (
-                    <Link
-                      href={`/dashboard/finance/accounts`}
-                      className="inline-flex text-inkSoft hover:text-berry"
-                      title="View linked ledger entry"
-                      aria-label="Ledger entry"
-                    >
-                      <ArrowUpRight className="w-4 h-4" />
-                    </Link>
-                  ) : (
-                    <span className="text-inkSoft text-xs">—</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
   );
 }

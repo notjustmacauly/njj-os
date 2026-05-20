@@ -41,6 +41,7 @@ type BatchRow = {
   qc_passed: boolean | null;
   cogs_total: number | string;
   staff_name: string | null;
+  is_backfill: boolean | null;
 };
 
 type InvRow = {
@@ -144,7 +145,7 @@ export default async function ProductionListPage({
   let listQuery = supabase
     .from("batches")
     .select(
-      "id, external_id, batch_date, sku_code, units_planned, units_produced, wastage, ph, brix, qc_passed, cogs_total, staff_name",
+      "id, external_id, batch_date, sku_code, units_planned, units_produced, wastage, ph, brix, qc_passed, cogs_total, staff_name, is_backfill",
     )
     .is("deleted_at", null)
     .gte("batch_date", start)
@@ -208,12 +209,22 @@ export default async function ProductionListPage({
       header: "Batch ID",
       className: "w-32",
       render: (r) => (
-        <Link
-          href={`/dashboard/production/${r.id}`}
-          className="font-mono text-xs text-ink hover:text-berry"
-        >
-          {r.external_id ?? "—"}
-        </Link>
+        <span className="inline-flex items-center gap-1.5">
+          <Link
+            href={`/dashboard/production/${r.id}`}
+            className="font-mono text-xs text-ink hover:text-berry"
+          >
+            {r.external_id ?? "—"}
+          </Link>
+          {r.is_backfill ? (
+            <span
+              title="Historical record — no inventory was deducted"
+              className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-smallcaps font-semibold text-yellow bg-yellowBg px-1.5 py-0.5 rounded-full"
+            >
+              📚 Historical
+            </span>
+          ) : null}
+        </span>
       ),
     },
     {

@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TriStateRadio } from "@/components/ui/tri-state-radio";
 import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
 import {
   BatchInputsEditor,
   type BatchInputDraft,
@@ -78,6 +79,7 @@ export function NewBatchForm({
   const [staffName, setStaffName] = React.useState(defaultStaffName);
   const [notes, setNotes] = React.useState("");
   const [inputs, setInputs] = React.useState<BatchInputDraft[]>([]);
+  const [isBackfill, setIsBackfill] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
@@ -154,9 +156,19 @@ export function NewBatchForm({
         ingredient_code: it.ingredient_code,
         qty_used: it.qty_used,
         unit: it.unit,
-        // Empty string = FIFO mode (server picks the oldest active lot).
-        lot_id: it.lot_id ?? "",
+        // Backfill mode: pass the optional cost estimate, no lot.
+        // Normal mode: pass lot_id (empty string = FIFO).
+        ...(isBackfill
+          ? {
+              lot_id: "",
+              cost_per_unit:
+                it.cost_per_unit != null && Number.isFinite(it.cost_per_unit)
+                  ? it.cost_per_unit
+                  : null,
+            }
+          : { lot_id: it.lot_id ?? "" }),
       })),
+      p_is_backfill: isBackfill,
     });
 
     setSubmitting(false);
@@ -177,6 +189,37 @@ export function NewBatchForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <label
+        className={cn(
+          "flex items-start gap-3 px-4 py-3 rounded-lg border cursor-pointer select-none",
+          isBackfill
+            ? "bg-yellowBg border-yellow/40"
+            : "bg-cream/30 border-border hover:bg-cream/60",
+        )}
+      >
+        <input
+          type="checkbox"
+          checked={isBackfill}
+          onChange={(e) => setIsBackfill(e.target.checked)}
+          disabled={submitting}
+          className="mt-0.5"
+        />
+        <div className="text-sm">
+          <div className="font-semibold text-ink">
+            Historical batch (backfill mode)
+          </div>
+          <div className="text-xs text-inkSoft mt-0.5">
+            Use this when logging batches produced before the transition to NJJ OS.
+            Skips inventory and can deduction. Cost estimates are optional and stored
+            as snapshot only.
+          </div>
+          {isBackfill ? (
+            <div className="mt-2 text-xs text-yellow font-semibold">
+              Historical record — no inventory effect on submit.
+            </div>
+          ) : null}
+        </div>
+      </label>
       <div className="bg-white border border-border rounded-lg shadow-card p-6 space-y-4">
         <h2 className="font-serif font-bold text-xl text-ink">Production data</h2>
 
@@ -248,7 +291,7 @@ export function NewBatchForm({
                 Yield {Math.round((producedNum / plannedNum) * 100)}% — above plan.
               </p>
             ) : null}
-            {canIngredient && producedNum > 0 ? (
+            {!isBackfill && canIngredient && producedNum > 0 ? (
               <p className="text-xs text-peri mt-1">
                 Will also deduct {producedNum} {canIngredient.name}
                 {producedNum === 1 ? "" : "s"} from FIFO inventory.
@@ -379,6 +422,7 @@ export function NewBatchForm({
           skuFilter={skuCode}
           unitsProduced={producedNum}
           disabled={submitting}
+          backfill={isBackfill}
         />
       </div>
 

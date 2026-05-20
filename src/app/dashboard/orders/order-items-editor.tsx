@@ -244,6 +244,12 @@ export function OrderItemsEditor({
                         disabled={disabled}
                         clearable={false}
                       />
+                      {!item.batch_id ? (
+                        <p className="text-[10px] text-inkSoft mt-1">
+                          Leave blank for orders fulfilled from pre-system production
+                          (e.g. early-May orders using April juice).
+                        </p>
+                      ) : null}
                     </td>
                     <td className="px-2 py-2 text-right font-semibold text-berry">
                       {formatPHP(item.qty * item.unit_price)}

@@ -63,6 +63,7 @@ export function BatchInputsEditor({
   skuFilter,
   unitsProduced,
   disabled,
+  backfill = false,
 }: {
   inputs: BatchInputDraft[];
   onChange: (next: BatchInputDraft[]) => void;
@@ -71,6 +72,9 @@ export function BatchInputsEditor({
   skuFilter?: string;
   unitsProduced?: number;
   disabled?: boolean;
+  /** When true: skip lot resolution + picker; show optional cost-per-unit
+   *  input per row (the estimate stored as cost_per_unit_at_use snapshot). */
+  backfill?: boolean;
 }) {
   const ingredientByCode = React.useMemo(() => {
     const map: Record<string, IngredientRef> = {};
@@ -161,9 +165,23 @@ export function BatchInputsEditor({
     };
   }
 
-  const rowResolutions = inputs.map(resolveLot);
+  // In backfill mode we don't resolve lots — cost comes from the optional
+  // estimate field on each row. The lot resolutions are only consulted in
+  // the normal path.
+  const rowResolutions = backfill
+    ? inputs.map(() => ({
+        lot: null as LotOption | null,
+        explicit: false,
+        insufficientForExplicit: false,
+        fifoUnavailable: false,
+      }))
+    : inputs.map(resolveLot);
 
   const totalCost = inputs.reduce((sum, row, idx) => {
+    if (backfill) {
+      const est = Number(row.cost_per_unit ?? 0);
+      return sum + row.qty_used * (Number.isFinite(est) ? est : 0);
+    }
     const r = rowResolutions[idx];
     if (!r.lot) return sum;
     return sum + row.qty_used * r.lot.cost_per_unit;
@@ -186,8 +204,13 @@ export function BatchInputsEditor({
             const lot = res.lot;
             const otherCodes = usedCodes.filter((_, i) => i !== idx);
             const ingredientLots = lotsByCode[row.ingredient_code] ?? [];
-            const subtotal = lot ? row.qty_used * lot.cost_per_unit : 0;
-            const showError = res.fifoUnavailable || res.insufficientForExplicit;
+            const estimateCost = Number(row.cost_per_unit ?? 0);
+            const subtotal = backfill
+              ? row.qty_used * (Number.isFinite(estimateCost) ? estimateCost : 0)
+              : lot
+                ? row.qty_used * lot.cost_per_unit
+                : 0;
+            const showError = !backfill && (res.fifoUnavailable || res.insufficientForExplicit);
 
             return (
               <div
@@ -242,24 +265,53 @@ export function BatchInputsEditor({
                 </div>
 
                 <div className="mt-2 pl-1">
-                  <LotControl
-                    row={row}
-                    lots={ingredientLots}
-                    resolvedLot={lot}
-                    explicit={res.explicit}
-                    fifoUnavailable={res.fifoUnavailable}
-                    insufficientForExplicit={res.insufficientForExplicit}
-                    onPickFifo={() => update(idx, { lot_id: null })}
-                    onPickLot={(lotId) => update(idx, { lot_id: lotId })}
-                    disabled={disabled}
-                  />
-                  {showError ? (
-                    <p className="text-xs text-coral mt-1">
-                      {res.fifoUnavailable
-                        ? `No single lot has enough ${row.ingredient_code} for ${row.qty_used}${row.unit}. Split this into two inputs (e.g. ${ingredientLots[0]?.qty_remaining ?? "—"}${row.unit} from ${ingredientLots[0]?.external_id ?? "the oldest"} + the rest from another lot).`
-                        : `That lot only has ${lot?.qty_remaining}${row.unit} remaining.`}
-                    </p>
-                  ) : null}
+                  {backfill ? (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft px-1.5 py-0.5 rounded-md bg-yellowBg text-yellow">
+                        Backfill
+                      </span>
+                      <label className="text-inkSoft flex items-center gap-2">
+                        Cost estimate per {row.unit} (optional)
+                        <NumberInput
+                          prefix="₱"
+                          min="0"
+                          step="0.01"
+                          value={row.cost_per_unit ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const n = v === "" ? undefined : Number(v);
+                            update(idx, {
+                              cost_per_unit:
+                                n !== undefined && Number.isFinite(n) && n >= 0 ? n : undefined,
+                            });
+                          }}
+                          disabled={disabled}
+                          className="h-8 w-28"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <>
+                      <LotControl
+                        row={row}
+                        lots={ingredientLots}
+                        resolvedLot={lot}
+                        explicit={res.explicit}
+                        fifoUnavailable={res.fifoUnavailable}
+                        insufficientForExplicit={res.insufficientForExplicit}
+                        onPickFifo={() => update(idx, { lot_id: null })}
+                        onPickLot={(lotId) => update(idx, { lot_id: lotId })}
+                        disabled={disabled}
+                      />
+                      {showError ? (
+                        <p className="text-xs text-coral mt-1">
+                          {res.fifoUnavailable
+                            ? `No single lot has enough ${row.ingredient_code} for ${row.qty_used}${row.unit}. Split this into two inputs (e.g. ${ingredientLots[0]?.qty_remaining ?? "—"}${row.unit} from ${ingredientLots[0]?.external_id ?? "the oldest"} + the rest from another lot).`
+                            : `That lot only has ${lot?.qty_remaining}${row.unit} remaining.`}
+                        </p>
+                      ) : null}
+                    </>
+                  )}
                 </div>
               </div>
             );

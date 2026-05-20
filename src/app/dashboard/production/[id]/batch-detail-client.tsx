@@ -41,6 +41,7 @@ type BatchRecord = {
   staff_name: string | null;
   cogs_total: number | string;
   notes: string | null;
+  is_backfill: boolean | null;
 };
 
 type InputRow = {
@@ -302,8 +303,23 @@ export function BatchDetailClient({
 
   const oversold = inventory && inventory.remaining_signed < 0;
 
+  const isBackfill = batch.is_backfill === true;
+
   return (
     <div className="space-y-6">
+      {isBackfill ? (
+        <div className="bg-yellowBg border border-yellow/40 rounded-lg px-4 py-3 flex items-start gap-2 text-sm">
+          <span aria-hidden className="text-base leading-none">📚</span>
+          <div>
+            <div className="font-semibold text-yellow">Historical record (backfilled)</div>
+            <div className="text-xs text-yellow/90 mt-0.5">
+              This batch was logged during the system transition. No inventory was
+              deducted. Cost figures are estimates.
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Header card */}
       <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
         <div className="px-5 py-4 flex items-start justify-between gap-3">
@@ -619,7 +635,7 @@ export function BatchDetailClient({
                   <tfoot>
                     <tr className="border-t border-border bg-cream/60">
                       <td colSpan={4} className="px-3 py-3 text-right text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
-                        Real cost
+                        {isBackfill ? "Estimated cost" : "Real cost"}
                       </td>
                       <td className="px-3 py-3 text-right font-serif font-bold text-lg text-berry">
                         {formatPHP(realCost)}
@@ -649,7 +665,7 @@ export function BatchDetailClient({
           </div>
           {inputsMissingLot > 0 ? (
             <div className="text-yellow">
-              Real cost incomplete — {inputsMissingLot} input
+              {isBackfill ? "Estimated" : "Real"} cost incomplete — {inputsMissingLot} input
               {inputsMissingLot === 1 ? "" : "s"} missing lot data (created before the
               inventory cutover; legacy cost used as fallback).
             </div>

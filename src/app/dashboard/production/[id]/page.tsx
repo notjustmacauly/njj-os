@@ -38,7 +38,7 @@ export default async function BatchDetailPage({
     supabase
       .from("batches")
       .select(
-        "id, external_id, batch_date, sku_code, units_planned, units_produced, wastage, ph, brix, qc_passed, qc_notes, staff_name, cogs_total, notes, created_at, deleted_at",
+        "id, external_id, batch_date, sku_code, units_planned, units_produced, wastage, ph, brix, qc_passed, qc_notes, staff_name, cogs_total, notes, is_backfill, created_at, deleted_at",
       )
       .eq("id", params.id)
       .is("deleted_at", null)
@@ -116,6 +116,7 @@ export default async function BatchDetailPage({
             staff_name: string | null;
             cogs_total: number | string;
             notes: string | null;
+            is_backfill: boolean | null;
           }
         }
         initialInputs={
