@@ -19,11 +19,9 @@ function todayIso(): string {
 }
 
 export function NewReimbursementForm({
-  accounts,
   teamMembers,
   requestedByName,
 }: {
-  accounts: Array<{ code: string; name: string }>;
   teamMembers: Array<{ user_id: string; display_name: string }>;
   requestedByName: string;
 }) {
@@ -40,7 +38,6 @@ export function NewReimbursementForm({
   const [category, setCategory] = React.useState<string>(FINANCE_CATEGORIES[0]);
   const [description, setDescription] = React.useState("");
   const [amount, setAmount] = React.useState("");
-  const [accountCode, setAccountCode] = React.useState(accounts[0]?.code ?? "");
   const [receiptUrl, setReceiptUrl] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -59,7 +56,6 @@ export function NewReimbursementForm({
     if (!description.trim()) return setError("Description is required.");
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) return setError("Amount must be > 0.");
-    if (!accountCode) return setError("Pick an account.");
 
     const notesBlock = [
       `Original purchase date: ${originalDate}`,
@@ -75,7 +71,8 @@ export function NewReimbursementForm({
       p_idempotency_key: idempotencyKey,
       p_purpose: description.trim(),
       p_amount: amt,
-      p_account_code: accountCode,
+      // Account is chosen at pay-time, not submit-time.
+      p_account_code: null,
       p_type: "reimbursement",
       p_payee: finalPayee,
       p_category: category,
@@ -171,38 +168,19 @@ export function NewReimbursementForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label htmlFor="rb_amount" required>
-            Amount
-          </Label>
-          <NumberInput
-            id="rb_amount"
-            prefix="₱"
-            min="0"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            disabled={submitting}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="rb_account" required>
-            Paid from account
-          </Label>
-          <Select
-            id="rb_account"
-            value={accountCode}
-            onChange={(e) => setAccountCode(e.target.value)}
-            disabled={submitting}
-          >
-            {accounts.map((a) => (
-              <option key={a.code} value={a.code}>
-                {a.name}
-              </option>
-            ))}
-          </Select>
-        </div>
+      <div className="space-y-1">
+        <Label htmlFor="rb_amount" required>
+          Amount
+        </Label>
+        <NumberInput
+          id="rb_amount"
+          prefix="₱"
+          min="0"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          disabled={submitting}
+        />
       </div>
 
       <div className="space-y-1">
@@ -231,11 +209,9 @@ export function NewReimbursementForm({
       {amount && Number(amount) > 0 && finalPayee ? (
         <p className="text-xs text-inkSoft bg-cream/40 border border-border rounded-md px-3 py-2">
           Will request {formatPHP(amount)} for{" "}
-          <span className="font-semibold">{finalPayee}</span> from{" "}
-          <span className="font-semibold">
-            {accounts.find((a) => a.code === accountCode)?.name ?? accountCode}
-          </span>
-          . When paid, an expense row will be created automatically in the {category} category.
+          <span className="font-semibold">{finalPayee}</span>. Mac or Hanneh picks the
+          source account when they pay this out; an expense row will be created
+          automatically in the {category} category.
         </p>
       ) : null}
 

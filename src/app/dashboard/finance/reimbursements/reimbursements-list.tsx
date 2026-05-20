@@ -2,7 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
+import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
+import { Select } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
 import type { Role } from "@/lib/roles";
 import { accountEmoji } from "../account-icons";
@@ -16,7 +23,7 @@ export type ReimbursementRow = {
   payee: string | null;
   category: string | null;
   amount: number | string;
-  account_code: string;
+  account_code: string | null;
   status: "pending" | "paid" | "cancelled";
   paid_date: string | null;
   requested_by_name: string | null;
@@ -37,6 +44,10 @@ const STATUS_TONE: Record<ReimbursementRow["status"], string> = {
   paid: "bg-greenBg text-green",
   cancelled: "bg-creamDk text-inkSoft",
 };
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function isPaidThisMonth(r: ReimbursementRow): boolean {
   if (r.status !== "paid" || !r.paid_date) return false;
@@ -62,14 +73,20 @@ function isInTab(r: ReimbursementRow, tab: TabKey): boolean {
 export function ReimbursementsList({
   role,
   accounts,
+  allowedAccounts,
   initial,
 }: {
   role: Role;
   accounts: Array<{ code: string; name: string }>;
+  allowedAccounts: Array<{ code: string; name: string }>;
   initial: ReimbursementRow[];
 }) {
   const [rows, setRows] = React.useState<ReimbursementRow[]>(initial);
   const [tab, setTab] = React.useState<TabKey>("pending");
+  const [payingRow, setPayingRow] = React.useState<ReimbursementRow | null>(null);
+
+  // Per matrix + 20260518130000 migration: owner + partner can pay reimbursements.
+  const canPay = role === "owner" || role === "partner";
 
   React.useEffect(() => {
     setRows(initial);
@@ -147,7 +164,7 @@ export function ReimbursementsList({
         ))}
       </div>
 
-      <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
+      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-cream text-inkSoft">
             <tr className="text-left">
@@ -157,14 +174,15 @@ export function ReimbursementsList({
               <th className="px-4 py-2 font-semibold w-32">Category</th>
               <th className="px-4 py-2 font-semibold">Description</th>
               <th className="px-4 py-2 font-semibold w-28 text-right">Amount</th>
-              <th className="px-4 py-2 font-semibold w-32">From</th>
+              <th className="px-4 py-2 font-semibold w-32">Paid from</th>
               <th className="px-4 py-2 font-semibold w-24">Status</th>
+              <th className="px-4 py-2 font-semibold w-20 text-right" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr className="border-t border-border">
-                <td colSpan={8} className="px-4 py-8 text-center text-sm text-inkSoft">
+                <td colSpan={9} className="px-4 py-8 text-center text-sm text-inkSoft">
                   No reimbursements in this tab.
                 </td>
               </tr>
@@ -196,8 +214,16 @@ export function ReimbursementsList({
                     {formatPHP(r.amount)}
                   </td>
                   <td className="px-4 py-2.5 text-xs">
-                    <span aria-hidden className="mr-1">{accountEmoji(r.account_code)}</span>
-                    {accountNameByCode[r.account_code] ?? r.account_code}
+                    {r.account_code ? (
+                      <>
+                        <span aria-hidden className="mr-1">
+                          {accountEmoji(r.account_code)}
+                        </span>
+                        {accountNameByCode[r.account_code] ?? r.account_code}
+                      </>
+                    ) : (
+                      <span className="text-inkSoft italic">— picked at pay</span>
+                    )}
                   </td>
                   <td className="px-4 py-2.5">
                     <span
@@ -209,6 +235,17 @@ export function ReimbursementsList({
                       {r.status}
                     </span>
                   </td>
+                  <td className="px-4 py-2.5 text-right">
+                    {canPay && r.status === "pending" ? (
+                      <Button
+                        size="sm"
+                        onClick={() => setPayingRow(r)}
+                        className="min-h-[36px]"
+                      >
+                        Pay →
+                      </Button>
+                    ) : null}
+                  </td>
                 </tr>
               ))
             )}
@@ -217,8 +254,140 @@ export function ReimbursementsList({
       </div>
 
       <p className="text-[11px] text-inkSoft px-1">
-        Window: rolling 12 months. Role: {role}. Detail page is shared with /payments/[id].
+        Window: rolling 12 months. Role: {role}. Owner and Partner can pay reimbursements;
+        the chosen company account is recorded only at pay time.
       </p>
+
+      {payingRow ? (
+        <PayReimbursementModal
+          row={payingRow}
+          allowedAccounts={allowedAccounts}
+          onClose={() => setPayingRow(null)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function PayReimbursementModal({
+  row,
+  allowedAccounts,
+  onClose,
+}: {
+  row: ReimbursementRow;
+  allowedAccounts: Array<{ code: string; name: string }>;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+
+  const [accountCode, setAccountCode] = React.useState<string>(
+    row.account_code ?? allowedAccounts[0]?.code ?? "",
+  );
+  const [paidDate, setPaidDate] = React.useState(todayIso());
+  const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function handleConfirm() {
+    if (submitting) return;
+    if (!accountCode) {
+      setError("Pick the company account that's paying this back.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: rpcErr } = await supabase.rpc("pay_payment", {
+      p_payment_id: row.id,
+      p_paid_date: paidDate,
+      p_account_code: accountCode,
+    });
+    setSubmitting(false);
+    if (rpcErr) {
+      setError(rpcErr.message);
+      return;
+    }
+    const accountName =
+      allowedAccounts.find((a) => a.code === accountCode)?.name ?? accountCode;
+    toast.push(
+      `✓ Paid back ${formatPHP(row.amount)} to ${row.payee ?? "—"} from ${accountName}. Logged as expense.`,
+      "success",
+    );
+    onClose();
+    router.refresh();
+  }
+
+  return (
+    <Modal
+      open
+      onClose={submitting ? () => {} : onClose}
+      title={`Pay back ${formatPHP(row.amount)} to ${row.payee ?? "—"} for "${row.purpose}"`}
+      description="Choose which company account is paying this back. A matching expense row is created automatically."
+      size="md"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirm} disabled={submitting || !accountCode}>
+            {submitting ? "Posting…" : "Confirm & Pay →"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <Label htmlFor="rb_pay_account" required>
+            Which company account is paying this back?
+          </Label>
+          {allowedAccounts.length === 0 ? (
+            <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">
+              You don&rsquo;t have access to any accounts. Ask the owner to grant access.
+            </p>
+          ) : (
+            <Select
+              id="rb_pay_account"
+              value={accountCode}
+              onChange={(e) => setAccountCode(e.target.value)}
+              disabled={submitting}
+            >
+              <option value="">— pick an account —</option>
+              {allowedAccounts.map((a) => (
+                <option key={a.code} value={a.code}>
+                  {a.name}
+                </option>
+              ))}
+            </Select>
+          )}
+          <p className="text-[11px] text-inkSoft">
+            Only accounts you have access to are listed.
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="rb_pay_date" required>
+            Paid date
+          </Label>
+          <DateInput
+            id="rb_pay_date"
+            value={paidDate}
+            onChange={(e) => setPaidDate(e.target.value)}
+            disabled={submitting}
+          />
+        </div>
+
+        <ul className="text-xs text-inkSoft bg-cream/40 border border-border rounded-md px-3 py-2 list-disc list-inside space-y-1">
+          <li>Marks the reimbursement as Paid.</li>
+          <li>Posts an outflow from the chosen account.</li>
+          <li>Creates a matching Expense record automatically.</li>
+        </ul>
+
+        {error ? (
+          <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    </Modal>
   );
 }

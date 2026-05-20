@@ -117,9 +117,14 @@ export function PaymentDetailClient({
     !isReimb &&
     payment.status === "pending" &&
     (role === "owner" || role === "partner");
+  // Per 20260518130000_partner_pays_reimbursements_and_lot_void_actor:
+  // partner can now pay reimbursements too.
   const canPay = isReimb
-    ? payment.status === "pending" && role === "owner"
+    ? payment.status === "pending" && (role === "owner" || role === "partner")
     : payment.status === "approved" && (role === "owner" || role === "partner");
+  // Reimbursements submit without an account; the payer picks one in the
+  // Pay modal. Existing reimbursements with a pre-set account skip the picker.
+  const reimbNeedsAccount = isReimb && payment.account_code == null;
   const canCancel =
     payment.status === "pending" || payment.status === "approved"
       ? role === "owner" ||
@@ -133,6 +138,9 @@ export function PaymentDetailClient({
 
   const [showPay, setShowPay] = React.useState(false);
   const [paidDate, setPaidDate] = React.useState(todayIso());
+  const [payAccount, setPayAccount] = React.useState<string>(
+    payment.account_code ?? allowedAccounts[0]?.code ?? "",
+  );
   const [paying, setPaying] = React.useState(false);
   const [payError, setPayError] = React.useState<string | null>(null);
 
@@ -176,12 +184,20 @@ export function PaymentDetailClient({
 
   async function handlePay() {
     if (paying) return;
+    if (reimbNeedsAccount && !payAccount) {
+      setPayError("Pick the company account that's paying this back.");
+      return;
+    }
     setPaying(true);
     setPayError(null);
     const supabase = createClient();
     const { error } = await supabase.rpc("pay_payment", {
       p_payment_id: payment.id,
       p_paid_date: paidDate,
+      // Reimbursements with no pre-set account need the picker value;
+      // anything else has the account already locked from approval and
+      // can omit the arg (RPC will read it from the row).
+      ...(reimbNeedsAccount ? { p_account_code: payAccount } : {}),
     });
     setPaying(false);
     if (error) {
@@ -491,25 +507,63 @@ export function PaymentDetailClient({
       <Modal
         open={showPay}
         onClose={paying ? () => {} : () => setShowPay(false)}
-        title="Mark payment paid"
-        description={
-          payment.account_code
-            ? `Pay ${formatPHP(payment.amount)} from ${accountNameByCode[payment.account_code] ?? payment.account_code}?`
-            : `Pay ${formatPHP(payment.amount)}?`
+        title={
+          isReimb
+            ? `Pay back ${formatPHP(payment.amount)} to ${payment.payee ?? "—"} for "${payment.purpose}"`
+            : "Mark payment paid"
         }
-        size="sm"
+        description={
+          reimbNeedsAccount
+            ? "Choose which company account is paying this back."
+            : payment.account_code
+              ? `Pay ${formatPHP(payment.amount)} from ${accountNameByCode[payment.account_code] ?? payment.account_code}?`
+              : `Pay ${formatPHP(payment.amount)}?`
+        }
+        size={reimbNeedsAccount ? "md" : "sm"}
         footer={
           <>
             <Button variant="ghost" onClick={() => setShowPay(false)} disabled={paying}>
               Cancel
             </Button>
-            <Button onClick={handlePay} disabled={paying}>
-              {paying ? "Posting…" : "Confirm pay"}
+            <Button
+              onClick={handlePay}
+              disabled={paying || (reimbNeedsAccount && !payAccount)}
+            >
+              {paying ? "Posting…" : isReimb ? "Confirm & Pay →" : "Confirm pay"}
             </Button>
           </>
         }
       >
         <div className="space-y-3">
+          {reimbNeedsAccount ? (
+            <div className="space-y-1">
+              <Label htmlFor="pay_account" required>
+                Which company account is paying this back?
+              </Label>
+              {allowedAccounts.length === 0 ? (
+                <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">
+                  You don&rsquo;t have access to any accounts. Ask the owner to grant access.
+                </p>
+              ) : (
+                <Select
+                  id="pay_account"
+                  value={payAccount}
+                  onChange={(e) => setPayAccount(e.target.value)}
+                  disabled={paying}
+                >
+                  <option value="">— pick an account —</option>
+                  {allowedAccounts.map((a) => (
+                    <option key={a.code} value={a.code}>
+                      {a.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
+              <p className="text-[11px] text-inkSoft">
+                Only accounts you have access to are listed.
+              </p>
+            </div>
+          ) : null}
           <div className="space-y-1">
             <Label htmlFor="paid_date" required>
               Paid date
@@ -521,11 +575,19 @@ export function PaymentDetailClient({
               disabled={paying}
             />
           </div>
-          <p className="text-xs text-inkSoft">
-            This posts the ledger entry{isTransfer ? " (both legs for transfers)" : ""} and marks
-            the payment <span className="font-mono">paid</span>. This action cannot be cancelled
-            via the UI once posted.
-          </p>
+          {isReimb ? (
+            <ul className="text-xs text-inkSoft bg-cream/40 border border-border rounded-md px-3 py-2 list-disc list-inside space-y-1">
+              <li>Marks the reimbursement as Paid.</li>
+              <li>Posts an outflow from the chosen account.</li>
+              <li>Creates a matching Expense record automatically.</li>
+            </ul>
+          ) : (
+            <p className="text-xs text-inkSoft">
+              This posts the ledger entry{isTransfer ? " (both legs for transfers)" : ""} and marks
+              the payment <span className="font-mono">paid</span>. This action cannot be cancelled
+              via the UI once posted.
+            </p>
+          )}
           {payError ? (
             <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">
               {payError}

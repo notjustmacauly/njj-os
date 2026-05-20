@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buttonClasses } from "@/components/ui/button";
 import { ReimbursementsList, type ReimbursementRow } from "./reimbursements-list";
 import { ALL_ROLES, type Role } from "@/lib/roles";
+import { filterAllowedAccounts } from "@/lib/allowed-accounts";
 
 // Staff sees only their own — RLS does the row filtering.
 const READ_ROLES = ALL_ROLES;
@@ -28,7 +29,7 @@ export default async function ReimbursementsPage() {
   windowStart.setMonth(windowStart.getMonth() - 12);
   windowStart.setDate(1);
 
-  const [{ data: accounts }, { data: payments }] = await Promise.all([
+  const [{ data: accountsData }, { data: payments }] = await Promise.all([
     supabase.from("accounts").select("code, name").eq("is_active", true).order("name"),
     supabase
       .from("payments")
@@ -40,6 +41,8 @@ export default async function ReimbursementsPage() {
       .gte("created_at", windowStart.toISOString())
       .order("created_at", { ascending: false }),
   ]);
+  const accounts = (accountsData ?? []) as Array<{ code: string; name: string }>;
+  const allowedAccounts = await filterAllowedAccounts(supabase, role, user.id, accounts);
 
   return (
     <div className="space-y-5">
@@ -61,7 +64,8 @@ export default async function ReimbursementsPage() {
 
       <ReimbursementsList
         role={role}
-        accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
+        accounts={accounts}
+        allowedAccounts={allowedAccounts}
         initial={(payments ?? []) as ReimbursementRow[]}
       />
     </div>
