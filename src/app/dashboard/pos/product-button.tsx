@@ -38,7 +38,7 @@ export function ProductButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex flex-col items-center justify-center gap-1 rounded-lg border px-3 py-3 min-h-[88px] text-center transition shadow-sm active:scale-[0.98]",
+        "flex flex-col items-center justify-center gap-1 rounded-lg border px-3 py-3 min-h-[88px] text-center transition shadow-sm active:scale-[0.98] touch-manipulation",
         "disabled:opacity-50 disabled:cursor-not-allowed",
         toneClass,
       )}

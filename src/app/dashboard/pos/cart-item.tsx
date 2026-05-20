@@ -69,7 +69,7 @@ export function CartItem({
           onClick={() => onQtyChange(Math.max(1, item.qty - 1))}
           disabled={disabled || item.qty <= 1}
           aria-label="Decrease quantity by 1"
-          className="w-7 h-7 flex items-center justify-center rounded-md border border-border text-inkSoft hover:bg-cream disabled:opacity-40"
+          className="w-9 h-9 md:w-7 md:h-7 flex items-center justify-center rounded-md border border-border text-inkSoft hover:bg-cream disabled:opacity-40 touch-manipulation"
         >
           <Minus className="w-3.5 h-3.5" />
         </button>
@@ -83,14 +83,14 @@ export function CartItem({
           onFocus={handleFocus}
           disabled={disabled}
           aria-label="Quantity"
-          className="w-12 h-7 text-center font-mono text-sm rounded-md border border-border bg-white text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-berry/30 focus-visible:border-berry disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-12 h-9 md:h-7 text-center font-mono text-sm rounded-md border border-border bg-white text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-berry/30 focus-visible:border-berry disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
           type="button"
           onClick={() => onQtyChange(item.qty + 1)}
           disabled={disabled}
           aria-label="Increase quantity by 1"
-          className="w-7 h-7 flex items-center justify-center rounded-md border border-border text-inkSoft hover:bg-cream disabled:opacity-40"
+          className="w-9 h-9 md:w-7 md:h-7 flex items-center justify-center rounded-md border border-border text-inkSoft hover:bg-cream disabled:opacity-40 touch-manipulation"
         >
           <Plus className="w-3.5 h-3.5" />
         </button>
@@ -101,7 +101,7 @@ export function CartItem({
         onClick={onRemove}
         disabled={disabled}
         aria-label="Remove item"
-        className="ml-1 p-1 rounded-md text-inkSoft hover:bg-salmonBg hover:text-coral disabled:opacity-40"
+        className="ml-1 min-w-[40px] min-h-[40px] md:min-w-0 md:min-h-0 md:p-1 flex items-center justify-center rounded-md text-inkSoft hover:bg-salmonBg hover:text-coral disabled:opacity-40 touch-manipulation"
       >
         <X className="w-4 h-4" />
       </button>

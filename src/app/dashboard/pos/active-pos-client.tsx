@@ -3,13 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { History, ShoppingCart, Trash2 } from "lucide-react";
+import { ChevronUp, History, ShoppingCart, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import { useToast } from "@/components/ui/toast";
-import { formatPHP } from "@/lib/utils";
+import { cn, formatPHP } from "@/lib/utils";
 import { BundlePicker } from "./bundle-picker";
 import { CartItem as CartItemRow } from "./cart-item";
 import { CloseShiftDialog } from "./close-shift-dialog";
@@ -91,6 +91,34 @@ export function ActivePosClient({
   const [submitting, setSubmitting] = React.useState(false);
   const [showCloseDialog, setShowCloseDialog] = React.useState(false);
   const [cashOnHand, setCashOnHand] = React.useState<number>(Number(shift.opening_cash ?? 0));
+  const [mobileCartOpen, setMobileCartOpen] = React.useState(false);
+
+  // Close the mobile cart drawer after a successful charge so the user
+  // sees the toast + a clean product grid for the next sale.
+  // (Triggered by the cart-clearing side-effect of handleCharge.)
+  React.useEffect(() => {
+    if (cart.length === 0 && mobileCartOpen) setMobileCartOpen(false);
+  }, [cart.length, mobileCartOpen]);
+
+  // Lock body scroll while the drawer is open.
+  React.useEffect(() => {
+    if (!mobileCartOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileCartOpen]);
+
+  // Close on Escape — mirrors the global nav drawer behavior.
+  React.useEffect(() => {
+    if (!mobileCartOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobileCartOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileCartOpen]);
 
   const subtotal = cart.reduce((s, it) => s + it.qty * it.unit_price, 0);
   const discountNum = Math.max(0, Number(discount) || 0);
@@ -388,8 +416,133 @@ export function ActivePosClient({
   const canSeeSessions =
     viewerRole === "owner" || viewerRole === "partner" || viewerRole === "manager";
 
+  // Cart panel body. Rendered twice on small screens (desktop column +
+  // mobile slide-up drawer) so we parameterize input IDs to avoid clashes.
+  const renderCartBody = ({ idPrefix }: { idPrefix: string }) => (
+    <>
+      <div className="flex items-baseline justify-between border-b border-border pb-2 mb-2">
+        <h2 className="font-serif font-bold text-lg text-ink">Current sale</h2>
+        {cart.length > 0 ? (
+          <button
+            type="button"
+            onClick={clearCart}
+            className="text-xs text-inkSoft hover:text-coral inline-flex items-center gap-1 min-h-[32px] touch-manipulation"
+          >
+            <Trash2 className="w-3 h-3" />
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      <div className="flex-1 min-h-[120px] overflow-y-auto">
+        {cart.length === 0 ? (
+          <p className="text-sm text-inkSoft text-center py-8">
+            Tap a product to add to cart.
+          </p>
+        ) : (
+          <div>
+            {cart.map((it) => (
+              <CartItemRow
+                key={it.id}
+                item={it}
+                onQtyChange={(q) => setItemQty(it.id, q)}
+                onRemove={() => removeItem(it.id)}
+                disabled={submitting}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-inkSoft">Subtotal</span>
+          <span className="font-mono">{formatPHP(subtotal)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor={`${idPrefix}-discount`} className="text-inkSoft m-0">
+            Discount
+          </Label>
+          <div className="w-28">
+            <NumberInput
+              id={`${idPrefix}-discount`}
+              prefix="₱"
+              min="0"
+              step="1"
+              inputMode="numeric"
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value)}
+              disabled={submitting}
+              className="h-9 text-right"
+            />
+          </div>
+        </div>
+        <div className="flex justify-between border-t border-border pt-2">
+          <span className="font-semibold text-ink">Total</span>
+          <span className="font-serif font-bold text-xl text-berry">
+            {formatPHP(total)}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <div className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">
+          Payment
+        </div>
+        <PaymentMethodToggle
+          value={paymentMethod}
+          onChange={setPaymentMethod}
+          disabled={submitting}
+        />
+        {paymentMethod === "Cash" ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor={`${idPrefix}-cash_tendered`} className="text-inkSoft m-0">
+                Cash tendered
+              </Label>
+              <div className="w-28">
+                <NumberInput
+                  id={`${idPrefix}-cash_tendered`}
+                  prefix="₱"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={cashTendered}
+                  onChange={(e) => setCashTendered(e.target.value)}
+                  disabled={submitting}
+                  className="h-9 text-right"
+                />
+              </div>
+            </div>
+            {cashNum !== null && Number.isFinite(cashNum) ? (
+              <div className="flex justify-between text-xs">
+                <span className="text-inkSoft">Change due</span>
+                <span
+                  className={`font-mono font-semibold ${
+                    change >= 0 ? "text-emerald-700" : "text-coral"
+                  }`}
+                >
+                  {formatPHP(change)}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <Button
+        onClick={handleCharge}
+        disabled={!canCharge}
+        size="lg"
+        className="mt-4 w-full min-h-[48px]"
+      >
+        {submitting ? "Charging…" : `Charge ${formatPHP(total)} →`}
+      </Button>
+    </>
+  );
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-24 md:pb-0">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-serif font-bold text-2xl text-ink flex items-center gap-2">
@@ -423,7 +576,7 @@ export function ActivePosClient({
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5">
+      <div className="space-y-5 md:space-y-0 md:grid md:grid-cols-[1fr_300px] lg:grid-cols-[1fr_360px] md:gap-5">
         {/* Product grid */}
         <div className="bg-white border border-border rounded-lg shadow-card p-4 space-y-3">
           <div className="flex gap-1 border-b border-border -mx-4 px-4">
@@ -538,124 +691,10 @@ export function ActivePosClient({
           )}
         </div>
 
-        {/* Current sale */}
-        <div className="bg-white border border-border rounded-lg shadow-card p-4 flex flex-col">
-          <div className="flex items-baseline justify-between border-b border-border pb-2 mb-2">
-            <h2 className="font-serif font-bold text-lg text-ink">Current sale</h2>
-            {cart.length > 0 ? (
-              <button
-                type="button"
-                onClick={clearCart}
-                className="text-xs text-inkSoft hover:text-coral inline-flex items-center gap-1"
-              >
-                <Trash2 className="w-3 h-3" />
-                Clear
-              </button>
-            ) : null}
-          </div>
-
-          <div className="flex-1 min-h-[120px]">
-            {cart.length === 0 ? (
-              <p className="text-sm text-inkSoft text-center py-8">
-                Tap a product to add to cart.
-              </p>
-            ) : (
-              <div>
-                {cart.map((it) => (
-                  <CartItemRow
-                    key={it.id}
-                    item={it}
-                    onQtyChange={(q) => setItemQty(it.id, q)}
-                    onRemove={() => removeItem(it.id)}
-                    disabled={submitting}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-3 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-inkSoft">Subtotal</span>
-              <span className="font-mono">{formatPHP(subtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="discount" className="text-inkSoft m-0">
-                Discount
-              </Label>
-              <div className="w-28">
-                <NumberInput
-                  id="discount"
-                  prefix="₱"
-                  min="0"
-                  step="1"
-                  value={discount}
-                  onChange={(e) => setDiscount(e.target.value)}
-                  disabled={submitting}
-                  className="h-8 text-right"
-                />
-              </div>
-            </div>
-            <div className="flex justify-between border-t border-border pt-2">
-              <span className="font-semibold text-ink">Total</span>
-              <span className="font-serif font-bold text-xl text-berry">
-                {formatPHP(total)}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            <div className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">
-              Payment
-            </div>
-            <PaymentMethodToggle
-              value={paymentMethod}
-              onChange={setPaymentMethod}
-              disabled={submitting}
-            />
-            {paymentMethod === "Cash" ? (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="cash_tendered" className="text-inkSoft m-0">
-                    Cash tendered
-                  </Label>
-                  <div className="w-28">
-                    <NumberInput
-                      id="cash_tendered"
-                      prefix="₱"
-                      min="0"
-                      step="1"
-                      value={cashTendered}
-                      onChange={(e) => setCashTendered(e.target.value)}
-                      disabled={submitting}
-                      className="h-8 text-right"
-                    />
-                  </div>
-                </div>
-                {cashNum !== null && Number.isFinite(cashNum) ? (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-inkSoft">Change due</span>
-                    <span
-                      className={`font-mono font-semibold ${
-                        change >= 0 ? "text-emerald-700" : "text-coral"
-                      }`}
-                    >
-                      {formatPHP(change)}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-
-          <Button
-            onClick={handleCharge}
-            disabled={!canCharge}
-            size="lg"
-            className="mt-4 w-full"
-          >
-            {submitting ? "Charging…" : `Charge ${formatPHP(total)} →`}
-          </Button>
+        {/* Current sale — desktop / landscape column (hidden on mobile portrait;
+            mobile portrait gets a slide-up drawer instead, see below). */}
+        <div className="hidden md:flex md:flex-col bg-white border border-border rounded-lg shadow-card p-4 md:min-h-[480px]">
+          {renderCartBody({ idPrefix: "d" })}
         </div>
       </div>
 
@@ -691,6 +730,73 @@ export function ActivePosClient({
         shiftId={shift.id}
         expectedCash={cashOnHand}
       />
+
+      {/* Mobile portrait: sticky cart-summary bar that opens a bottom drawer.
+          Hidden from md: up because the cart lives in its own column there. */}
+      <div
+        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-border shadow-[0_-2px_8px_rgba(0,0,0,0.04)]"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <button
+          type="button"
+          onClick={() => setMobileCartOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={mobileCartOpen}
+          aria-label={`Open cart (${cart.length} ${cart.length === 1 ? "item" : "items"}, ${formatPHP(total)})`}
+          className="w-full min-h-[56px] px-4 flex items-center justify-between gap-3 touch-manipulation active:bg-cream/60"
+        >
+          <span className="flex items-center gap-2 text-ink font-semibold">
+            <ShoppingCart className="w-4 h-4 text-berry" />
+            Cart{cart.length > 0 ? ` (${cart.length})` : ""}
+          </span>
+          <span className="ml-auto font-serif font-bold text-lg text-berry">
+            {formatPHP(total)}
+          </span>
+          <ChevronUp className="w-4 h-4 text-inkSoft" aria-hidden />
+        </button>
+      </div>
+
+      {/* Mobile portrait: cart drawer. Backdrop + slide-up sheet. */}
+      <div
+        className={cn(
+          "md:hidden fixed inset-0 z-50 flex flex-col transition-opacity",
+          mobileCartOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
+        )}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Current sale"
+      >
+        <button
+          type="button"
+          onClick={() => setMobileCartOpen(false)}
+          aria-label="Close cart"
+          className="flex-1 bg-ink/40"
+        />
+        <div
+          className={cn(
+            "bg-white border-t border-border rounded-t-xl shadow-card flex flex-col max-h-[88dvh] transition-transform duration-200",
+            mobileCartOpen ? "translate-y-0" : "translate-y-full",
+          )}
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="flex items-center justify-between px-4 pt-3">
+            <span className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">
+              Tap outside or here to close
+            </span>
+            <button
+              type="button"
+              onClick={() => setMobileCartOpen(false)}
+              aria-label="Close cart"
+              className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-md text-inkSoft hover:bg-cream touch-manipulation"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex flex-col flex-1 px-4 pb-4 overflow-hidden">
+            {renderCartBody({ idPrefix: "m" })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
