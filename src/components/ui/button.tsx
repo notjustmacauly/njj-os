@@ -22,7 +22,7 @@ const SIZES: Record<Size, string> = {
 };
 
 const BASE =
-  "inline-flex items-center justify-center gap-2 rounded-md transition focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 rounded-md transition touch-manipulation focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed";
 
 /**
  * Returns the className string for a button-styled element. Use this when

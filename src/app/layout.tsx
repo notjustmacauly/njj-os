@@ -1,9 +1,18 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "NotJust OS",
   description: "Operating system for NotJust Enterprises Inc.",
+};
+
+// Disable user zoom on mobile — accidental double-tap during a busy POS
+// checkout is annoying and slows the booth down. Pinch-zoom is also off.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
