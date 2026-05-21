@@ -27,14 +27,24 @@ export default async function ReceivablesPage() {
   const role = roleRow?.role as Role | null;
   if (!role || !FINANCE_ROLES.includes(role)) redirect("/dashboard");
 
-  const { data: rows } = await supabase
+  // Avoid the embed alias "order:" — Postgrest reserves "order" as a query
+  // parameter and the colon-prefixed alias inside select= has been observed
+  // to silently return zero rows in some setups. Rename to order_ref.
+  const { data: rows, error } = await supabase
     .from("receivables")
     .select(
-      "id, external_id, created_at, amount, status, due_date, order_id, partner_id, bill_id, partner:partners(name), order:orders(external_id), bill:bills(external_id)",
+      "id, external_id, created_at, amount, status, due_date, order_id, partner_id, bill_id, partner:partners(name), order_ref:orders(external_id), bill:bills(external_id)",
     )
     .is("deleted_at", null)
     .order("due_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
+
+  if (error) {
+    // Surface the error rather than silently rendering an empty list.
+    // Owners/partners are the only ones who land here, so it's safe to
+    // show the raw message.
+    throw new Error(`Receivables query failed: ${error.message}`);
+  }
 
   const normalized: ReceivableRow[] = ((rows ?? []) as unknown as Array<{
     id: string;
@@ -47,11 +57,11 @@ export default async function ReceivablesPage() {
     partner_id: string;
     bill_id: string | null;
     partner: { name: string } | { name: string }[] | null;
-    order: { external_id: string | null } | { external_id: string | null }[] | null;
+    order_ref: { external_id: string | null } | { external_id: string | null }[] | null;
     bill: { external_id: string | null } | { external_id: string | null }[] | null;
   }>).map((r) => {
     const partner = Array.isArray(r.partner) ? r.partner[0] : r.partner;
-    const order = Array.isArray(r.order) ? r.order[0] : r.order;
+    const order = Array.isArray(r.order_ref) ? r.order_ref[0] : r.order_ref;
     const bill = Array.isArray(r.bill) ? r.bill[0] : r.bill;
     return {
       id: r.id,
