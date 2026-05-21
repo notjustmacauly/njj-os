@@ -339,16 +339,10 @@ export function ReceivablesView({ rows }: { rows: ReceivableRow[] }) {
                 : overdue <= 30
                   ? "text-yellow"
                   : "text-coral";
-            const Wrapper: React.ElementType = r.order_id ? Link : "div";
-            const wrapperProps = r.order_id
-              ? { href: `/dashboard/orders/${r.order_id}` }
-              : {};
-            return (
-              <Wrapper
-                key={r.id}
-                {...wrapperProps}
-                className="block bg-white border border-border rounded-lg shadow-card p-3 active:bg-cream/60"
-              >
+            const cardClass =
+              "block bg-white border border-border rounded-lg shadow-card p-3 active:bg-cream/60";
+            const body = (
+              <>
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-xs text-inkSoft">
                     {r.order_external_id ?? "—"}
@@ -381,7 +375,16 @@ export function ReceivablesView({ rows }: { rows: ReceivableRow[] }) {
                     </span>
                   ) : null}
                 </div>
-              </Wrapper>
+              </>
+            );
+            return r.order_id ? (
+              <Link key={r.id} href={`/dashboard/orders/${r.order_id}`} className={cardClass}>
+                {body}
+              </Link>
+            ) : (
+              <div key={r.id} className={cardClass}>
+                {body}
+              </div>
             );
           })
         )}
