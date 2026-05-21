@@ -419,7 +419,54 @@ export default async function OrdersListPage({
         )
       ) : (
         <>
-          <DataTable columns={columns} rows={orders} rowKey={(r) => r.id} />
+          <DataTable
+            columns={columns}
+            rows={orders}
+            rowKey={(r) => r.id}
+            mobileCard={(r) => {
+              const cans: string[] = [];
+              if (r.pcl_qty > 0) cans.push(`PCL ${r.pcl_qty}`);
+              if (r.acg_qty > 0) cans.push(`ACG ${r.acg_qty}`);
+              if (r.wpm_qty > 0) cans.push(`WPM ${r.wpm_qty}`);
+              const batches = batchesByOrder[r.id] ?? [];
+              return (
+                <Link
+                  href={`/dashboard/orders/${r.id}`}
+                  className="block bg-white border border-border rounded-lg shadow-card p-3 active:bg-cream/60 hover:shadow-md transition"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="font-mono text-xs text-inkSoft">
+                      {r.external_id ?? "—"}
+                    </span>
+                    <Badge tone={CHANNEL_TONE[r.channel]}>{r.channel}</Badge>
+                  </div>
+                  <div className="font-semibold text-ink truncate">
+                    {r.partner?.name ?? r.customer_name ?? "Walk-in"}
+                  </div>
+                  <div className="flex items-center justify-between mt-1 text-xs">
+                    <span className="text-inkSoft">{formatDate(r.order_date)}</span>
+                    <span className="font-serif font-bold text-base text-berry">
+                      {formatPHP(r.total)}
+                    </span>
+                  </div>
+                  {cans.length > 0 ? (
+                    <div className="text-xs text-inkSoft font-mono mt-1">
+                      {cans.join(" · ")}
+                    </div>
+                  ) : null}
+                  {batches.length > 0 ? (
+                    <div className="text-xs text-inkSoft font-mono mt-0.5">
+                      Batches: {batches.join(", ")}
+                    </div>
+                  ) : null}
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    <StatusBadge status={r.payment_status} />
+                    <StatusBadge status={r.fulfillment_status} />
+                  </div>
+                </Link>
+              );
+            }}
+          />
           {totalPages > 1 ? (
             <Pagination
               page={page}

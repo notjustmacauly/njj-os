@@ -175,7 +175,7 @@ export function PaymentsList({
         ))}
       </div>
 
-      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
+      <div className="hidden md:block bg-white border border-border rounded-lg shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-cream text-inkSoft">
             <tr className="text-left">
@@ -273,6 +273,73 @@ export function PaymentsList({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile (sm:-) card list — same data, stacked. */}
+      <div className="md:hidden space-y-2">
+        {filtered.length === 0 ? (
+          <div className="bg-white border border-border rounded-lg shadow-card p-6 text-center text-sm text-inkSoft">
+            No payments in this tab.
+          </div>
+        ) : (
+          filtered.map((r) => {
+            const cta = ctaForRow(r);
+            const dest =
+              r.type === "transfer" && r.transfer_to_account_code
+                ? `${accountEmoji(r.transfer_to_account_code)} ${
+                    accountNameByCode[r.transfer_to_account_code] ?? r.transfer_to_account_code
+                  }`
+                : r.payee;
+            return (
+              <Link
+                key={r.id}
+                href={`/dashboard/finance/payments/${r.id}`}
+                className="block bg-white border border-border rounded-lg shadow-card p-3 active:bg-cream/60"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs text-inkSoft">
+                    {r.external_id ?? r.id.slice(0, 8)}
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize",
+                      STATUS_TONE[r.status],
+                    )}
+                  >
+                    {STATUS_LABEL[r.status]}
+                  </span>
+                </div>
+                <div className="font-semibold text-ink mt-1 line-clamp-2">{r.purpose}</div>
+                {dest ? (
+                  <div className="text-xs text-inkSoft mt-0.5 truncate">
+                    <span className="capitalize">{r.type}</span> · {dest}
+                  </div>
+                ) : (
+                  <div className="text-xs text-inkSoft mt-0.5 capitalize">{r.type}</div>
+                )}
+                <div className="flex items-center justify-between mt-2 text-xs">
+                  <span className="text-inkSoft">{formatDate(r.created_at)}</span>
+                  <span className="font-serif font-bold text-base text-coral tabular-nums">
+                    {formatPHP(r.amount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mt-1 text-xs">
+                  <span className="text-inkSoft truncate">
+                    {r.account_code ? (
+                      <>
+                        From <span aria-hidden className="mx-0.5">{accountEmoji(r.account_code)}</span>
+                        {accountNameByCode[r.account_code] ?? r.account_code}
+                      </>
+                    ) : (
+                      <span className="italic">From: approver picks</span>
+                    )}
+                  </span>
+                  {cta ? <span className="text-berry font-semibold">{cta}</span> : null}
+                </div>
+              </Link>
+            );
+          })
+        )}
       </div>
 
       <p className="text-[11px] text-inkSoft px-1">

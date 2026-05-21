@@ -221,7 +221,7 @@ export function ReceivablesView({ rows }: { rows: ReceivableRow[] }) {
         </div>
       </div>
 
-      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
+      <div className="hidden md:block bg-white border border-border rounded-lg shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-cream text-inkSoft">
             <tr className="text-left">
@@ -308,6 +308,69 @@ export function ReceivablesView({ rows }: { rows: ReceivableRow[] }) {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile (sm:-) card list. */}
+      <div className="md:hidden space-y-2">
+        {filtered.length === 0 ? (
+          <div className="bg-white border border-border rounded-lg shadow-card p-6 text-center text-sm text-inkSoft">
+            No receivables match the current filters.
+          </div>
+        ) : (
+          filtered.map((r) => {
+            const overdue = daysOverdue(r.due_date);
+            const overdueTone =
+              overdue === null || overdue <= 0
+                ? "text-inkSoft"
+                : overdue <= 30
+                  ? "text-yellow"
+                  : "text-coral";
+            const Wrapper: React.ElementType = r.order_id ? Link : "div";
+            const wrapperProps = r.order_id
+              ? { href: `/dashboard/orders/${r.order_id}` }
+              : {};
+            return (
+              <Wrapper
+                key={r.id}
+                {...wrapperProps}
+                className="block bg-white border border-border rounded-lg shadow-card p-3 active:bg-cream/60"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs text-inkSoft">
+                    {r.order_external_id ?? "—"}
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                      STATUS_TONE[r.status],
+                    )}
+                  >
+                    {STATUS_LABELS[r.status]}
+                  </span>
+                </div>
+                <div className="font-semibold text-ink mt-1 truncate">{r.partner_name}</div>
+                <div className="flex items-center justify-between mt-2 text-xs">
+                  <span className="text-inkSoft">
+                    {r.due_date ? `Due ${formatDate(r.due_date)}` : `Created ${formatDate(r.created_at)}`}
+                  </span>
+                  <span className="font-serif font-bold text-base text-ink tabular-nums">
+                    {formatPHP(r.amount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mt-1 text-xs">
+                  <span className={cn("font-mono", overdueTone)}>
+                    {overdue === null || overdue <= 0 ? "On time" : `${overdue}d late`}
+                  </span>
+                  {r.bill_external_id ? (
+                    <span className="font-mono text-inkSoft">
+                      Bill {r.bill_external_id}
+                    </span>
+                  ) : null}
+                </div>
+              </Wrapper>
+            );
+          })
+        )}
       </div>
 
       <p className="text-[11px] text-inkSoft px-1">

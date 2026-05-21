@@ -245,7 +245,7 @@ export function ExpensesView({
         ) : null}
       </div>
 
-      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
+      <div className="hidden md:block bg-white border border-border rounded-lg shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-cream text-inkSoft">
             <tr className="text-left">
@@ -336,6 +336,81 @@ export function ExpensesView({
             </tfoot>
           ) : null}
         </table>
+      </div>
+
+      {/* Mobile (sm:-) card list. */}
+      <div className="md:hidden space-y-2">
+        {filtered.length === 0 ? (
+          <div className="bg-white border border-border rounded-lg shadow-card p-6 text-center text-sm text-inkSoft">
+            No expenses in this range.
+          </div>
+        ) : (
+          <>
+            {filtered.map((r) => {
+              const voided = !!r.voided_at;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setOpenDetail(r)}
+                  className={cn(
+                    "w-full text-left bg-white border border-border rounded-lg shadow-card p-3 transition touch-manipulation active:bg-cream/60",
+                    voided && "opacity-70",
+                    r.id === highlight && "bg-yellow-50",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-inkSoft">
+                      {formatDate(r.expense_date)}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[11px] font-semibold",
+                        voided ? "text-inkSoft" : "text-emerald-700",
+                      )}
+                    >
+                      {voided ? "Voided" : "Active"}
+                    </span>
+                  </div>
+                  <div
+                    className={cn(
+                      "font-semibold text-ink mt-1 line-clamp-2",
+                      voided && "line-through",
+                    )}
+                  >
+                    {r.description}
+                  </div>
+                  <div className="text-xs text-inkSoft mt-0.5 truncate">
+                    {r.category}
+                    {r.vendor ? ` · ${r.vendor}` : ""}
+                  </div>
+                  <div className="flex items-center justify-between mt-2 text-xs">
+                    <span className="text-inkSoft truncate">
+                      <span aria-hidden className="mr-1">{accountEmoji(r.account_code)}</span>
+                      {accountNameByCode[r.account_code] ?? r.account_code}
+                    </span>
+                    <span
+                      className={cn(
+                        "font-serif font-bold text-base tabular-nums",
+                        voided ? "line-through text-inkSoft" : "text-coral",
+                      )}
+                    >
+                      {formatPHP(r.amount)}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+            <div className="bg-cream/60 border border-border rounded-lg p-3 flex items-center justify-between text-sm">
+              <span className="text-xs text-inkSoft">
+                Active total ({filtered.filter((e) => !e.voided_at).length} entries)
+              </span>
+              <span className="font-mono font-semibold text-coral tabular-nums">
+                {formatPHP(activeTotal)}
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       <ExpenseFormModal
