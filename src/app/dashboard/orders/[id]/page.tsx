@@ -90,7 +90,7 @@ export default async function OrderDetailPage({
   // Receivable + bill (B2B only path)
   const { data: receivableData } = await supabase
     .from("receivables")
-    .select("id, external_id, amount, status, due_date, bill:bills(id, external_id, status, total, due_date)")
+    .select("id, external_id, amount, status, due_date, bill:bills!receivables_bill_id_fkey(id, external_id, status, total, due_date)")
     .eq("order_id", params.id)
     .maybeSingle();
 

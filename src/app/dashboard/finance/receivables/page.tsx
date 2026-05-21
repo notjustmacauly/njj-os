@@ -27,13 +27,13 @@ export default async function ReceivablesPage() {
   const role = roleRow?.role as Role | null;
   if (!role || !FINANCE_ROLES.includes(role)) redirect("/dashboard");
 
-  // Avoid the embed alias "order:" — Postgrest reserves "order" as a query
-  // parameter and the colon-prefixed alias inside select= has been observed
-  // to silently return zero rows in some setups. Rename to order_ref.
-  const { data: rows, error } = await supabase
+  // The bills embed must be qualified by the FK name — a bill_receivables
+  // junction table exists, so 'bills' alone is ambiguous for Postgrest and
+  // makes the whole query return empty with PGRST201.
+  const { data: rows } = await supabase
     .from("receivables")
     .select(
-      "id, external_id, created_at, amount, status, due_date, order_id, partner_id, bill_id, partner:partners(name), order_ref:orders(external_id), bill:bills(external_id)",
+      "id, external_id, created_at, amount, status, due_date, order_id, partner_id, bill_id, partner:partners(name), order_ref:orders(external_id), bill:bills!receivables_bill_id_fkey(external_id)",
     )
     .is("deleted_at", null)
     .order("due_date", { ascending: true, nullsFirst: false })
@@ -91,24 +91,6 @@ export default async function ReceivablesPage() {
           Outstanding partner balances. Created automatically when delivered orders are unpaid.
         </p>
       </header>
-
-      {/* Temporary debug banner — surfaces the Supabase error (if any) and
-          the row count so we can tell server-query problems from client-
-          render problems at a glance. Remove once receivables list is
-          back to normal. */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-md px-3 py-2 text-xs font-mono text-yellow-900 space-y-1">
-        <div>
-          <b>debug</b> rows from supabase: {(rows ?? []).length} ·
-          normalized: {normalized.length}
-        </div>
-        {error ? (
-          <pre className="whitespace-pre-wrap break-all">
-            {JSON.stringify(error, null, 2)}
-          </pre>
-        ) : (
-          <div>no supabase error</div>
-        )}
-      </div>
 
       <ReceivablesView rows={normalized} />
     </div>
