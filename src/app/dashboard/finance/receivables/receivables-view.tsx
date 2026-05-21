@@ -69,8 +69,10 @@ function bandFor(due: string | null): AgingBand {
 
 export function ReceivablesView({ rows }: { rows: ReceivableRow[] }) {
   const [partnerFilter, setPartnerFilter] = React.useState<string>("");
+  // Default: show all statuses. The "All" pill below clears the set; tapping
+  // a single status restricts to just that one (toggle-on adds to the set).
   const [statusFilter, setStatusFilter] = React.useState<Set<ReceivableStatus>>(
-    new Set(["pending", "billed"] as ReceivableStatus[]),
+    new Set(),
   );
   const [bandFilter, setBandFilter] = React.useState<Set<AgingBand>>(new Set());
 
@@ -172,6 +174,18 @@ export function ReceivablesView({ rows }: { rows: ReceivableRow[] }) {
               Status
             </div>
             <div className="flex gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setStatusFilter(new Set())}
+                className={cn(
+                  "px-2 py-1 text-xs rounded-md border transition",
+                  statusFilter.size === 0
+                    ? "bg-berry text-white border-berry"
+                    : "bg-white text-inkSoft border-border hover:bg-cream",
+                )}
+              >
+                All
+              </button>
               {(Object.keys(STATUS_LABELS) as ReceivableStatus[]).map((s) => {
                 const on = statusFilter.has(s);
                 return (
