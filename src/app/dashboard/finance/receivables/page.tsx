@@ -102,12 +102,9 @@ export default async function ReceivablesPage() {
           normalized: {normalized.length}
         </div>
         {error ? (
-          <div>
-            <b>supabase error:</b> {error.message}
-            {error.details ? <span> · details: {error.details}</span> : null}
-            {error.hint ? <span> · hint: {error.hint}</span> : null}
-            {error.code ? <span> · code: {error.code}</span> : null}
-          </div>
+          <pre className="whitespace-pre-wrap break-all">
+            {JSON.stringify(error, null, 2)}
+          </pre>
         ) : (
           <div>no supabase error</div>
         )}
