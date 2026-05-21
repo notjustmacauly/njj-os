@@ -21,8 +21,10 @@ const SIZES: Record<Size, string> = {
   lg: "h-12 px-5 text-base",
 };
 
+// On mobile every button must be at least 44px tall (Apple HIG / Material
+// tap-target floor). Desktop keeps the tighter size set by SIZES.
 const BASE =
-  "inline-flex items-center justify-center gap-2 rounded-md transition touch-manipulation focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 rounded-md transition touch-manipulation min-h-[44px] md:min-h-0 focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed";
 
 /**
  * Returns the className string for a button-styled element. Use this when

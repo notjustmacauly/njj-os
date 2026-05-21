@@ -95,7 +95,7 @@ export function Combobox({
         aria-haspopup="listbox"
         aria-expanded={open}
         className={cn(
-          "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-border bg-white px-3 py-2 text-sm text-left",
+          "flex h-10 min-h-[44px] md:min-h-0 w-full items-center justify-between gap-2 rounded-md border border-border bg-white px-3 py-2 text-sm text-left touch-manipulation",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-berry/30 focus-visible:border-berry",
           "disabled:cursor-not-allowed disabled:bg-cream disabled:text-inkSoft",
           !selected && "text-inkSoft/60",
