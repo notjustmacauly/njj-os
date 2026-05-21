@@ -113,7 +113,7 @@ export function TicketTypesTab({
         </div>
       </div>
 
-      <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
+      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
         {grouped.length === 0 ? (
           <p className="px-5 py-8 text-sm text-inkSoft text-center">
             {initial.length === 0

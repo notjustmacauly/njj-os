@@ -84,7 +84,7 @@ export function BundlesTab({
         </div>
       </div>
 
-      <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
+      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
         {filtered.length === 0 ? (
           <p className="px-5 py-8 text-sm text-inkSoft text-center">
             {initial.length === 0 ? "No bundles yet." : "No active bundles."}

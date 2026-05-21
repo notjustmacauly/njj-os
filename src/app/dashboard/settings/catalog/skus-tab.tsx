@@ -131,7 +131,7 @@ export function SkusTab({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
+      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
         <div className="px-5 py-4 border-b border-border">
           <h2 className="font-serif font-bold text-lg text-ink">Juice SKUs</h2>
           <p className="text-sm text-inkSoft mt-1">
@@ -196,7 +196,7 @@ export function SkusTab({
         </table>
       </div>
 
-      <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
+      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
         <div className="px-5 py-4 border-b border-border">
           <h2 className="font-serif font-bold text-lg text-ink">Partner tier prices</h2>
           <p className="text-sm text-inkSoft mt-1">

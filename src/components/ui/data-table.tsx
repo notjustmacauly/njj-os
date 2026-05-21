@@ -28,7 +28,7 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        "bg-white border border-border rounded-lg shadow-card overflow-hidden",
+        "bg-white border border-border rounded-lg shadow-card overflow-x-auto",
         className,
       )}
     >

@@ -393,7 +393,7 @@ export function PaymentDetailClient({
         {ledgerEntries.length === 0 ? (
           <p className="text-sm text-inkSoft">No ledger entries yet — pending payments don&rsquo;t post.</p>
         ) : (
-          <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
+          <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-cream text-inkSoft">
                 <tr className="text-left">

@@ -228,7 +228,7 @@ export function RevenueTable({
         </div>
       </div>
 
-      <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
+      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-cream text-inkSoft">
             <tr className="text-left">

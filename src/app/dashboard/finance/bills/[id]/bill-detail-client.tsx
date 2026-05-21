@@ -352,7 +352,7 @@ export function BillDetailClient({
         {linkedOrders.length === 0 ? (
           <p className="text-sm text-inkSoft">No receivables linked to this bill yet.</p>
         ) : (
-          <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
+          <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-cream text-inkSoft">
                 <tr className="text-left">
@@ -405,7 +405,7 @@ export function BillDetailClient({
         {ledgerEntries.length === 0 ? (
           <p className="text-sm text-inkSoft">No payments posted to this bill yet.</p>
         ) : (
-          <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
+          <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-cream text-inkSoft">
                 <tr className="text-left">
