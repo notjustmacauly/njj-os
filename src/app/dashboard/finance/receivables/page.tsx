@@ -39,12 +39,6 @@ export default async function ReceivablesPage() {
     .order("due_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
 
-  if (error) {
-    // Surface the error rather than silently rendering an empty list.
-    // Owners/partners are the only ones who land here, so it's safe to
-    // show the raw message.
-    throw new Error(`Receivables query failed: ${error.message}`);
-  }
 
   const normalized: ReceivableRow[] = ((rows ?? []) as unknown as Array<{
     id: string;
@@ -97,6 +91,27 @@ export default async function ReceivablesPage() {
           Outstanding partner balances. Created automatically when delivered orders are unpaid.
         </p>
       </header>
+
+      {/* Temporary debug banner — surfaces the Supabase error (if any) and
+          the row count so we can tell server-query problems from client-
+          render problems at a glance. Remove once receivables list is
+          back to normal. */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-md px-3 py-2 text-xs font-mono text-yellow-900 space-y-1">
+        <div>
+          <b>debug</b> rows from supabase: {(rows ?? []).length} ·
+          normalized: {normalized.length}
+        </div>
+        {error ? (
+          <div>
+            <b>supabase error:</b> {error.message}
+            {error.details ? <span> · details: {error.details}</span> : null}
+            {error.hint ? <span> · hint: {error.hint}</span> : null}
+            {error.code ? <span> · code: {error.code}</span> : null}
+          </div>
+        ) : (
+          <div>no supabase error</div>
+        )}
+      </div>
 
       <ReceivablesView rows={normalized} />
     </div>
