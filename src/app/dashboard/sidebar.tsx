@@ -11,7 +11,7 @@ import {
   Package,
   Factory,
   Boxes,
-  Ticket,
+  // Ticket icon will return when /dashboard/tickets is built.
   Users,
   Wallet,
   Settings,
@@ -55,13 +55,16 @@ const SECTIONS: Section[] = [
       { href: "/dashboard/partners",   label: "Partners",   icon: Users,    roles: ALL_ROLES },
     ],
   },
-  {
-    label: "Events",
-    items: [
-      // Tickets list/check-in is owner/partner/manager; staff sell via POS.
-      { href: "/dashboard/tickets", label: "Tickets", icon: Ticket, roles: ["owner", "partner", "manager"] },
-    ],
-  },
+  // Events section temporarily removed — the /dashboard/tickets page has not
+  // been built yet, so the sidebar link was generating console 404s every time
+  // Next prefetched it. Re-enable this block once the tickets list/check-in
+  // page exists.
+  // {
+  //   label: "Events",
+  //   items: [
+  //     { href: "/dashboard/tickets", label: "Tickets", icon: Ticket, roles: ["owner", "partner", "manager"] },
+  //   ],
+  // },
   {
     label: "Accounting",
     items: [
