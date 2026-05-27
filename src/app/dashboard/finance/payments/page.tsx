@@ -53,7 +53,7 @@ export default async function PaymentsPage() {
             Vendor payments and account transfers. Reimbursements live on their own tab.
           </p>
         </div>
-        {role === "owner" ? (
+        {OWNER_PARTNER_MANAGER.includes(role) ? (
           <Link href="/dashboard/finance/payments/new" className={buttonClasses()}>
             <Plus className="w-4 h-4" />
             New payment
