@@ -33,11 +33,14 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+type Role = "owner" | "partner" | "manager" | "staff";
+
 export function NewBatchForm({
   skus,
   ingredients,
   lots,
   defaultStaffName,
+  role,
 }: {
   skus: Array<{
     code: string;
@@ -48,7 +51,10 @@ export function NewBatchForm({
   ingredients: IngredientRef[];
   lots: LotInput[];
   defaultStaffName: string;
+  role: Role | null;
 }) {
+  // Owner/Partner can finalize directly; manager can only draft.
+  const canFinalizeDirectly = role === "owner" || role === "partner";
   // Normalize lot numeric fields once for the editor.
   const lotOptions: LotOption[] = React.useMemo(
     () =>
@@ -98,22 +104,24 @@ export function NewBatchForm({
     ? ingredients.find((i) => i.code === canCode) ?? null
     : null;
 
-  function validate(): boolean {
+  function validate(mode: "draft" | "finalize"): boolean {
     const e: Record<string, string> = {};
     if (!batchDate) e.batch_date = "Required";
     if (!skuCode) e.sku_code = "Required";
     if (!Number.isFinite(plannedNum) || plannedNum < 0) e.units_planned = "Must be ≥ 0";
-    if (!Number.isFinite(producedNum) || producedNum < 0)
-      e.units_produced = "Must be ≥ 0";
-    if (wastage && (!Number.isFinite(wastageNum) || wastageNum < 0))
-      e.wastage = "Must be ≥ 0";
-    if (ph) {
-      const n = Number(ph);
-      if (!Number.isFinite(n) || n < 0 || n > 14) e.ph = "0–14";
-    }
-    if (brix) {
-      const n = Number(brix);
-      if (!Number.isFinite(n) || n < 0 || n > 100) e.brix = "0–100";
+    if (mode === "finalize") {
+      if (!Number.isFinite(producedNum) || producedNum < 0)
+        e.units_produced = "Must be ≥ 0";
+      if (wastage && (!Number.isFinite(wastageNum) || wastageNum < 0))
+        e.wastage = "Must be ≥ 0";
+      if (ph) {
+        const n = Number(ph);
+        if (!Number.isFinite(n) || n < 0 || n > 14) e.ph = "0–14";
+      }
+      if (brix) {
+        const n = Number(brix);
+        if (!Number.isFinite(n) || n < 0 || n > 100) e.brix = "0–100";
+      }
     }
     for (const it of inputs) {
       if (!it.ingredient_code) {
@@ -129,15 +137,49 @@ export function NewBatchForm({
     return Object.keys(e).length === 0;
   }
 
-  async function handleSubmit(ev: React.FormEvent) {
-    ev.preventDefault();
+  async function saveDraft() {
     if (submitting) return;
-    if (!validate()) {
+    if (!validate("draft")) {
       toast.push("Please fix the highlighted fields", "error");
       return;
     }
     setSubmitting(true);
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("create_draft_batch", {
+      p_idempotency_key: idempotencyKey,
+      p_sku_code: skuCode,
+      p_batch_date: batchDate,
+      p_units_planned: plannedNum,
+      p_staff_name: staffName.trim() || null,
+      p_notes: notes.trim() || null,
+      p_inputs: inputs.map((it) => ({
+        ingredient_code: it.ingredient_code,
+        qty_used: it.qty_used,
+        unit: it.unit,
+        lot_id: it.lot_id ?? "",
+      })),
+    });
+    setSubmitting(false);
+    if (error) {
+      toast.push(error.message || "Couldn't save draft", "error");
+      return;
+    }
+    if (!data) {
+      toast.push("Draft created but no ID returned", "error");
+      return;
+    }
+    toast.push("Draft saved", "success");
+    router.push(`/dashboard/production/${data as string}`);
+    router.refresh();
+  }
 
+  async function saveAndFinalize() {
+    if (submitting) return;
+    if (!validate("finalize")) {
+      toast.push("Please fix the highlighted fields", "error");
+      return;
+    }
+    setSubmitting(true);
     const supabase = createClient();
     const { data, error } = await supabase.rpc("create_batch", {
       p_idempotency_key: idempotencyKey,
@@ -156,8 +198,6 @@ export function NewBatchForm({
         ingredient_code: it.ingredient_code,
         qty_used: it.qty_used,
         unit: it.unit,
-        // Backfill mode: pass the optional cost estimate, no lot.
-        // Normal mode: pass lot_id (empty string = FIFO).
         ...(isBackfill
           ? {
               lot_id: "",
@@ -185,6 +225,15 @@ export function NewBatchForm({
     toast.push("Batch logged", "success");
     router.push(`/dashboard/production/${data as string}`);
     router.refresh();
+  }
+
+  function handleSubmit(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (canFinalizeDirectly) {
+      void saveAndFinalize();
+    } else {
+      void saveDraft();
+    }
   }
 
   return (
@@ -426,14 +475,36 @@ export function NewBatchForm({
         />
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <Button variant="ghost" onClick={() => router.back()} disabled={submitting}>
           Cancel
         </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Logging…" : "Log batch"}
-        </Button>
+        {canFinalizeDirectly ? (
+          <>
+            <Button
+              type="button"
+              variant="berryGhost"
+              onClick={saveDraft}
+              disabled={submitting}
+            >
+              {submitting ? "Saving…" : "Save as draft"}
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Logging…" : "Save & finalize"}
+            </Button>
+          </>
+        ) : (
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Saving…" : "Save draft"}
+          </Button>
+        )}
       </div>
+      {!canFinalizeDirectly ? (
+        <p className="text-xs text-inkSoft text-right -mt-2">
+          You can save this as a draft. An owner or partner will finalize it
+          (units produced, wastage, QC) after production runs.
+        </p>
+      ) : null}
     </form>
   );
 }

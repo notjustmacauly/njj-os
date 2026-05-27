@@ -14,6 +14,8 @@ import {
   UrlSelect,
 } from "@/components/ui/url-filters";
 import { MonthInput } from "./month-input";
+import { ProductionStatusChips } from "./status-chips";
+import { DraftRowActions } from "./draft-row-actions";
 
 type SkuTone = "berry" | "peri" | "coral" | "yellow" | "default";
 const SKU_TONE: Record<string, SkuTone> = {
@@ -41,7 +43,9 @@ type BatchRow = {
   qc_passed: boolean | null;
   cogs_total: number | string;
   staff_name: string | null;
+  staff_user_id: string | null;
   is_backfill: boolean | null;
+  status: "draft" | "finalized" | "voided";
 };
 
 type InvRow = {
@@ -86,6 +90,7 @@ export default async function ProductionListPage({
     qc?: string;
     month?: string;
     oversold?: string;
+    status?: string;
   };
 }) {
   const supabase = await createClient();
@@ -95,6 +100,7 @@ export default async function ProductionListPage({
   const qc = asString(searchParams?.qc).trim();
   const monthIso = asString(searchParams?.month).trim() || currentMonthIso();
   const oversold = asString(searchParams?.oversold) === "1";
+  const statusFilter = asString(searchParams?.status).trim();
   const { start, end, label: monthLabel } = monthRange(monthIso);
 
   // Role gating
@@ -107,6 +113,7 @@ export default async function ProductionListPage({
   const role = roleRow?.role as import("@/lib/roles").Role | null;
   // Per matrix: owner/partner/manager can create batches; staff is view-only.
   const canCreate = role === "owner" || role === "partner" || role === "manager";
+  const currentUserId = user?.id ?? null;
 
   // KPI: month batches (count + units_produced sum + wastage sum + units_planned sum for %)
   const { data: monthBatches } = await supabase
@@ -141,11 +148,28 @@ export default async function ProductionListPage({
     stockBySku[code] += Math.max(0, Number(r.remaining ?? 0));
   }
 
+  // Counts for chip group (respect month + other filters, ignore status itself)
+  let countsQuery = supabase
+    .from("batches")
+    .select("status", { count: "exact", head: false })
+    .is("deleted_at", null)
+    .gte("batch_date", start)
+    .lt("batch_date", end);
+  if (sku) countsQuery = countsQuery.eq("sku_code", sku);
+  const { data: countsRows } = await countsQuery;
+  const allCount = (countsRows ?? []).length;
+  const draftCount = (countsRows ?? []).filter(
+    (r) => (r as { status: string }).status === "draft",
+  ).length;
+  const finalizedCount = (countsRows ?? []).filter(
+    (r) => (r as { status: string }).status === "finalized",
+  ).length;
+
   // List query — apply filters
   let listQuery = supabase
     .from("batches")
     .select(
-      "id, external_id, batch_date, sku_code, units_planned, units_produced, wastage, ph, brix, qc_passed, cogs_total, staff_name, is_backfill",
+      "id, external_id, batch_date, sku_code, units_planned, units_produced, wastage, ph, brix, qc_passed, cogs_total, staff_name, staff_user_id, is_backfill, status",
     )
     .is("deleted_at", null)
     .gte("batch_date", start)
@@ -157,6 +181,9 @@ export default async function ProductionListPage({
   if (qc === "passed") listQuery = listQuery.eq("qc_passed", true);
   if (qc === "failed") listQuery = listQuery.eq("qc_passed", false);
   if (qc === "notyet") listQuery = listQuery.is("qc_passed", null);
+  if (statusFilter === "draft" || statusFilter === "finalized" || statusFilter === "voided") {
+    listQuery = listQuery.eq("status", statusFilter);
+  }
   if (q) {
     listQuery = listQuery.or(
       `external_id.ilike.%${q}%,staff_name.ilike.%${q}%`,
@@ -188,7 +215,7 @@ export default async function ProductionListPage({
     });
   }
 
-  const hasFilters = !!(q || sku || qc || oversold);
+  const hasFilters = !!(q || sku || qc || oversold || statusFilter);
 
   const skuOptions = [
     { value: "", label: "All SKUs" },
@@ -207,7 +234,7 @@ export default async function ProductionListPage({
     {
       key: "external_id",
       header: "Batch ID",
-      className: "w-32",
+      className: "w-36",
       render: (r) => (
         <span className="inline-flex items-center gap-1.5">
           <Link
@@ -216,6 +243,22 @@ export default async function ProductionListPage({
           >
             {r.external_id ?? "—"}
           </Link>
+          {r.status === "draft" ? (
+            <span
+              title="Draft — not yet finalized, no inventory deducted"
+              className="inline-flex items-center text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft bg-creamDk px-1.5 py-0.5 rounded-full"
+            >
+              Draft
+            </span>
+          ) : null}
+          {r.status === "voided" ? (
+            <span
+              title="Voided"
+              className="inline-flex items-center text-[10px] uppercase tracking-smallcaps font-semibold text-coral bg-salmonBg px-1.5 py-0.5 rounded-full"
+            >
+              Voided
+            </span>
+          ) : null}
           {r.is_backfill ? (
             <span
               title="Historical record — no inventory was deducted"
@@ -328,6 +371,21 @@ export default async function ProductionListPage({
         <span className="text-xs text-inkSoft">{r.staff_name ?? "—"}</span>
       ),
     },
+    {
+      key: "actions",
+      header: "",
+      className: "w-32 text-right",
+      render: (r) =>
+        r.status === "draft" ? (
+          <DraftRowActions
+            batchId={r.id}
+            externalId={r.external_id}
+            staffUserId={r.staff_user_id}
+            role={role}
+            currentUserId={currentUserId}
+          />
+        ) : null,
+    },
   ];
 
   return (
@@ -398,6 +456,14 @@ export default async function ProductionListPage({
           </Link>
         ))}
       </div>
+
+      <ProductionStatusChips
+        chips={[
+          { value: "", label: "All", count: allCount },
+          { value: "draft", label: "Drafts", count: draftCount },
+          { value: "finalized", label: "Finalized", count: finalizedCount },
+        ]}
+      />
 
       <div className="bg-white border border-border rounded-lg shadow-card p-3 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
         <div className="md:col-span-2">

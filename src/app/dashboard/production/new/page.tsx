@@ -96,6 +96,7 @@ export default async function NewBatchPage() {
         ingredients={ingredients}
         lots={lots}
         defaultStaffName={defaultStaffName(user.email)}
+        role={role}
       />
     </div>
   );
