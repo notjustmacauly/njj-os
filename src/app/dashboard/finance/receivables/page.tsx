@@ -30,15 +30,23 @@ export default async function ReceivablesPage() {
   // The bills embed must be qualified by the FK name — a bill_receivables
   // junction table exists, so 'bills' alone is ambiguous for Postgrest and
   // makes the whole query return empty with PGRST201.
-  const { data: rows } = await supabase
-    .from("receivables")
-    .select(
-      "id, external_id, created_at, amount, status, due_date, order_id, partner_id, bill_id, partner:partners(name), order_ref:orders(external_id), bill:bills!receivables_bill_id_fkey(external_id)",
-    )
-    .is("deleted_at", null)
-    .order("due_date", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  const [{ data: rows }, { data: accountsData }] = await Promise.all([
+    supabase
+      .from("receivables")
+      .select(
+        "id, external_id, created_at, amount, status, due_date, order_id, partner_id, bill_id, paid_amount, paid_date, paid_account_code, partner:partners(name), order_ref:orders(external_id), bill:bills!receivables_bill_id_fkey(external_id)",
+      )
+      .is("deleted_at", null)
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("accounts")
+      .select("code, name, is_active")
+      .eq("is_active", true)
+      .order("code"),
+  ]);
 
+  const accounts = ((accountsData ?? []) as Array<{ code: string; name: string }>);
 
   const normalized: ReceivableRow[] = ((rows ?? []) as unknown as Array<{
     id: string;
@@ -50,6 +58,9 @@ export default async function ReceivablesPage() {
     order_id: string;
     partner_id: string;
     bill_id: string | null;
+    paid_amount: number | string | null;
+    paid_date: string | null;
+    paid_account_code: string | null;
     partner: { name: string } | { name: string }[] | null;
     order_ref: { external_id: string | null } | { external_id: string | null }[] | null;
     bill: { external_id: string | null } | { external_id: string | null }[] | null;
@@ -67,6 +78,9 @@ export default async function ReceivablesPage() {
       order_id: r.order_id,
       partner_id: r.partner_id,
       bill_id: r.bill_id,
+      paid_amount: r.paid_amount == null ? null : Number(r.paid_amount),
+      paid_date: r.paid_date,
+      paid_account_code: r.paid_account_code,
       partner_name: partner?.name ?? "—",
       order_external_id: order?.external_id ?? null,
       bill_external_id: bill?.external_id ?? null,
@@ -92,7 +106,7 @@ export default async function ReceivablesPage() {
         </p>
       </header>
 
-      <ReceivablesView rows={normalized} />
+      <ReceivablesView rows={normalized} role={role} accounts={accounts} />
     </div>
   );
 }
