@@ -28,6 +28,7 @@ import {
   type TierRef,
 } from "../order-items-editor";
 import type { PartnerOption } from "../new/page";
+import { DeliverOrderModal, type DeliverBatchOption } from "./deliver-order-modal";
 
 type OrderRecord = {
   id: string;
@@ -110,6 +111,8 @@ export function OrderDetailClient({
   tiers,
   skus,
   batchesBySku,
+  deliverBatchesBySku,
+  allocationsByItemId,
   accounts,
   receivable,
   canManage,
@@ -121,6 +124,11 @@ export function OrderDetailClient({
   tiers: TierRef[];
   skus: SkuRef[];
   batchesBySku: Record<string, BatchRef[]>;
+  deliverBatchesBySku: Record<string, DeliverBatchOption[]>;
+  allocationsByItemId: Record<
+    string,
+    Array<{ batch_id: string; batch_external_id: string | null; batch_date: string | null; qty: number }>
+  >;
   accounts: Array<{ code: string; name: string }>;
   receivable: Receivable | null;
   canManage: boolean;
@@ -280,6 +288,7 @@ export function OrderDetailClient({
 
   // ── Status dialogs ──────────────────────────────────────────
   const [fulfillmentOpen, setFulfillmentOpen] = React.useState(false);
+  const [deliverOpen, setDeliverOpen] = React.useState(false);
   const [paidOpen, setPaidOpen] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -321,6 +330,7 @@ export function OrderDetailClient({
   // What action buttons to show
   const showUpdateFulfillment =
     canManage && order.fulfillment_status !== "Delivered" && order.fulfillment_status !== "Cancelled";
+  const showDeliver = showUpdateFulfillment && items.length > 0;
   const showMarkPaid =
     canManage && order.payment_status !== "Paid" && order.channel !== "B2B";
 
@@ -402,8 +412,13 @@ export function OrderDetailClient({
 
         {(showUpdateFulfillment || showMarkPaid) && (
           <div className="border-t border-border bg-cream/50 px-5 py-3 flex gap-2 flex-wrap">
+            {showDeliver ? (
+              <Button variant="primary" size="sm" onClick={() => setDeliverOpen(true)}>
+                Deliver order…
+              </Button>
+            ) : null}
             {showUpdateFulfillment ? (
-              <Button variant="primary" size="sm" onClick={() => setFulfillmentOpen(true)}>
+              <Button variant="ghost" size="sm" onClick={() => setFulfillmentOpen(true)}>
                 Update fulfillment
               </Button>
             ) : null}
@@ -626,10 +641,30 @@ export function OrderDetailClient({
         </div>
       </div>
 
+      {/* Delivery breakdown — visible when delivered or any allocations exist */}
+      {order.fulfillment_status === "Delivered" || Object.keys(allocationsByItemId).length > 0 ? (
+        <DeliveryBreakdown
+          items={initialItems}
+          allocationsByItemId={allocationsByItemId}
+        />
+      ) : null}
+
       {/* Linked records */}
       {receivable ? <LinkedRecords receivable={receivable} /> : null}
 
       {/* Modals */}
+      <DeliverOrderModal
+        open={deliverOpen}
+        onClose={() => setDeliverOpen(false)}
+        orderId={order.id}
+        externalId={order.external_id}
+        items={initialItems.map((it) => ({
+          id: it.id,
+          sku_code: it.sku_code,
+          qty: it.qty,
+        }))}
+        batchesBySku={deliverBatchesBySku}
+      />
       <FulfillmentModal
         open={fulfillmentOpen}
         onClose={() => setFulfillmentOpen(false)}
@@ -651,6 +686,93 @@ export function OrderDetailClient({
         onConfirm={softDelete}
         onCancel={() => setConfirmDelete(false)}
       />
+    </div>
+  );
+}
+
+// ── DeliveryBreakdown ─────────────────────────────────────────
+function DeliveryBreakdown({
+  items,
+  allocationsByItemId,
+}: {
+  items: ItemRow[];
+  allocationsByItemId: Record<
+    string,
+    Array<{ batch_id: string; batch_external_id: string | null; batch_date: string | null; qty: number }>
+  >;
+}) {
+  const hasAnyAllocations = items.some(
+    (it) => (allocationsByItemId[it.id] ?? []).length > 0,
+  );
+  return (
+    <div className="bg-white border border-border rounded-lg shadow-card p-6">
+      <h3 className="font-serif font-bold text-xl text-ink mb-3">
+        Delivery breakdown
+      </h3>
+      {!hasAnyAllocations ? (
+        <p className="text-xs text-inkSoft mb-3">
+          Legacy single-batch delivery (one batch per line item).
+        </p>
+      ) : null}
+      <ul className="space-y-3">
+        {items.map((it) => {
+          const allocs = allocationsByItemId[it.id] ?? [];
+          if (allocs.length === 0) {
+            return (
+              <li key={it.id} className="text-sm">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-semibold text-ink">{it.sku_code}</span>
+                  <span className="text-inkSoft">×</span>
+                  <span className="font-mono">{it.qty}</span>
+                  <span className="text-inkSoft">·</span>
+                  {it.batch_id ? (
+                    <Link
+                      href={`/dashboard/production/${it.batch_id}`}
+                      className="font-mono text-xs text-berry hover:underline"
+                    >
+                      from one batch (legacy)
+                    </Link>
+                  ) : (
+                    <span className="text-xs text-inkSoft">no batch assigned</span>
+                  )}
+                </div>
+              </li>
+            );
+          }
+          return (
+            <li key={it.id} className="text-sm">
+              <div className="flex items-baseline gap-2">
+                <span className="font-semibold text-ink">{it.sku_code}</span>
+                <span className="text-inkSoft">×</span>
+                <span className="font-mono">{it.qty}</span>
+                <span className="text-inkSoft text-xs">
+                  ({allocs.length} {allocs.length === 1 ? "batch" : "batches"})
+                </span>
+              </div>
+              <ul className="ml-4 mt-1 space-y-0.5">
+                {allocs.map((a) => (
+                  <li
+                    key={a.batch_id}
+                    className="flex items-baseline gap-2 text-xs"
+                  >
+                    <Link
+                      href={`/dashboard/production/${a.batch_id}`}
+                      className="font-mono text-berry hover:underline"
+                    >
+                      {a.batch_external_id ?? a.batch_id.slice(0, 8)}
+                    </Link>
+                    {a.batch_date ? (
+                      <span className="text-inkSoft">{a.batch_date}</span>
+                    ) : null}
+                    <span className="text-inkSoft">·</span>
+                    <span className="font-mono">{a.qty} cans</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -726,11 +848,7 @@ function FulfillmentModal({
       toast.push(error.message || "Couldn't update", "error");
       return;
     }
-    if (status === "Delivered" && order.channel === "B2B") {
-      toast.push("Marked delivered — receivable created", "success");
-    } else {
-      toast.push("Fulfillment updated", "success");
-    }
+    toast.push("Fulfillment updated", "success");
     onClose();
     router.refresh();
   }
@@ -758,14 +876,12 @@ function FulfillmentModal({
           <Select id="fstatus" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="Pending">Pending</option>
             <option value="Packed">Packed</option>
-            <option value="Delivered">Delivered</option>
             <option value="Cancelled">Cancelled</option>
           </Select>
-          {status === "Delivered" && order.channel === "B2B" ? (
-            <p className="text-xs text-inkSoft">
-              Marking this Delivered will auto-create a receivable for {formatPHP(order.total)}.
-            </p>
-          ) : null}
+          <p className="text-xs text-inkSoft">
+            To mark this order Delivered, close this and use the “Deliver order” button —
+            that path lets you pick which batches the cans come from.
+          </p>
         </div>
         <div className="space-y-1">
           <Label htmlFor="fdate">Delivery date</Label>

@@ -94,23 +94,78 @@ export default async function OrderDetailPage({
     .eq("order_id", params.id)
     .maybeSingle();
 
+  // Per-item allocations (new multi-batch shape). Empty when delivery
+  // happened via the legacy single-batch path on order_items.batch_id.
+  const orderItemIds = (itemsData ?? []).map((i) => (i as { id: string }).id);
+  const { data: allocData } =
+    orderItemIds.length > 0
+      ? await supabase
+          .from("order_item_batch_allocations")
+          .select(
+            "id, order_item_id, batch_id, qty, allocated_at, batch:batches!order_item_batch_allocations_batch_id_fkey(id, external_id, batch_date)",
+          )
+          .in("order_item_id", orderItemIds)
+      : { data: [] };
+
+  const allocationsByItemId: Record<
+    string,
+    Array<{
+      batch_id: string;
+      batch_external_id: string | null;
+      batch_date: string | null;
+      qty: number;
+    }>
+  > = {};
+  for (const r of (allocData ?? []) as unknown as Array<{
+    order_item_id: string;
+    batch_id: string;
+    qty: number;
+    batch:
+      | { id: string; external_id: string | null; batch_date: string }
+      | { id: string; external_id: string | null; batch_date: string }[]
+      | null;
+  }>) {
+    const b = Array.isArray(r.batch) ? r.batch[0] : r.batch;
+    if (!allocationsByItemId[r.order_item_id]) {
+      allocationsByItemId[r.order_item_id] = [];
+    }
+    allocationsByItemId[r.order_item_id].push({
+      batch_id: r.batch_id,
+      batch_external_id: b?.external_id ?? null,
+      batch_date: b?.batch_date ?? null,
+      qty: r.qty,
+    });
+  }
+
   const partners = (partnersData ?? []) as PartnerOption[];
   const tiers = (tiersData ?? []) as TierRef[];
   const skus = (skusData ?? []) as SkuRef[];
   const accounts = (accountsData ?? []) as Array<{ code: string; name: string }>;
 
   const batchesBySku: Record<string, BatchRef[]> = {};
+  const deliverBatchesBySku: Record<
+    string,
+    Array<{ id: string; external_id: string | null; remaining: number; batch_date: string }>
+  > = {};
   for (const r of (invData ?? []) as Array<{
     batch_id: string;
     batch_external_id: string;
     sku_code: string;
     remaining: number;
+    batch_date: string;
   }>) {
     if (!batchesBySku[r.sku_code]) batchesBySku[r.sku_code] = [];
     batchesBySku[r.sku_code].push({
       id: r.batch_id,
       external_id: r.batch_external_id,
       remaining: r.remaining,
+    });
+    if (!deliverBatchesBySku[r.sku_code]) deliverBatchesBySku[r.sku_code] = [];
+    deliverBatchesBySku[r.sku_code].push({
+      id: r.batch_id,
+      external_id: r.batch_external_id,
+      remaining: r.remaining,
+      batch_date: r.batch_date,
     });
   }
   // Make sure currently-assigned batches always appear in their SKU's options
@@ -185,6 +240,8 @@ export default async function OrderDetailPage({
         tiers={tiers}
         skus={skus}
         batchesBySku={batchesBySku}
+        deliverBatchesBySku={deliverBatchesBySku}
+        allocationsByItemId={allocationsByItemId}
         accounts={accounts}
         receivable={
           receivableData as unknown as {
