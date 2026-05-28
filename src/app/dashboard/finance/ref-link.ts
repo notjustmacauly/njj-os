@@ -23,6 +23,9 @@ export function refLinkFor({
         return `/dashboard/finance/bills/${ref_id}`;
       case "expense":
         return `/dashboard/finance/expenses?highlight=${ref_id}`;
+      case "revenue":
+      case "revenue_void":
+        return `/dashboard/finance/revenue`;
       default:
         break;
     }
@@ -41,6 +44,10 @@ export function sourceLabelFor(ref_type: string | null): string {
       return "Bill";
     case "ticket_sale":
       return "Ticket";
+    case "revenue":
+      return "Standalone";
+    case "revenue_void":
+      return "Void";
     case "manual_in":
     case "manual":
       return "Manual";
@@ -61,5 +68,6 @@ export const REVENUE_SOURCES: { key: string; label: string; refTypes: string[] }
   { key: "orders", label: "Orders", refTypes: ["order"] },
   { key: "bills", label: "Bills", refTypes: ["bill"] },
   { key: "tickets", label: "Tickets", refTypes: ["ticket_sale"] },
+  { key: "standalone", label: "Standalone", refTypes: ["revenue"] },
   { key: "manual", label: "Manual", refTypes: ["manual_in", "manual"] },
 ];
