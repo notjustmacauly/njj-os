@@ -1835,6 +1835,87 @@ export type Database = {
           },
         ]
       }
+      revenue_entries: {
+        Row: {
+          account_code: string
+          amount: number
+          category: Database["public"]["Enums"]["revenue_category"]
+          created_at: string
+          deleted_at: string | null
+          description: string
+          external_id: string | null
+          id: string
+          ledger_entry_id: string | null
+          logged_by_name: string | null
+          logged_by_user_id: string | null
+          notes: string | null
+          revenue_date: string
+          updated_at: string
+          void_ledger_entry_id: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by_name: string | null
+          voided_by_user_id: string | null
+        }
+        Insert: {
+          account_code: string
+          amount: number
+          category: Database["public"]["Enums"]["revenue_category"]
+          created_at?: string
+          deleted_at?: string | null
+          description: string
+          external_id?: string | null
+          id?: string
+          ledger_entry_id?: string | null
+          logged_by_name?: string | null
+          logged_by_user_id?: string | null
+          notes?: string | null
+          revenue_date?: string
+          updated_at?: string
+          void_ledger_entry_id?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by_name?: string | null
+          voided_by_user_id?: string | null
+        }
+        Update: {
+          account_code?: string
+          amount?: number
+          category?: Database["public"]["Enums"]["revenue_category"]
+          created_at?: string
+          deleted_at?: string | null
+          description?: string
+          external_id?: string | null
+          id?: string
+          ledger_entry_id?: string | null
+          logged_by_name?: string | null
+          logged_by_user_id?: string | null
+          notes?: string | null
+          revenue_date?: string
+          updated_at?: string
+          void_ledger_entry_id?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by_name?: string | null
+          voided_by_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_entries_account_code_fkey"
+            columns: ["account_code"]
+            isOneToOne: false
+            referencedRelation: "account_balances"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "revenue_entries_account_code_fkey"
+            columns: ["account_code"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       skus: {
         Row: {
           can_ingredient_code: string | null
@@ -2556,6 +2637,18 @@ export type Database = {
         }
         Returns: string
       }
+      log_revenue: {
+        Args: {
+          p_account_code: string
+          p_amount: number
+          p_category: string
+          p_description: string
+          p_logged_by_name?: string
+          p_notes?: string
+          p_revenue_date: string
+        }
+        Returns: string
+      }
       mark_bill_paid: {
         Args: {
           p_account_code: string
@@ -2689,6 +2782,10 @@ export type Database = {
         Args: { p_lot_id: string; p_reason?: string }
         Returns: Json
       }
+      void_revenue_entry: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "manager" | "ops" | "staff" | "owner" | "partner"
@@ -2728,6 +2825,12 @@ export type Database = {
         | "Xendit"
         | "Other"
       receivable_status: "pending" | "billed" | "paid" | "cancelled"
+      revenue_category:
+        | "catering_contract"
+        | "event"
+        | "sponsorship"
+        | "rent"
+        | "other"
       ticket_payment_status: "Paid" | "Pending" | "Refunded"
       ticket_source: "wix" | "pos" | "manual"
     }
@@ -2885,6 +2988,13 @@ export const Constants = {
       pos_item_type: ["juice", "cup_sm", "cup_lg", "water", "ticket", "other"],
       pos_payment_method: ["Cash", "GCash", "Bank Transfer", "Xendit", "Other"],
       receivable_status: ["pending", "billed", "paid", "cancelled"],
+      revenue_category: [
+        "catering_contract",
+        "event",
+        "sponsorship",
+        "rent",
+        "other",
+      ],
       ticket_payment_status: ["Paid", "Pending", "Refunded"],
       ticket_source: ["wix", "pos", "manual"],
     },
