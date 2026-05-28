@@ -73,7 +73,7 @@ export default async function FinanceOverviewPage() {
       .is("deleted_at", null),
     supabase
       .from("ledger_entries")
-      .select("amount")
+      .select("amount, ref_type")
       .eq("direction", "in")
       .gte("occurred_at", mtd.toISOString()),
     supabase
@@ -128,9 +128,36 @@ export default async function FinanceOverviewPage() {
     0,
   );
 
-  const mtdRevenue = (mtdInRows ?? []).reduce(
-    (s, r) => s + Number((r as { amount: number | string }).amount ?? 0),
+  const mtdInRowsTyped = (mtdInRows ?? []) as Array<{
+    amount: number | string;
+    ref_type: string | null;
+  }>;
+  const mtdRevenue = mtdInRowsTyped.reduce(
+    (s, r) => s + Number(r.amount ?? 0),
     0,
+  );
+
+  // Breakdown by source. Keep buckets aligned with sourceLabelFor():
+  //   B2B orders = order + bill + receivable inflows
+  //   POS sales  = pos_shift
+  //   Standalone = revenue (logged via log_revenue)
+  //   Other      = everything else still posting 'in' (tickets, manual)
+  const mtdRevenueBreakdown = mtdInRowsTyped.reduce(
+    (acc, r) => {
+      const amt = Number(r.amount ?? 0);
+      const t = r.ref_type ?? "";
+      if (t === "order" || t === "bill" || t === "receivable") {
+        acc.b2b += amt;
+      } else if (t === "pos_shift") {
+        acc.pos += amt;
+      } else if (t === "revenue") {
+        acc.standalone += amt;
+      } else {
+        acc.other += amt;
+      }
+      return acc;
+    },
+    { b2b: 0, pos: 0, standalone: 0, other: 0 },
   );
   const lmRevenue = (lmInRows ?? []).reduce(
     (s, r) => s + Number((r as { amount: number | string }).amount ?? 0),
@@ -204,6 +231,26 @@ export default async function FinanceOverviewPage() {
         />
       </div>
 
+      <section className="bg-white border border-border rounded-lg shadow-card p-5">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <h2 className="font-serif font-bold text-lg text-ink">
+            MTD revenue breakdown
+          </h2>
+          <span className="text-xs text-inkSoft">
+            sum of {formatPHP(mtdRevenue)} across sources
+          </span>
+        </div>
+        <dl className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <BreakdownLine label="B2B orders" value={mtdRevenueBreakdown.b2b} />
+          <BreakdownLine label="POS sales" value={mtdRevenueBreakdown.pos} />
+          <BreakdownLine
+            label="Standalone"
+            value={mtdRevenueBreakdown.standalone}
+          />
+          <BreakdownLine label="Other" value={mtdRevenueBreakdown.other} />
+        </dl>
+      </section>
+
       <section>
         <h2 className="font-serif font-bold text-xl text-ink mb-3">Recent activity</h2>
         <ActivityFeed
@@ -211,6 +258,19 @@ export default async function FinanceOverviewPage() {
           accountNameByCode={accountNameByCode}
         />
       </section>
+    </div>
+  );
+}
+
+function BreakdownLine({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <dt className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">
+        {label}
+      </dt>
+      <dd className="font-serif font-bold text-lg text-ink tabular-nums">
+        {formatPHP(value)}
+      </dd>
     </div>
   );
 }

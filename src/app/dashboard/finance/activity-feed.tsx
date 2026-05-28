@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatPHP } from "@/lib/utils";
 import { refLinkFor } from "./ref-link";
@@ -91,6 +91,8 @@ export function ActivityFeed({
           });
           const isIn = r.direction === "in";
           const amount = Number(r.amount ?? 0);
+          const isRevenue = r.ref_type === "revenue";
+          const isRevenueVoid = r.ref_type === "revenue_void";
           return (
             <li key={r.id}>
               <Link
@@ -100,10 +102,16 @@ export function ActivityFeed({
                 <span
                   aria-hidden
                   className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    isIn ? "bg-berryBg text-berry" : "bg-salmonBg text-coral"
+                    isRevenue
+                      ? "bg-berryBg text-berry"
+                      : isIn
+                        ? "bg-berryBg text-berry"
+                        : "bg-salmonBg text-coral"
                   }`}
                 >
-                  {isIn ? (
+                  {isRevenue ? (
+                    <TrendingUp className="w-4 h-4" />
+                  ) : isIn ? (
                     <ArrowDownLeft className="w-4 h-4" />
                   ) : (
                     <ArrowUpRight className="w-4 h-4" />
@@ -111,7 +119,9 @@ export function ActivityFeed({
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-ink truncate">
-                    {r.description || r.ref_external_id || "Ledger entry"}
+                    {isRevenueVoid
+                      ? `Voided revenue — ${r.description ?? r.ref_external_id ?? ""}`
+                      : r.description || r.ref_external_id || "Ledger entry"}
                   </div>
                   <div className="text-xs text-inkSoft truncate font-mono">
                     {formatStamp(r.occurred_at)} ·{" "}
