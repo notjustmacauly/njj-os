@@ -239,8 +239,16 @@ export function NewPaymentForm({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           disabled={submitting}
-          rows={2}
+          rows={4}
+          placeholder={
+            "Bank account number, account name, reference no., or anything else the approver needs to actually make the payment."
+          }
         />
+        <p className="text-xs text-inkSoft">
+          Include account numbers, account names, GCash numbers, or any
+          identifying info the approver will need to pay this from the right
+          destination.
+        </p>
       </div>
 
       {amount && Number(amount) > 0 ? (
