@@ -64,6 +64,7 @@ export default async function PosPage() {
       { data: ticketTypesData },
       { data: posProductsData },
       { data: posBundlesData },
+      { data: invData },
     ] = await Promise.all([
       supabase
         .from("skus")
@@ -92,7 +93,35 @@ export default async function PosPage() {
         .is("deleted_at", null)
         .order("sort_order")
         .order("code"),
+      // Finalized juice batches so each cart line can be tied to a batch
+      // (deductions depend on it). FIFO order = oldest first.
+      supabase
+        .from("inventory_summary")
+        .select("batch_id, batch_external_id, sku_code, remaining")
+        .in("sku_code", ["PCL", "ACG", "WPM"])
+        .order("batch_date", { ascending: true }),
     ]);
+
+    const batchesBySku: Record<"PCL" | "ACG" | "WPM", BatchOption[]> = {
+      PCL: [],
+      ACG: [],
+      WPM: [],
+    };
+    for (const r of (invData ?? []) as Array<{
+      batch_id: string;
+      batch_external_id: string;
+      sku_code: string;
+      remaining: number;
+    }>) {
+      const sku = r.sku_code as "PCL" | "ACG" | "WPM";
+      if (!batchesBySku[sku]) continue;
+      batchesBySku[sku].push({
+        batch_id: r.batch_id,
+        external_id: r.batch_external_id,
+        remaining: r.remaining,
+        sku_code: r.sku_code,
+      });
+    }
 
     return (
       <ActivePosClient
@@ -101,6 +130,7 @@ export default async function PosPage() {
         ticketTypes={(ticketTypesData ?? []) as TicketTypeRef[]}
         posProducts={(posProductsData ?? []) as PosProductRef[]}
         bundles={(posBundlesData ?? []) as PosBundleRef[]}
+        batchesBySku={batchesBySku}
         viewerRole={role}
       />
     );

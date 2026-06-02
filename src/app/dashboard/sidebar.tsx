@@ -11,6 +11,7 @@ import {
   Package,
   Factory,
   Boxes,
+  Gift,
   // Ticket icon will return when /dashboard/tickets is built.
   Users,
   Wallet,
@@ -52,6 +53,8 @@ const SECTIONS: Section[] = [
       { href: "/dashboard/production", label: "Production", icon: Factory,  roles: ALL_ROLES },
       // Inventory: owner/partner/manager (staff has no access — page redirects).
       { href: "/dashboard/inventory",  label: "Inventory",  icon: Boxes,    roles: ["owner", "partner", "manager"] },
+      // Releases: marketing/replacement/wastage give-aways that deduct stock.
+      { href: "/dashboard/releases",   label: "Releases",   icon: Gift,     roles: ["owner", "partner", "manager"] },
       { href: "/dashboard/partners",   label: "Partners",   icon: Users,    roles: ALL_ROLES },
     ],
   },

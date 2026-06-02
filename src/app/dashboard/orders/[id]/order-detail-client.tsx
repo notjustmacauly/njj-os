@@ -117,6 +117,7 @@ export function OrderDetailClient({
   receivable,
   canManage,
   canDelete,
+  canOverrideDelivery,
 }: {
   order: OrderRecord;
   initialItems: ItemRow[];
@@ -133,6 +134,7 @@ export function OrderDetailClient({
   receivable: Receivable | null;
   canManage: boolean;
   canDelete: boolean;
+  canOverrideDelivery: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -664,6 +666,7 @@ export function OrderDetailClient({
           qty: it.qty,
         }))}
         batchesBySku={deliverBatchesBySku}
+        canOverride={canOverrideDelivery}
       />
       <FulfillmentModal
         open={fulfillmentOpen}

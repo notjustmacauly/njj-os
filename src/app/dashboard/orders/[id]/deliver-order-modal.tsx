@@ -60,6 +60,7 @@ export function DeliverOrderModal({
   externalId,
   items,
   batchesBySku,
+  canOverride = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -67,11 +68,13 @@ export function DeliverOrderModal({
   externalId: string | null;
   items: Item[];
   batchesBySku: Record<string, DeliverBatchOption[]>;
+  canOverride?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [allocs, setAllocs] = React.useState<ItemAllocations>({});
   const [busy, setBusy] = React.useState(false);
+  const [override, setOverride] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) return;
@@ -82,6 +85,7 @@ export function DeliverOrderModal({
       seed[it.id] = fifoFor(it, opts);
     }
     setAllocs(seed);
+    setOverride(false);
   }, [open, items, batchesBySku]);
 
   function updateRow(itemId: string, idx: number, patch: Partial<AllocationRow>) {
@@ -169,6 +173,7 @@ export function DeliverOrderModal({
     const { error } = await supabase.rpc("deliver_order", {
       p_order_id: orderId,
       p_allocations: payload,
+      p_allow_override: canOverride && override,
     });
     setBusy(false);
     if (error) {
@@ -323,6 +328,25 @@ export function DeliverOrderModal({
             </div>
           );
         })}
+
+        {canOverride ? (
+          <label className="flex items-start gap-2 rounded-lg border border-border bg-cream/40 p-3 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={override}
+              onChange={(e) => setOverride(e.target.checked)}
+              disabled={busy}
+              className="mt-0.5 h-4 w-4 accent-berry"
+            />
+            <span>
+              <span className="font-semibold text-ink">Allow override</span>
+              <span className="block text-xs text-inkSoft mt-0.5">
+                Close this order even if a batch is short on stock — for backfilling old
+                orders against batches that are already used up. The batch may go negative.
+              </span>
+            </span>
+          </label>
+        ) : null}
       </div>
     </Modal>
   );

@@ -3,15 +3,19 @@
 import * as React from "react";
 import { Minus, Plus, X } from "lucide-react";
 import { formatPHP } from "@/lib/utils";
-import type { CartItem as CartItemModel } from "./types";
+import type { BatchOption, CartItem as CartItemModel } from "./types";
 
 export function CartItem({
   item,
+  batches,
+  onBatchChange,
   onQtyChange,
   onRemove,
   disabled,
 }: {
   item: CartItemModel;
+  batches?: BatchOption[];
+  onBatchChange?: (batchId: string) => void;
   onQtyChange: (next: number) => void;
   onRemove: () => void;
   disabled?: boolean;
@@ -44,9 +48,13 @@ export function CartItem({
   }
 
   const lineTotal = item.qty * item.unit_price;
+  const isJuice = item.item_type === "juice";
+  const showBatchPicker = isJuice && !!onBatchChange;
+  const missingBatch = isJuice && !item.batch_id;
 
   return (
-    <div className="flex items-center gap-2 py-2 border-b border-border last:border-b-0">
+    <div className="py-2 border-b border-border last:border-b-0">
+      <div className="flex items-center gap-2">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           {item.emoji ? (
@@ -105,6 +113,28 @@ export function CartItem({
       >
         <X className="w-4 h-4" />
       </button>
+      </div>
+
+      {showBatchPicker ? (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <select
+            value={item.batch_id ?? ""}
+            onChange={(e) => onBatchChange?.(e.target.value)}
+            disabled={disabled}
+            aria-label={`Batch for ${item.label}`}
+            className={`flex-1 min-w-0 h-8 text-xs rounded-md border bg-white px-2 text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-berry/30 focus-visible:border-berry disabled:opacity-50 ${
+              missingBatch ? "border-coral text-coral" : "border-border"
+            }`}
+          >
+            <option value="">Pick a batch…</option>
+            {(batches ?? []).map((b) => (
+              <option key={b.batch_id} value={b.batch_id}>
+                {b.external_id} · {b.remaining} left
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
     </div>
   );
 }

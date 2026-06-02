@@ -20,6 +20,7 @@ import { ProductButton } from "./product-button";
 import { SessionSummary } from "./session-summary";
 import type {
   ActiveShift,
+  BatchOption,
   CartItem,
   PosBundleRef,
   PosItemType,
@@ -70,6 +71,7 @@ export function ActivePosClient({
   ticketTypes,
   posProducts,
   bundles,
+  batchesBySku,
   viewerRole,
 }: {
   shift: ActiveShift;
@@ -77,6 +79,7 @@ export function ActivePosClient({
   ticketTypes: TicketTypeRef[];
   posProducts: PosProductRef[];
   bundles: PosBundleRef[];
+  batchesBySku: Record<"PCL" | "ACG" | "WPM", BatchOption[]>;
   viewerRole: Role;
 }) {
   const router = useRouter();
@@ -128,10 +131,18 @@ export function ActivePosClient({
   const cashValid = cashNum !== null && Number.isFinite(cashNum) && cashNum >= total;
   const change = cashNum !== null && Number.isFinite(cashNum) ? cashNum - total : 0;
 
+  // Every juice line must carry a batch so the sale deducts from inventory.
+  // This is the fix for the old silent bug where juice sales recorded with no
+  // batch_id never reduced finished-stock counts.
+  const juiceMissingBatch = cart.some(
+    (it) => it.item_type === "juice" && !it.batch_id,
+  );
+
   const canCharge =
     !submitting &&
     cart.length > 0 &&
     paymentMethod !== null &&
+    !juiceMissingBatch &&
     (paymentMethod !== "Cash" || cashValid);
 
   const skuByCode = React.useMemo(() => {
@@ -140,15 +151,34 @@ export function ActivePosClient({
     return m;
   }, [skus]);
 
+  // Resolve which batch a juice line should draw from. Prefer the shift's
+  // chosen default (if it's a real batch in the list); otherwise fall back to
+  // FIFO oldest-with-stock, then oldest of any. Returns undefined only when
+  // there are no finalized batches at all for this SKU — in which case the
+  // sale is blocked rather than recorded with no batch (the old silent bug).
   const batchForSku = React.useCallback(
     (code: "PCL" | "ACG" | "WPM"): string | undefined => {
-      if (code === "PCL") return shift.default_batch_pcl ?? undefined;
-      if (code === "ACG") return shift.default_batch_acg ?? undefined;
-      if (code === "WPM") return shift.default_batch_wpm ?? undefined;
-      return undefined;
+      const opts = batchesBySku[code] ?? [];
+      const ids = new Set(opts.map((b) => b.batch_id));
+      const preferred =
+        code === "PCL"
+          ? shift.default_batch_pcl
+          : code === "ACG"
+            ? shift.default_batch_acg
+            : shift.default_batch_wpm;
+      if (preferred && ids.has(preferred)) return preferred;
+      const withStock = opts.find((b) => b.remaining > 0);
+      if (withStock) return withStock.batch_id;
+      return opts[0]?.batch_id;
     },
-    [shift],
+    [shift, batchesBySku],
   );
+
+  function setItemBatch(itemId: string, batchId: string) {
+    setCart((prev) =>
+      prev.map((it) => (it.id === itemId ? { ...it, batch_id: batchId || undefined } : it)),
+    );
+  }
 
   function addJuice(code: Flavor, qty = 1) {
     const sku = skuByCode[code];
@@ -445,6 +475,12 @@ export function ActivePosClient({
               <CartItemRow
                 key={it.id}
                 item={it}
+                batches={
+                  it.item_type === "juice" && it.sku_code
+                    ? (batchesBySku[it.sku_code] ?? [])
+                    : undefined
+                }
+                onBatchChange={(b) => setItemBatch(it.id, b)}
                 onQtyChange={(q) => setItemQty(it.id, q)}
                 onRemove={() => removeItem(it.id)}
                 disabled={submitting}
@@ -529,6 +565,12 @@ export function ActivePosClient({
           </div>
         ) : null}
       </div>
+
+      {juiceMissingBatch ? (
+        <p className="mt-3 text-xs text-coral text-center">
+          Pick a batch for every juice line so the sale deducts from inventory.
+        </p>
+      ) : null}
 
       <Button
         onClick={handleCharge}

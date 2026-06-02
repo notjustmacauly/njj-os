@@ -34,6 +34,9 @@ export default async function OrderDetailPage({
   // cancel is owner-only.
   const canManage = role === "owner" || role === "partner" || role === "manager";
   const canDelete = role === "owner";
+  // Override the delivery stock-guard (backfill old orders against depleted
+  // batches) is owner/partner only — managers keep the guardrails.
+  const canOverrideDelivery = role === "owner" || role === "partner";
 
   // Fetch order + everything we need to render + edit it
   const [
@@ -73,10 +76,12 @@ export default async function OrderDetailPage({
       .select("code, name, short_label, retail_price")
       .eq("is_active", true)
       .order("code"),
+    // Load ALL finalized batches (incl. depleted) so old orders can be closed
+    // out against the batch they actually shipped from, even if it now reads 0.
+    // Owner/partner get an override at delivery time to bypass the stock guard.
     supabase
       .from("inventory_summary")
       .select("batch_id, batch_external_id, sku_code, remaining, batch_date")
-      .gt("remaining", 0)
       .order("batch_date", { ascending: false }),
     supabase
       .from("accounts")
@@ -261,6 +266,7 @@ export default async function OrderDetailPage({
         }
         canManage={canManage}
         canDelete={canDelete}
+        canOverrideDelivery={canOverrideDelivery}
       />
     </div>
   );
