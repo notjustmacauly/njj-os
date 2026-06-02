@@ -7,6 +7,7 @@ import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/roles";
 import { Sidebar } from "./sidebar";
+import { RegisterSW } from "./register-sw";
 
 function displayNameFromEmail(email: string): string {
   const local = (email.split("@")[0] ?? "").replace(/^notjust/i, "");
@@ -68,6 +69,7 @@ export function AppShell({
 
   return (
     <div className="min-h-dvh flex flex-col lg:flex-row bg-cream">
+      <RegisterSW />
       {/* Mobile top bar — hamburger + brand + role chip. Hidden on lg+. */}
       <header className="lg:hidden fixed top-0 inset-x-0 h-14 bg-white border-b border-border z-30 flex items-center px-3 gap-2">
         <button

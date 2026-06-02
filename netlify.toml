@@ -2,5 +2,11 @@
   command = "npm run build"
   publish = ".next"
 
+[build.environment]
+  # Public VAPID key for Web Push — safe to expose (browsers receive it by
+  # design). The matching PRIVATE key lives only in the Supabase Edge Function
+  # secrets, never here.
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY = "BME5sVT6VcLOe9RZLYIFUOAb8kXdNCOGkqedIm-ljoG7dT5-sRAf7UEAlMCWdxnXkM8m6QdT7-sDAuaDNFN57xQ"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"

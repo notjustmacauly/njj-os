@@ -29,6 +29,7 @@ const TABS: { key: TabKey; label: string }[] = [
 const SUB_NAV: { key: string; label: string; href: string; disabled?: boolean }[] = [
   { key: "catalog", label: "Catalog", href: "/dashboard/settings/catalog?tab=skus" },
   { key: "team", label: "Team", href: "/dashboard/settings/team" },
+  { key: "notifications", label: "Notifications", href: "/dashboard/settings/notifications" },
   { key: "accounts", label: "Accounts", href: "#", disabled: true },
 ];
 
