@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { IngredientRef } from "@/components/ui/ingredient-picker";
 import { BatchDetailClient } from "./batch-detail-client";
+import { RecordPager } from "@/components/record-pager";
 
 export default async function BatchDetailPage({
   params,
@@ -91,13 +92,20 @@ export default async function BatchDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/dashboard/production"
-        className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to production
-      </Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href="/dashboard/production"
+          className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to production
+        </Link>
+        <RecordPager
+          entity="production"
+          current={params.id}
+          basePath="/dashboard/production"
+        />
+      </div>
 
       <BatchDetailClient
         batch={

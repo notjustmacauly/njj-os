@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { OrderDetailClient } from "./order-detail-client";
+import { RecordPager } from "@/components/record-pager";
 import type {
   BatchRef,
   PartnerRef,
@@ -191,13 +192,20 @@ export default async function OrderDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/dashboard/orders"
-        className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to orders
-      </Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href="/dashboard/orders"
+          className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to orders
+        </Link>
+        <RecordPager
+          entity="orders"
+          current={params.id}
+          basePath="/dashboard/orders"
+        />
+      </div>
 
       <OrderDetailClient
         order={

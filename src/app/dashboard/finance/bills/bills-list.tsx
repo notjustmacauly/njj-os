@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Combobox } from "@/components/ui/combobox";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
+import { PagerPublisher } from "@/components/pager-publisher";
 
 export type BillRow = {
   id: string;
@@ -67,6 +68,7 @@ export function BillsList({ rows }: { rows: BillRow[] }) {
 
   return (
     <div className="space-y-4">
+      <PagerPublisher entity="bills" segments={filtered.map((r) => r.id)} />
       <div className="bg-white border border-border rounded-lg shadow-card p-4 space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[16rem]">

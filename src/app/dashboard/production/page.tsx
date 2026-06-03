@@ -16,6 +16,7 @@ import {
 import { MonthInput } from "./month-input";
 import { ProductionStatusChips } from "./status-chips";
 import { DraftRowActions } from "./draft-row-actions";
+import { PagerPublisher } from "@/components/pager-publisher";
 
 type SkuTone = "berry" | "peri" | "coral" | "yellow" | "default";
 const SKU_TONE: Record<string, SkuTone> = {
@@ -514,7 +515,13 @@ export default async function ProductionListPage({
           />
         )
       ) : (
-        <DataTable columns={columns} rows={batches} rowKey={(r) => r.id} />
+        <>
+          <PagerPublisher
+            entity="production"
+            segments={batches.map((b) => b.id)}
+          />
+          <DataTable columns={columns} rows={batches} rowKey={(r) => r.id} />
+        </>
       )}
     </div>
   );

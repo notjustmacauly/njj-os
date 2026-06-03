@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { formatDate, formatPHP } from "@/lib/utils";
+import { RecordPager } from "@/components/record-pager";
 
 function timeOnly(iso: string | null): string {
   if (!iso) return "—";
@@ -213,13 +214,20 @@ export default async function PosSessionDetailPage({
   return (
     <div className="space-y-6">
       <header>
-        <Link
-          href="/dashboard/pos/sessions"
-          className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink mb-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to shifts
-        </Link>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <Link
+            href="/dashboard/pos/sessions"
+            className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to shifts
+          </Link>
+          <RecordPager
+            entity="pos-sessions"
+            current={params.shiftId}
+            basePath="/dashboard/pos/sessions"
+          />
+        </div>
         <div className="flex items-baseline gap-3">
           <h1 className="font-serif font-bold text-2xl text-ink">
             {shift.event_name || "Untitled shift"}

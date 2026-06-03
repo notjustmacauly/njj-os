@@ -92,8 +92,11 @@ export function ReceivablesView({
 }) {
   const canBill = role === "owner";
   const canMarkPaid = role === "owner" || role === "partner";
-  const [billOpen, setBillOpen] = React.useState<ReceivableRow | null>(null);
+  // Bill modal works on one OR many receivables (multi-select grouping).
+  const [billRows, setBillRows] = React.useState<ReceivableRow[]>([]);
   const [paidOpen, setPaidOpen] = React.useState<ReceivableRow | null>(null);
+  // Multi-select for grouping several receivables under a single bill.
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [partnerFilter, setPartnerFilter] = React.useState<string>("");
   // Default: show all statuses. The "All" pill below clears the set; tapping
   // a single status restricts to just that one (toggle-on adds to the set).
@@ -149,8 +152,31 @@ export function ReceivablesView({
     return true;
   });
 
+  // ── Multi-select state. A bill is for ONE partner, so once something is
+  // selected, only same-partner pending receivables stay selectable.
+  const selectedRows = rows.filter((r) => selected.has(r.id));
+  const selectedPartnerId = selectedRows[0]?.partner_id ?? null;
+  const selectedTotal = selectedRows.reduce((s, r) => s + r.amount, 0);
+
+  function canSelect(r: ReceivableRow): boolean {
+    if (!canBill || r.status !== "pending") return false;
+    if (selected.has(r.id)) return true;
+    return selectedPartnerId === null || selectedPartnerId === r.partner_id;
+  }
+  function toggleSelect(r: ReceivableRow) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(r.id)) next.delete(r.id);
+      else next.add(r.id);
+      return next;
+    });
+  }
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
   return (
-    <div className="space-y-5">
+    <div className={cn("space-y-5", canBill && selectedRows.length > 0 && "pb-24")}>
       <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
           <h2 className="font-serif font-bold text-lg text-ink">Aging summary</h2>
@@ -265,6 +291,7 @@ export function ReceivablesView({
         <table className="w-full text-sm">
           <thead className="bg-cream text-inkSoft">
             <tr className="text-left">
+              {canBill ? <th className="px-4 py-2 font-semibold w-10" aria-label="Select" /> : null}
               <th className="px-4 py-2 font-semibold w-24">Created</th>
               <th className="px-4 py-2 font-semibold">Partner</th>
               <th className="px-4 py-2 font-semibold w-32">Order</th>
@@ -282,7 +309,7 @@ export function ReceivablesView({
             {filtered.length === 0 ? (
               <tr className="border-t border-border">
                 <td
-                  colSpan={canBill || canMarkPaid ? 9 : 8}
+                  colSpan={8 + (canBill || canMarkPaid ? 1 : 0) + (canBill ? 1 : 0)}
                   className="px-4 py-8 text-center text-sm text-inkSoft"
                 >
                   No receivables match the current filters.
@@ -305,8 +332,29 @@ export function ReceivablesView({
                   r.status === "paid" && r.paid_account_code && r.paid_date
                     ? `paid via ${accounts.find((a) => a.code === r.paid_account_code)?.name ?? r.paid_account_code} on ${formatDate(r.paid_date)}`
                     : null;
+                const selectable = canSelect(r);
                 return (
-                  <tr key={r.id} className="border-t border-border hover:bg-cream/30">
+                  <tr
+                    key={r.id}
+                    className={cn(
+                      "border-t border-border hover:bg-cream/30",
+                      selected.has(r.id) && "bg-berryBg/40",
+                    )}
+                  >
+                    {canBill ? (
+                      <td className="px-4 py-2.5">
+                        {r.status === "pending" ? (
+                          <input
+                            type="checkbox"
+                            checked={selected.has(r.id)}
+                            disabled={!selectable}
+                            onChange={() => toggleSelect(r)}
+                            aria-label={`Select receivable ${r.order_external_id ?? r.id}`}
+                            className="h-4 w-4 accent-berry disabled:opacity-30 disabled:cursor-not-allowed"
+                          />
+                        ) : null}
+                      </td>
+                    ) : null}
                     <td className="px-4 py-2.5 text-xs text-inkSoft whitespace-nowrap">
                       {formatDate(r.created_at)}
                     </td>
@@ -367,7 +415,7 @@ export function ReceivablesView({
                           {showBillBtn ? (
                             <button
                               type="button"
-                              onClick={() => setBillOpen(r)}
+                              onClick={() => setBillRows([r])}
                               className="inline-flex items-center rounded-md border border-berryLt bg-white px-2 py-1 text-xs font-semibold text-berry hover:bg-berryBg"
                             >
                               Bill
@@ -465,13 +513,30 @@ export function ReceivablesView({
                   </div>
                 </Link>
                 {(showBillBtn || showPaidBtn) ? (
-                  <div className="mt-3 pt-3 border-t border-border flex gap-2">
+                  <div className="mt-3 pt-3 border-t border-border flex flex-wrap items-center gap-2">
+                    {showBillBtn ? (
+                      <label
+                        className={cn(
+                          "inline-flex items-center gap-1.5 text-xs",
+                          canSelect(r) ? "text-ink" : "text-inkSoft opacity-40",
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected.has(r.id)}
+                          disabled={!canSelect(r)}
+                          onChange={() => toggleSelect(r)}
+                          className="h-4 w-4 accent-berry"
+                        />
+                        Select
+                      </label>
+                    ) : null}
                     {showBillBtn ? (
                       <Button
                         type="button"
                         variant="berryGhost"
                         size="sm"
-                        onClick={() => setBillOpen(r)}
+                        onClick={() => setBillRows([r])}
                       >
                         Bill
                       </Button>
@@ -494,9 +559,38 @@ export function ReceivablesView({
         )}
       </div>
 
+      {/* Floating bulk-bill bar — appears once ≥1 receivable is selected. */}
+      {canBill && selectedRows.length > 0 ? (
+        <div
+          className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-border shadow-[0_-2px_8px_rgba(0,0,0,0.06)]"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div className="text-sm">
+              <span className="font-semibold text-ink">
+                {selectedRows.length} receivable{selectedRows.length === 1 ? "" : "s"} selected
+              </span>
+              <span className="text-inkSoft">
+                {" "}· {selectedRows[0]?.partner_name} ·{" "}
+                <span className="font-mono tabular-nums">{formatPHP(selectedTotal)}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={clearSelection}>
+                Clear
+              </Button>
+              <Button size="sm" onClick={() => setBillRows(selectedRows)}>
+                Draft bill →
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <CreateBillModal
-        receivable={billOpen}
-        onClose={() => setBillOpen(null)}
+        receivables={billRows}
+        onClose={() => setBillRows([])}
+        onDone={clearSelection}
       />
       <MarkPaidCashModal
         receivable={paidOpen}
@@ -508,11 +602,13 @@ export function ReceivablesView({
 }
 
 function CreateBillModal({
-  receivable,
+  receivables,
   onClose,
+  onDone,
 }: {
-  receivable: ReceivableRow | null;
+  receivables: ReceivableRow[];
   onClose: () => void;
+  onDone?: () => void;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -525,24 +621,32 @@ function CreateBillModal({
   const [notes, setNotes] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
+  const open = receivables.length > 0;
+  const first = receivables[0] ?? null;
+  const multi = receivables.length > 1;
+  const combinedAmount = receivables.reduce((s, r) => s + r.amount, 0);
+  // Stable signature so the reset effect fires when the SET of rows changes.
+  const rowKey = receivables.map((r) => r.id).join(",");
+
   React.useEffect(() => {
-    if (receivable) {
+    if (open) {
       setBillDate(today);
-      setDueDate(receivable.due_date ?? "");
+      // Only seed a due date for a single receivable; for a group leave it blank.
+      setDueDate(!multi ? (first?.due_date ?? "") : "");
       setPaymentTerms("");
       setDeliveryFees("0");
       setDiscount("0");
       setNotes("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receivable]);
+  }, [rowKey]);
 
   async function submit() {
-    if (!receivable) return;
+    if (!open) return;
     setBusy(true);
     const supabase = createClient();
-    const { data, error } = await supabase.rpc("create_bill_for_receivable", {
-      p_receivable_id: receivable.id,
+    const { data, error } = await supabase.rpc("create_bill_for_receivables", {
+      p_receivable_ids: receivables.map((r) => r.id),
       p_bill_date: billDate,
       p_due_date: dueDate || null,
       p_payment_terms: paymentTerms.trim() || null,
@@ -555,8 +659,12 @@ function CreateBillModal({
       toast.push(error.message || "Couldn't draft bill", "error");
       return;
     }
-    toast.push("Draft bill created", "success");
+    toast.push(
+      multi ? `Draft bill created for ${receivables.length} receivables` : "Draft bill created",
+      "success",
+    );
     onClose();
+    onDone?.();
     if (data) {
       router.push(`/dashboard/finance/bills/${data as string}`);
     } else {
@@ -566,14 +674,14 @@ function CreateBillModal({
 
   return (
     <Modal
-      open={receivable != null}
+      open={open}
       onClose={() => {
         if (!busy) onClose();
       }}
-      title="Draft bill for receivable"
+      title={multi ? `Draft bill for ${receivables.length} receivables` : "Draft bill for receivable"}
       description={
-        receivable
-          ? `${receivable.partner_name} · ${formatPHP(receivable.amount)}`
+        first
+          ? `${first.partner_name} · ${formatPHP(combinedAmount)}`
           : undefined
       }
       footer={
@@ -588,6 +696,29 @@ function CreateBillModal({
       }
     >
       <div className="space-y-4">
+        {multi ? (
+          <div className="rounded-lg border border-border bg-cream/40 p-3">
+            <div className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft mb-1.5">
+              Receivables on this bill
+            </div>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {receivables.map((r) => (
+                <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-mono text-xs text-inkSoft">
+                    {r.order_external_id ?? r.external_id ?? r.id.slice(0, 8)}
+                  </span>
+                  <span className="font-mono tabular-nums">{formatPHP(r.amount)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-2 text-sm border-t border-border mt-1.5 pt-1.5">
+              <span className="font-semibold text-ink">Subtotal</span>
+              <span className="font-mono tabular-nums font-semibold">
+                {formatPHP(combinedAmount)}
+              </span>
+            </div>
+          </div>
+        ) : null}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1">
             <Label htmlFor="bdate" required>
@@ -658,12 +789,12 @@ function CreateBillModal({
             disabled={busy}
           />
         </div>
-        {receivable ? (
+        {open ? (
           <p className="text-xs text-inkSoft">
             Bill total will be{" "}
             <span className="font-semibold text-ink">
               {formatPHP(
-                receivable.amount +
+                combinedAmount +
                   (Number(deliveryFees) || 0) -
                   (Number(discount) || 0),
               )}

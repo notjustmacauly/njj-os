@@ -12,6 +12,7 @@ import {
   OWNER_PARTNER_MANAGER,
   type Role,
 } from "@/lib/roles";
+import { PagerPublisher } from "@/components/pager-publisher";
 
 type InventoryRow = {
   code: string;
@@ -118,6 +119,10 @@ export default async function InventoryPage() {
         />
       ) : (
         <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
+          <PagerPublisher
+            entity="inventory"
+            segments={rows.map((r) => r.code)}
+          />
           <table className="w-full text-sm">
             <thead className="bg-cream text-inkSoft">
               <tr className="text-left">

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AccountCard, type AccountCardData } from "./account-card";
 import { OWNER_PARTNER, type Role } from "@/lib/roles";
+import { PagerPublisher } from "@/components/pager-publisher";
 
 const FINANCE_ROLES = OWNER_PARTNER;
 
@@ -101,6 +102,10 @@ export default async function FinanceAccountsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <PagerPublisher
+            entity="accounts"
+            segments={cards.map((c) => c.code)}
+          />
           {cards.map((c) => (
             <AccountCard key={c.code} data={c} canEditOpening={role === "owner"} />
           ))}

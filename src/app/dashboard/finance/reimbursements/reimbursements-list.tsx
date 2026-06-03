@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
 import type { Role } from "@/lib/roles";
 import { accountEmoji } from "../account-icons";
+import { PagerPublisher } from "@/components/pager-publisher";
 
 export type ReimbursementRow = {
   id: string;
@@ -138,6 +139,7 @@ export function ReimbursementsList({
 
   return (
     <div className="space-y-4">
+      <PagerPublisher entity="reimbursements" segments={filtered.map((r) => r.id)} />
       <div className="flex gap-1 border-b border-border -mx-6 px-6 overflow-x-auto">
         {TABS.map((t) => (
           <button

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PaymentDetailClient, type LedgerLink, type PaymentDetail } from "./payment-detail-client";
 import { ALL_ROLES, type Role } from "@/lib/roles";
 import { filterAllowedAccounts } from "@/lib/allowed-accounts";
+import { RecordPager } from "@/components/record-pager";
 
 // Staff is allowed in — RLS limits them to their own reimbursements, so the
 // payment row will simply come back null for anything else (rendered as
@@ -86,13 +87,20 @@ export default async function PaymentDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link
-        href={backHref}
-        className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to {isReimbursement ? "reimbursements" : "payments"}
-      </Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href={backHref}
+          className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to {isReimbursement ? "reimbursements" : "payments"}
+        </Link>
+        <RecordPager
+          entity={isReimbursement ? "reimbursements" : "payments"}
+          current={params.id}
+          basePath="/dashboard/finance/payments"
+        />
+      </div>
 
       <PaymentDetailClient
         role={role}

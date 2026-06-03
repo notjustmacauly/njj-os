@@ -6,6 +6,7 @@ import { formatPHP } from "@/lib/utils";
 import { accountEmoji } from "../../account-icons";
 import { LedgerTable, type LedgerRow } from "./ledger-table";
 import { OWNER_PARTNER, type Role } from "@/lib/roles";
+import { RecordPager } from "@/components/record-pager";
 
 const FINANCE_ROLES = OWNER_PARTNER;
 
@@ -95,13 +96,21 @@ export default async function AccountLedgerPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/dashboard/finance/accounts"
-          className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink mb-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to accounts
-        </Link>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <Link
+            href="/dashboard/finance/accounts"
+            className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to accounts
+          </Link>
+          <RecordPager
+            entity="accounts"
+            current={account.code}
+            basePath="/dashboard/finance/accounts"
+            encode
+          />
+        </div>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="font-serif font-bold text-3xl text-ink flex items-center gap-2">

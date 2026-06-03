@@ -8,6 +8,7 @@ import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { UrlDateRange, UrlSearch, UrlSelect } from "@/components/ui/url-filters";
+import { PagerPublisher } from "@/components/pager-publisher";
 
 type OrderRow = {
   id: string;
@@ -419,6 +420,7 @@ export default async function OrdersListPage({
         )
       ) : (
         <>
+          <PagerPublisher entity="orders" segments={orders.map((o) => o.id)} />
           <DataTable
             columns={columns}
             rows={orders}

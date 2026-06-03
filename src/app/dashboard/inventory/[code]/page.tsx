@@ -12,6 +12,7 @@ import {
   type Role,
 } from "@/lib/roles";
 import { LotsView, type LotRow } from "./lots-view";
+import { RecordPager } from "@/components/record-pager";
 
 type LotRecord = {
   id: string;
@@ -110,13 +111,21 @@ export default async function IngredientLotsPage({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/dashboard/inventory"
-        className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to inventory
-      </Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href="/dashboard/inventory"
+          className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to inventory
+        </Link>
+        <RecordPager
+          entity="inventory"
+          current={code}
+          basePath="/dashboard/inventory"
+          encode
+        />
+      </div>
 
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>

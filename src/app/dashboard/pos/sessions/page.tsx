@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, formatPHP } from "@/lib/utils";
+import { PagerPublisher } from "@/components/pager-publisher";
 
 type ShiftRow = {
   id: string;
@@ -217,7 +218,13 @@ export default async function PosSessionsPage() {
           description="Open the first POS shift from the dashboard."
         />
       ) : (
-        <DataTable columns={columns} rows={shifts} rowKey={(r) => r.id} />
+        <>
+          <PagerPublisher
+            entity="pos-sessions"
+            segments={shifts.map((s) => s.id)}
+          />
+          <DataTable columns={columns} rows={shifts} rowKey={(r) => r.id} />
+        </>
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import { DataTable, type Column } from "@/components/ui/data-table";
 import { UrlCheckbox, UrlSearch, UrlSelect } from "@/components/ui/url-filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { KpiCard } from "@/components/ui/kpi-card";
+import { PagerPublisher } from "@/components/pager-publisher";
 
 type PartnerRow = {
   id: string;
@@ -227,7 +228,13 @@ export default async function PartnersListPage({
           />
         )
       ) : (
-        <DataTable columns={columns} rows={partners} rowKey={(r) => r.id} />
+        <>
+          <PagerPublisher
+            entity="partners"
+            segments={partners.map((p) => p.id)}
+          />
+          <DataTable columns={columns} rows={partners} rowKey={(r) => r.id} />
+        </>
       )}
     </div>
   );

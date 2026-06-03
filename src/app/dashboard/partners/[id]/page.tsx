@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PartnerForm, type PartnerRecord, type PartnerTier } from "../partner-form";
 import { PartnerHeader } from "../partner-header";
+import { RecordPager } from "@/components/record-pager";
 
 export default async function PartnerDetailPage({
   params,
@@ -49,13 +50,20 @@ export default async function PartnerDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/dashboard/partners"
-        className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to partners
-      </Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href="/dashboard/partners"
+          className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to partners
+        </Link>
+        <RecordPager
+          entity="partners"
+          current={params.id}
+          basePath="/dashboard/partners"
+        />
+      </div>
 
       <PartnerHeader
         partnerId={partner.id}

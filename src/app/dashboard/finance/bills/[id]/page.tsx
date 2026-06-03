@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { BillDetailClient, type BillDetail, type LinkedOrder, type LedgerLink } from "./bill-detail-client";
 import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
+import { RecordPager } from "@/components/record-pager";
 
 const READ_ROLES = OWNER_PARTNER_MANAGER;
 
@@ -154,13 +155,20 @@ export default async function BillDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/dashboard/finance/bills"
-        className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to bills
-      </Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href="/dashboard/finance/bills"
+          className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to bills
+        </Link>
+        <RecordPager
+          entity="bills"
+          current={params.id}
+          basePath="/dashboard/finance/bills"
+        />
+      </div>
 
       <BillDetailClient
         role={role}
