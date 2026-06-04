@@ -60,6 +60,7 @@ export function ExpensesView({
   const router = useRouter();
   const params = useSearchParams();
   const highlight = params.get("highlight");
+  const openNew = params.get("new");
 
   const [from, setFrom] = React.useState(daysAgoIso(30));
   const [to, setTo] = React.useState(todayIso());
@@ -75,6 +76,11 @@ export function ExpensesView({
     const row = expenses.find((e) => e.id === highlight);
     if (row) setOpenDetail(row);
   }, [highlight, expenses]);
+
+  // Deep link from the sidebar "Create Expense" quick action (?new=1).
+  React.useEffect(() => {
+    if (openNew) setShowCreate(true);
+  }, [openNew]);
 
   const availableCategories = React.useMemo(() => {
     const set = new Set<string>();

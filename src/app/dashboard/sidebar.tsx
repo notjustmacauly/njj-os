@@ -91,6 +91,9 @@ const SECTIONS: Section[] = [
 ];
 
 const POS_ROLES: readonly Role[] = ALL_ROLES;
+// Create Order / Create Expense both require owner/partner/manager
+// (their pages redirect staff away), so gate the quick actions to match.
+const QUICK_ACTION_ROLES: readonly Role[] = ["owner", "partner", "manager"];
 
 function displayNameFromEmail(email: string): string {
   const local = (email.split("@")[0] ?? "").replace(/^notjust/i, "");
@@ -153,6 +156,26 @@ export function Sidebar({ role, email }: { role: Role; email: string }) {
               <Plus className="w-3.5 h-3.5" />
             </span>
           </Link>
+
+          {/* Quick actions — the two most-used create flows. */}
+          {QUICK_ACTION_ROLES.includes(role) ? (
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <Link
+                href="/dashboard/orders/new"
+                className="flex items-center justify-center gap-1.5 bg-white border border-border text-ink px-2 py-2 rounded-lg text-xs font-semibold hover:bg-cream hover:border-berry/40 transition"
+              >
+                <Package className="w-3.5 h-3.5" />
+                Create Order
+              </Link>
+              <Link
+                href="/dashboard/finance/expenses?new=1"
+                className="flex items-center justify-center gap-1.5 bg-white border border-border text-ink px-2 py-2 rounded-lg text-xs font-semibold hover:bg-cream hover:border-berry/40 transition"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                Create Expense
+              </Link>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
