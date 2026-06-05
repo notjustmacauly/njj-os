@@ -427,7 +427,7 @@ export function ReceivablesView({
                               onClick={() => setPaidOpen(r)}
                               className="inline-flex items-center rounded-md border border-border bg-white px-2 py-1 text-xs font-medium text-ink hover:bg-cream"
                             >
-                              Mark paid (cash)
+                              Mark paid
                             </button>
                           ) : null}
                           {!showBillBtn && !showPaidBtn ? (
@@ -548,7 +548,7 @@ export function ReceivablesView({
                         size="sm"
                         onClick={() => setPaidOpen(r)}
                       >
-                        Mark paid (cash)
+                        Mark paid
                       </Button>
                     ) : null}
                   </div>
@@ -868,7 +868,7 @@ function MarkPaidCashModal({
       onClose={() => {
         if (!busy) onClose();
       }}
-      title="Mark receivable paid (cash)"
+      title="Mark receivable paid"
       description={
         receivable
           ? `${receivable.partner_name} · ${formatPHP(receivable.amount)}`
