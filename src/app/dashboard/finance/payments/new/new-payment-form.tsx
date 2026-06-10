@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
@@ -13,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { cn, formatPHP } from "@/lib/utils";
 import type { Role } from "@/lib/roles";
 import { FINANCE_CATEGORIES } from "../../categories";
+import { usePayees } from "../../use-payees";
 
 type PaymentType = "general" | "transfer";
 
@@ -31,6 +33,7 @@ export function NewPaymentForm({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const { options: payeeOptions, remember: rememberPayee } = usePayees();
 
   // Only owner can transfer (and only owner reaches this page anyway).
   const canTransfer = role === "owner";
@@ -92,6 +95,7 @@ export function NewPaymentForm({
       return;
     }
 
+    if (type !== "transfer") void rememberPayee(payee);
     toast.push("Payment request submitted", "success");
     router.push("/dashboard/finance/payments?tab=pending");
     router.refresh();
@@ -149,11 +153,14 @@ export function NewPaymentForm({
         <>
           <div className="space-y-1">
             <Label htmlFor="pay_payee">Payee</Label>
-            <Input
-              id="pay_payee"
+            <Combobox
+              ariaLabel="Payee"
               value={payee}
-              onChange={(e) => setPayee(e.target.value)}
-              placeholder="Mama Sita Vegetables"
+              onChange={setPayee}
+              options={payeeOptions}
+              creatable
+              placeholder="Pick a payee or type a new one"
+              emptyMessage="No saved payees yet — just type the name"
               disabled={submitting}
             />
           </div>

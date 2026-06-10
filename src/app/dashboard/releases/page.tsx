@@ -3,8 +3,8 @@ import { Gift } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatPHP } from "@/lib/utils";
-import { hasRole, OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
-import { ReleasesClient, type BatchOption, type SkuRef } from "./releases-client";
+import { hasRole, OWNER_PARTNER, OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
+import { ReleasesClient, DeliverRelease, type BatchOption, type SkuRef } from "./releases-client";
 
 // "Releases" — non-sale stock outflows (marketing, replacements, wastage).
 // They deduct inventory via deduction_items but never count as a sale.
@@ -19,6 +19,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 type DeductionItem = {
+  id: string;
   sku_code: string;
   qty: number;
   batch: { external_id: string | null } | { external_id: string | null }[] | null;
@@ -30,6 +31,7 @@ type DeductionRow = {
   deduction_date: string;
   type: string;
   recipient: string | null;
+  status: string;
   total_qty: number;
   est_value: number | string;
   notes: string | null;
@@ -64,7 +66,7 @@ export default async function ReleasesPage() {
     supabase
       .from("deductions")
       .select(
-        "id, external_id, deduction_date, type, recipient, total_qty, est_value, notes, deduction_items(sku_code, qty, batch:batches!deduction_items_batch_id_fkey(external_id))",
+        "id, external_id, deduction_date, type, recipient, status, total_qty, est_value, notes, deduction_items(id, sku_code, qty, batch:batches!deduction_items_batch_id_fkey(external_id))",
       )
       .is("deleted_at", null)
       .order("deduction_date", { ascending: false })
@@ -85,6 +87,7 @@ export default async function ReleasesPage() {
 
   const rows = (rowsData ?? []) as DeductionRow[];
   const skus = (skusData ?? []) as SkuRef[];
+  const canOverride = hasRole(role, OWNER_PARTNER);
 
   const batchesBySku: Record<string, BatchOption[]> = { PCL: [], ACG: [], WPM: [] };
   for (const r of (invData ?? []) as Array<{
@@ -116,7 +119,7 @@ export default async function ReleasesPage() {
             never counts as a sale.
           </p>
         </div>
-        <ReleasesClient skus={skus} batchesBySku={batchesBySku} />
+        <ReleasesClient skus={skus} />
       </header>
 
       {rows.length === 0 ? (
@@ -137,6 +140,8 @@ export default async function ReleasesPage() {
                 <th className="px-4 py-2 font-semibold">Items</th>
                 <th className="px-4 py-2 font-semibold w-20 text-right">Cans</th>
                 <th className="px-4 py-2 font-semibold w-28 text-right">Est. value</th>
+                <th className="px-4 py-2 font-semibold">Status</th>
+                <th className="px-4 py-2 font-semibold w-32"></th>
               </tr>
             </thead>
             <tbody>
@@ -163,6 +168,32 @@ export default async function ReleasesPage() {
                     <td className="px-4 py-2.5 text-right font-mono tabular-nums">{r.total_qty}</td>
                     <td className="px-4 py-2.5 text-right font-mono tabular-nums text-inkSoft">
                       {formatPHP(Number(r.est_value ?? 0))}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {r.status === "delivered" ? (
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-leafBg text-leaf text-xs font-semibold">
+                          Delivered
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-amberBg text-amber text-xs font-semibold">
+                          Pending
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {r.status !== "delivered" ? (
+                        <DeliverRelease
+                          deductionId={r.id}
+                          externalId={r.external_id}
+                          items={(r.deduction_items ?? []).map((it) => ({
+                            id: it.id,
+                            sku_code: it.sku_code,
+                            qty: it.qty,
+                          }))}
+                          batchesBySku={batchesBySku}
+                          canOverride={canOverride}
+                        />
+                      ) : null}
                     </td>
                   </tr>
                 );

@@ -119,10 +119,29 @@ export function BatchInputsEditor({
   }
 
   function add() {
+    // Prefer an ingredient not used yet; fall back to the first ingredient
+    // (duplicates are allowed now — see addLot).
     const taken = new Set(usedCodes);
-    const first = ingredients.find((i) => !taken.has(i.code));
-    if (!first) return;
-    onChange([...inputs, newInputDraft(first)]);
+    const ing = ingredients.find((i) => !taken.has(i.code)) ?? ingredients[0];
+    if (!ing) return;
+    onChange([...inputs, newInputDraft(ing)]);
+  }
+
+  // Split the same ingredient across another lot: clone the row (same
+  // ingredient + unit) right below it, in FIFO mode so the user can pin the
+  // next lot. This is how you draw e.g. apples from two lots in one batch.
+  function addLot(idx: number) {
+    const row = inputs[idx];
+    const clone: BatchInputDraft = {
+      tempId: crypto.randomUUID(),
+      ingredient_code: row.ingredient_code,
+      qty_used: 0,
+      unit: row.unit,
+      lot_id: null,
+    };
+    const next = inputs.slice();
+    next.splice(idx + 1, 0, clone);
+    onChange(next);
   }
 
   function changeIngredient(idx: number, code: string) {
@@ -132,50 +151,47 @@ export function BatchInputsEditor({
     update(idx, { ingredient_code: code, unit: ing.unit, lot_id: null });
   }
 
-  // Resolve which lot will be used for a row (for display + subtotal).
-  function resolveLot(row: BatchInputDraft): {
-    lot: LotOption | null;
-    explicit: boolean;
-    insufficientForExplicit: boolean;
-    fifoUnavailable: boolean;
-  } {
-    if (row.lot_id) {
-      const lot = lotById[row.lot_id] ?? null;
-      return {
-        lot,
-        explicit: true,
-        insufficientForExplicit:
-          lot != null && row.qty_used > 0 && lot.qty_remaining < row.qty_used,
-        fifoUnavailable: false,
-      };
-    }
-    const list = lotsByCode[row.ingredient_code] ?? [];
-    if (row.qty_used <= 0) {
-      // No FIFO match expected until a qty is entered. Show the oldest active
-      // lot as a hint of what FIFO would pick if enough.
-      const first = list[0] ?? null;
-      return { lot: first, explicit: false, insufficientForExplicit: false, fifoUnavailable: false };
-    }
-    const match = list.find((l) => l.qty_remaining >= row.qty_used) ?? null;
-    return {
-      lot: match,
-      explicit: false,
-      insufficientForExplicit: false,
-      fifoUnavailable: match == null,
-    };
-  }
-
-  // In backfill mode we don't resolve lots — cost comes from the optional
-  // estimate field on each row. The lot resolutions are only consulted in
-  // the normal path.
-  const rowResolutions = backfill
-    ? inputs.map(() => ({
-        lot: null as LotOption | null,
+  // Resolve which lot each row draws from, for display + subtotal. This is a
+  // SEQUENTIAL pass: explicit and FIFO rows both decrement a running tally of
+  // each lot's remaining qty, so two rows for the same ingredient correctly
+  // draw from different lots (mirrors how the server consumes them in order).
+  const rowResolutions = React.useMemo<
+    Array<{
+      lot: LotOption | null;
+      explicit: boolean;
+      insufficientForExplicit: boolean;
+      fifoUnavailable: boolean;
+    }>
+  >(() => {
+    if (backfill) {
+      return inputs.map(() => ({
+        lot: null,
         explicit: false,
         insufficientForExplicit: false,
         fifoUnavailable: false,
-      }))
-    : inputs.map(resolveLot);
+      }));
+    }
+    const remaining: Record<string, number> = {};
+    for (const l of lots) remaining[l.id] = l.qty_remaining;
+
+    return inputs.map((row) => {
+      if (row.lot_id) {
+        const lot = lotById[row.lot_id] ?? null;
+        const avail = lot ? remaining[lot.id] ?? 0 : 0;
+        const insufficient = lot != null && row.qty_used > 0 && avail < row.qty_used;
+        if (lot && row.qty_used > 0) remaining[lot.id] = avail - row.qty_used;
+        return { lot, explicit: true, insufficientForExplicit: insufficient, fifoUnavailable: false };
+      }
+      const list = lotsByCode[row.ingredient_code] ?? [];
+      if (row.qty_used <= 0) {
+        const first = list.find((l) => (remaining[l.id] ?? 0) > 0) ?? list[0] ?? null;
+        return { lot: first, explicit: false, insufficientForExplicit: false, fifoUnavailable: false };
+      }
+      const match = list.find((l) => (remaining[l.id] ?? 0) >= row.qty_used) ?? null;
+      if (match) remaining[match.id] = (remaining[match.id] ?? 0) - row.qty_used;
+      return { lot: match, explicit: false, insufficientForExplicit: false, fifoUnavailable: match == null };
+    });
+  }, [inputs, lots, lotById, lotsByCode, backfill]);
 
   const totalCost = inputs.reduce((sum, row, idx) => {
     if (backfill) {
@@ -189,7 +205,9 @@ export function BatchInputsEditor({
   const costPerCan =
     unitsProduced && unitsProduced > 0 ? totalCost / unitsProduced : null;
 
-  const canAdd = ingredients.length > usedCodes.length;
+  // Duplicates are allowed (same ingredient from multiple lots), so the only
+  // requirement to add a row is that at least one ingredient exists.
+  const canAdd = ingredients.length > 0;
 
   return (
     <div className="space-y-3">
@@ -202,7 +220,9 @@ export function BatchInputsEditor({
           {inputs.map((row, idx) => {
             const res = rowResolutions[idx];
             const lot = res.lot;
-            const otherCodes = usedCodes.filter((_, i) => i !== idx);
+            const sameIngredientCount = inputs.filter(
+              (r) => r.ingredient_code === row.ingredient_code,
+            ).length;
             const ingredientLots = lotsByCode[row.ingredient_code] ?? [];
             const estimateCost = Number(row.cost_per_unit ?? 0);
             const subtotal = backfill
@@ -224,9 +244,13 @@ export function BatchInputsEditor({
                       onChange={(code) => changeIngredient(idx, code)}
                       ingredients={ingredients}
                       skuFilter={skuFilter}
-                      excludeCodes={otherCodes}
                       disabled={disabled}
                     />
+                    {sameIngredientCount > 1 ? (
+                      <span className="inline-block mt-1 text-[10px] uppercase tracking-smallcaps font-semibold text-berry">
+                        Split across {sameIngredientCount} lots
+                      </span>
+                    ) : null}
                   </div>
                   <NumberInput
                     min="0"
@@ -306,9 +330,20 @@ export function BatchInputsEditor({
                       {showError ? (
                         <p className="text-xs text-coral mt-1">
                           {res.fifoUnavailable
-                            ? `No single lot has enough ${row.ingredient_code} for ${row.qty_used}${row.unit}. Split this into two inputs (e.g. ${ingredientLots[0]?.qty_remaining ?? "—"}${row.unit} from ${ingredientLots[0]?.external_id ?? "the oldest"} + the rest from another lot).`
-                            : `That lot only has ${lot?.qty_remaining}${row.unit} remaining.`}
+                            ? `No single lot has enough ${row.ingredient_code} for ${row.qty_used}${row.unit}. Use “Split across another lot” below to draw the rest from a second lot.`
+                            : `That lot only has ${lot?.qty_remaining}${row.unit} remaining — reduce the qty or split the rest across another lot.`}
                         </p>
+                      ) : null}
+                      {ingredientLots.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => addLot(idx)}
+                          disabled={disabled}
+                          className="mt-1 inline-flex items-center gap-1 text-xs text-berry hover:underline disabled:opacity-40"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Split across another lot
+                        </button>
                       ) : null}
                     </>
                   )}

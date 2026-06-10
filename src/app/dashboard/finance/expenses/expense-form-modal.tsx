@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import type { Role } from "@/lib/roles";
 import { FINANCE_CATEGORIES } from "../categories";
+import { usePayees } from "../use-payees";
 
 const THRESHOLD = 20000;
 
@@ -37,6 +39,7 @@ export function ExpenseFormModal({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { options: payeeOptions, remember: rememberPayee } = usePayees();
 
   const [idempotencyKey, setIdempotencyKey] = React.useState(() => crypto.randomUUID());
   const [expenseDate, setExpenseDate] = React.useState(todayIso());
@@ -118,6 +121,7 @@ export function ExpenseFormModal({
       toast.push(rpcErr.message, "error");
       return;
     }
+    void rememberPayee(vendor);
     const fmt = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
     toast.push(
       overrideThreshold
@@ -180,11 +184,14 @@ export function ExpenseFormModal({
 
         <div className="space-y-1">
           <Label htmlFor="exp_vendor">Vendor</Label>
-          <Input
-            id="exp_vendor"
+          <Combobox
+            ariaLabel="Vendor"
             value={vendor}
-            onChange={(e) => setVendor(e.target.value)}
-            placeholder="SM Hypermarket"
+            onChange={setVendor}
+            options={payeeOptions}
+            creatable
+            placeholder="Pick a vendor or type a new one"
+            emptyMessage="No saved payees yet — just type the name"
             disabled={submitting}
           />
         </div>

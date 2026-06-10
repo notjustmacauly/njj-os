@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ComboboxOption = {
@@ -13,6 +13,10 @@ export type ComboboxOption = {
 /**
  * Searchable dropdown. Filters options by typed query against label + hint.
  * `clearable` shows an X to reset to empty.
+ *
+ * When `creatable` is set, a name that isn't in the list can be typed and
+ * used as-is: the dropdown shows a "Use …" row that selects the raw text as
+ * the value. The current value is shown even if it isn't one of `options`.
  */
 export function Combobox({
   value,
@@ -22,6 +26,7 @@ export function Combobox({
   emptyMessage = "No matches",
   disabled,
   clearable = true,
+  creatable = false,
   className,
   ariaLabel,
 }: {
@@ -32,6 +37,7 @@ export function Combobox({
   emptyMessage?: string;
   disabled?: boolean;
   clearable?: boolean;
+  creatable?: boolean;
   className?: string;
   ariaLabel?: string;
 }) {
@@ -41,6 +47,9 @@ export function Combobox({
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   const selected = options.find((o) => o.value === value);
+  // In creatable mode the value can be free text not present in `options` —
+  // show the value itself so the typed name stays visible.
+  const displayLabel = selected ? selected.label : value;
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -50,6 +59,12 @@ export function Combobox({
       return hay.includes(q);
     });
   }, [options, query]);
+
+  const trimmedQuery = query.trim();
+  const showCreate =
+    creatable &&
+    trimmedQuery.length > 0 &&
+    !options.some((o) => o.label.toLowerCase() === trimmedQuery.toLowerCase());
 
   React.useEffect(() => {
     if (!open) return;
@@ -98,12 +113,12 @@ export function Combobox({
           "flex h-10 min-h-[44px] md:min-h-0 w-full items-center justify-between gap-2 rounded-md border border-border bg-white px-3 py-2 text-sm text-left touch-manipulation",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-berry/30 focus-visible:border-berry",
           "disabled:cursor-not-allowed disabled:bg-cream disabled:text-inkSoft",
-          !selected && "text-inkSoft/60",
+          !displayLabel && "text-inkSoft/60",
         )}
       >
-        <span className="truncate">{selected ? selected.label : placeholder}</span>
+        <span className="truncate">{displayLabel || placeholder}</span>
         <span className="flex items-center gap-1 text-inkSoft">
-          {clearable && selected && !disabled ? (
+          {clearable && displayLabel && !disabled ? (
             <span
               role="button"
               tabIndex={-1}
@@ -137,7 +152,19 @@ export function Combobox({
             />
           </div>
           <div className="overflow-y-auto py-1">
-            {filtered.length === 0 ? (
+            {showCreate ? (
+              <button
+                type="button"
+                onClick={() => pick(trimmedQuery)}
+                className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-cream text-berry"
+              >
+                <Plus className="w-4 h-4 shrink-0" />
+                <span className="min-w-0 truncate">
+                  Use “<span className="font-semibold">{trimmedQuery}</span>”
+                </span>
+              </button>
+            ) : null}
+            {filtered.length === 0 && !showCreate ? (
               <div className="px-3 py-2 text-sm text-inkSoft">{emptyMessage}</div>
             ) : (
               filtered.map((o) => {
