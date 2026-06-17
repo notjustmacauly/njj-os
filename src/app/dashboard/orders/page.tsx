@@ -70,8 +70,13 @@ export default async function OrdersListPage({
   const channel = asString(searchParams?.channel).trim();
   const fulfillment = asString(searchParams?.fulfillment).trim();
   const payment = asString(searchParams?.payment).trim();
-  const from = asString(searchParams?.from).trim() || thirtyDaysAgoIso();
-  const to = asString(searchParams?.to).trim() || todayIso();
+  const explicitFrom = asString(searchParams?.from).trim();
+  const explicitTo = asString(searchParams?.to).trim();
+  const from = explicitFrom || thirtyDaysAgoIso();
+  const to = explicitTo || todayIso();
+  // When searching with no explicit date range, span all dates so matches
+  // aren't hidden by the default 30-day window. Explicit dates still apply.
+  const searchAllDates = !!q && !explicitFrom && !explicitTo;
   const partner = asString(searchParams?.partner).trim();
   const page = Math.max(1, parseInt(asString(searchParams?.page) || "1", 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
@@ -143,21 +148,31 @@ export default async function OrdersListPage({
     .select(
       "id, external_id, order_date, channel, partner_id, partner:partners(name), customer_name, pcl_qty, acg_qty, wpm_qty, total, payment_status, fulfillment_status",
       { count: "exact" },
-    )
-    .gte("order_date", from)
-    .lte("order_date", to);
+    );
+
+  if (!searchAllDates) {
+    listQuery = listQuery.gte("order_date", from).lte("order_date", to);
+  }
 
   if (channel) listQuery = listQuery.eq("channel", channel);
   if (fulfillment) listQuery = listQuery.eq("fulfillment_status", fulfillment);
   if (payment) listQuery = listQuery.eq("payment_status", payment);
   if (partner) listQuery = listQuery.eq("partner_id", partner);
   if (q) {
-    // Search by external_id, customer_name, or partner name (via the joined table)
-    // Supabase doesn't support OR across joined tables in one go for ilike;
-    // we OR across local cols and let the partner filter narrow when set.
-    listQuery = listQuery.or(
-      `external_id.ilike.%${q}%,customer_name.ilike.%${q}%`,
-    );
+    // Search by external_id, customer_name, or partner name. Partner names
+    // live on a joined table and PostgREST can't ilike across the join inside
+    // one .or(), so resolve matching partner ids first and fold them into the
+    // OR via partner_id.in.(...).
+    const { data: matchedPartners } = await supabase
+      .from("partners")
+      .select("id")
+      .ilike("name", `%${q}%`)
+      .is("deleted_at", null);
+    const partnerIds = (matchedPartners ?? []).map((p) => p.id as string);
+
+    const ors = [`external_id.ilike.%${q}%`, `customer_name.ilike.%${q}%`];
+    if (partnerIds.length > 0) ors.push(`partner_id.in.(${partnerIds.join(",")})`);
+    listQuery = listQuery.or(ors.join(","));
   }
 
   const { data: ordersData, count: totalRows } = await listQuery
