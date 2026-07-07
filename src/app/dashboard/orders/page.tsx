@@ -9,6 +9,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { UrlDateRange, UrlSearch, UrlSelect } from "@/components/ui/url-filters";
 import { PagerPublisher } from "@/components/pager-publisher";
+import { filterAllowedAccounts } from "@/lib/allowed-accounts";
+import { OrderPayCell, OrdersBulkPay, type PayableOrder } from "./orders-pay";
 
 type OrderRow = {
   id: string;
@@ -16,7 +18,7 @@ type OrderRow = {
   order_date: string;
   channel: "B2B" | "Retail" | "Online" | "Event";
   partner_id: string | null;
-  partner: { name: string } | null;
+  partner: { name: string; pays_on_delivery: boolean | null } | null;
   customer_name: string | null;
   pcl_qty: number;
   acg_qty: number;
@@ -92,6 +94,22 @@ export default async function OrdersListPage({
   // Per access matrix: owner/partner/manager can create orders; staff view-only.
   const canCreate = role === "owner" || role === "partner" || role === "manager";
 
+  // Accounts the current user may receive payment into (for quick/bulk "Mark paid").
+  let payAccounts: Array<{ code: string; name: string }> = [];
+  if (canCreate && user && role) {
+    const { data: accountsData } = await supabase
+      .from("accounts")
+      .select("code, name")
+      .eq("is_active", true)
+      .order("name");
+    payAccounts = await filterAllowedAccounts(
+      supabase,
+      role,
+      user.id,
+      (accountsData ?? []) as Array<{ code: string; name: string }>,
+    );
+  }
+
   // KPI counts (unfiltered)
   const [
     { count: pendingFulfillment },
@@ -146,7 +164,7 @@ export default async function OrdersListPage({
   let listQuery = supabase
     .from("orders")
     .select(
-      "id, external_id, order_date, channel, partner_id, partner:partners(name), customer_name, pcl_qty, acg_qty, wpm_qty, total, payment_status, fulfillment_status",
+      "id, external_id, order_date, channel, partner_id, partner:partners(name, pays_on_delivery), customer_name, pcl_qty, acg_qty, wpm_qty, total, payment_status, fulfillment_status",
       { count: "exact" },
     );
 
@@ -341,6 +359,16 @@ export default async function OrdersListPage({
     },
   ];
 
+  // Quick "Mark paid" action per row (owner/partner/manager only).
+  if (canCreate) {
+    columns.push({
+      key: "actions",
+      header: "",
+      className: "w-24 text-right",
+      render: (r) => <OrderPayCell order={r as PayableOrder} accounts={payAccounts} />,
+    });
+  }
+
   return (
     <div className="space-y-8">
       <header className="flex items-end justify-between gap-4">
@@ -436,6 +464,7 @@ export default async function OrdersListPage({
       ) : (
         <>
           <PagerPublisher entity="orders" segments={orders.map((o) => o.id)} />
+          {canCreate ? <OrdersBulkPay orders={orders} accounts={payAccounts} /> : null}
           <DataTable
             columns={columns}
             rows={orders}

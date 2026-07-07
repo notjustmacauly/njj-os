@@ -61,6 +61,7 @@ export function DeliverOrderModal({
   items,
   batchesBySku,
   canOverride = false,
+  onDelivered,
 }: {
   open: boolean;
   onClose: () => void;
@@ -69,6 +70,8 @@ export function DeliverOrderModal({
   items: Item[];
   batchesBySku: Record<string, DeliverBatchOption[]>;
   canOverride?: boolean;
+  /** Called after a successful delivery — used to chain "collect payment". */
+  onDelivered?: () => void;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -182,6 +185,7 @@ export function DeliverOrderModal({
     }
     toast.push(`Order ${externalId ?? ""} delivered`, "success");
     onClose();
+    onDelivered?.();
     router.refresh();
   }
 

@@ -31,7 +31,7 @@ export default async function PartnerDetailPage({
     supabase
       .from("partners")
       .select(
-        "id, external_id, name, city, tier_code, delivery_fee, contact, email, address, registered_business_name, tin, price_pcl, price_acg, price_wpm, notes, is_active, deleted_at",
+        "id, external_id, name, city, tier_code, delivery_fee, contact, email, address, registered_business_name, tin, price_pcl, price_acg, price_wpm, notes, pays_on_delivery, is_active, deleted_at",
       )
       .eq("id", params.id)
       .is("deleted_at", null)

@@ -45,6 +45,7 @@ type OrderRecord = {
     price_pcl: number | string | null;
     price_acg: number | string | null;
     price_wpm: number | string | null;
+    pays_on_delivery: boolean | null;
   } | null;
   customer_name: string | null;
   event_name: string | null;
@@ -333,8 +334,14 @@ export function OrderDetailClient({
   const showUpdateFulfillment =
     canManage && order.fulfillment_status !== "Delivered" && order.fulfillment_status !== "Cancelled";
   const showDeliver = showUpdateFulfillment && items.length > 0;
+  // Non-B2B can be marked paid any time. B2B can be marked paid directly only
+  // when the partner is flagged pays-on-delivery AND the order is delivered
+  // (its receivable exists by then); otherwise B2B stays on the bill flow.
+  const isCod = order.channel === "B2B" && !!order.partner?.pays_on_delivery;
   const showMarkPaid =
-    canManage && order.payment_status !== "Paid" && order.channel !== "B2B";
+    canManage &&
+    order.payment_status !== "Paid" &&
+    (order.channel !== "B2B" || (isCod && order.fulfillment_status === "Delivered"));
 
   return (
     <div className="space-y-6">
@@ -667,6 +674,17 @@ export function OrderDetailClient({
         }))}
         batchesBySku={deliverBatchesBySku}
         canOverride={canOverrideDelivery}
+        onDelivered={() => {
+          // Deliver & collect: for orders payable directly (non-B2B, or a
+          // pays-on-delivery partner) that aren't paid yet, jump straight to
+          // collecting payment once delivery succeeds.
+          if (
+            order.payment_status !== "Paid" &&
+            (order.channel !== "B2B" || order.partner?.pays_on_delivery)
+          ) {
+            setPaidOpen(true);
+          }
+        }}
       />
       <FulfillmentModal
         open={fulfillmentOpen}
@@ -938,7 +956,10 @@ function MarkPaidModal({
     }
     setBusy(true);
     const supabase = createClient();
-    const { error } = await supabase.rpc("mark_order_paid", {
+    // B2B (pays-on-delivery) settles the auto-created receivable; everyone
+    // else posts directly against the order.
+    const rpc = order.channel === "B2B" ? "mark_order_paid_cod" : "mark_order_paid";
+    const { error } = await supabase.rpc(rpc, {
       p_order_id: order.id,
       p_account_code: accountCode,
       p_amount: amt,

@@ -34,6 +34,7 @@ export type PartnerRecord = {
   price_acg: number | string | null;
   price_wpm: number | string | null;
   notes: string | null;
+  pays_on_delivery: boolean | null;
 };
 
 type FormState = {
@@ -50,6 +51,7 @@ type FormState = {
   price_acg: string;
   price_wpm: string;
   notes: string;
+  pays_on_delivery: boolean;
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -70,6 +72,7 @@ function fromRecord(p?: PartnerRecord, defaultTier?: string): FormState {
     price_acg: p?.price_acg != null ? String(p.price_acg) : "",
     price_wpm: p?.price_wpm != null ? String(p.price_wpm) : "",
     notes: p?.notes ?? "",
+    pays_on_delivery: p?.pays_on_delivery ?? false,
   };
 }
 
@@ -95,6 +98,7 @@ function payloadFrom(form: FormState) {
     price_acg: toNumberOrNull(form.price_acg),
     price_wpm: toNumberOrNull(form.price_wpm),
     notes: form.notes.trim() || null,
+    pays_on_delivery: form.pays_on_delivery,
   };
 }
 
@@ -367,6 +371,23 @@ export function PartnerForm({
           disabled={!canEdit || submitting}
         />
       </div>
+
+      <label className="flex items-start gap-2 text-sm bg-cream/40 border border-border rounded-md px-3 py-2.5">
+        <input
+          type="checkbox"
+          checked={form.pays_on_delivery}
+          onChange={(e) => set("pays_on_delivery", e.target.checked)}
+          disabled={!canEdit || submitting}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="font-semibold">Pays on delivery (cash / QR)</span>
+          <span className="block text-inkSoft">
+            Lets this partner&rsquo;s delivered orders be marked paid directly from the order,
+            settling the receivable without issuing a bill. Leave off for partners on invoice terms.
+          </span>
+        </span>
+      </label>
 
       {canEdit ? (
         <div className="flex justify-end gap-2 border-t border-border pt-5">

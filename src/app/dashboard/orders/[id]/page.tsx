@@ -52,7 +52,7 @@ export default async function OrderDetailPage({
     supabase
       .from("orders")
       .select(
-        "id, external_id, idempotency_key, order_date, channel, partner_id, partner:partners(id, name, external_id, tier_code, delivery_fee, price_pcl, price_acg, price_wpm), customer_name, event_name, delivery_date, delivery_fee, discount, override_total, subtotal, total, pcl_qty, acg_qty, wpm_qty, payment_status, fulfillment_status, notes, created_at, deleted_at",
+        "id, external_id, idempotency_key, order_date, channel, partner_id, partner:partners(id, name, external_id, tier_code, delivery_fee, price_pcl, price_acg, price_wpm, pays_on_delivery), customer_name, event_name, delivery_date, delivery_fee, discount, override_total, subtotal, total, pcl_qty, acg_qty, wpm_qty, payment_status, fulfillment_status, notes, created_at, deleted_at",
       )
       .eq("id", params.id)
       .is("deleted_at", null)
@@ -224,6 +224,7 @@ export default async function OrderDetailPage({
               price_pcl: number | string | null;
               price_acg: number | string | null;
               price_wpm: number | string | null;
+              pays_on_delivery: boolean | null;
             } | null;
             customer_name: string | null;
             event_name: string | null;
