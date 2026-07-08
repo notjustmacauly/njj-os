@@ -7,6 +7,7 @@ import type { Role } from "@/lib/roles";
 
 const ITEMS: { href: string; label: string; roles: readonly Role[] }[] = [
   { href: "/dashboard/finance", label: "Overview", roles: ["owner", "partner"] },
+  { href: "/dashboard/finance/reports", label: "Reports", roles: ["owner", "partner"] },
   { href: "/dashboard/finance/revenue", label: "Revenue", roles: ["owner", "partner"] },
   { href: "/dashboard/finance/expenses", label: "Expenses", roles: ["owner", "partner", "manager"] },
   { href: "/dashboard/finance/payments", label: "Payments", roles: ["owner", "partner", "manager"] },
