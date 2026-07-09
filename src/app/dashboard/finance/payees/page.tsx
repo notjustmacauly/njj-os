@@ -24,7 +24,7 @@ export default async function PayeesPage() {
 
   const { data } = await supabase
     .from("payees")
-    .select("id, name, is_active")
+    .select("id, name, is_active, contact_number, bank_name, account_number, account_name, notes")
     .is("deleted_at", null)
     .order("name");
   const payees = (data ?? []) as PayeeRow[];

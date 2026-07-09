@@ -33,7 +33,7 @@ export function NewPaymentForm({
 }) {
   const router = useRouter();
   const toast = useToast();
-  const { options: payeeOptions, remember: rememberPayee } = usePayees();
+  const { options: payeeOptions, details: payeeDetails, remember: rememberPayee } = usePayees();
 
   // Only owner can transfer (and only owner reaches this page anyway).
   const canTransfer = role === "owner";
@@ -163,6 +163,27 @@ export function NewPaymentForm({
               emptyMessage="No saved payees yet — just type the name"
               disabled={submitting}
             />
+            {(() => {
+              const d = payeeDetails[payee.trim().toLowerCase()];
+              if (!d) return null;
+              const acct = [d.bank_name, d.account_number, d.account_name].filter(Boolean).join(" · ");
+              if (!acct && !d.contact_number) return null;
+              return (
+                <div className="mt-1 text-xs text-inkSoft bg-cream/50 border border-border rounded-md px-3 py-2 space-y-0.5">
+                  {acct ? (
+                    <div>
+                      <span className="font-semibold text-ink">Pay to:</span>{" "}
+                      <span className="font-mono">{acct}</span>
+                    </div>
+                  ) : null}
+                  {d.contact_number ? (
+                    <div>
+                      <span className="font-semibold text-ink">Contact:</span> {d.contact_number}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })()}
           </div>
           <div className="space-y-1">
             <Label htmlFor="pay_category">Category</Label>
