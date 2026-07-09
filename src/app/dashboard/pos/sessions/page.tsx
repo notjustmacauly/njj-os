@@ -18,6 +18,7 @@ type ShiftRow = {
   closed_at: string | null;
   opening_cash: number | string;
   closing_cash: number | string | null;
+  auto_closed_reason: string | null;
 };
 
 type TxnAgg = { shift_id: string; total: number; cash: number; count: number };
@@ -53,7 +54,7 @@ export default async function PosSessionsPage() {
   const { data: shiftsData } = await supabase
     .from("pos_shifts")
     .select(
-      "id, external_id, shift_date, event_name, staff_name, opened_at, closed_at, opening_cash, closing_cash",
+      "id, external_id, shift_date, event_name, staff_name, opened_at, closed_at, opening_cash, closing_cash, auto_closed_reason",
     )
     .is("deleted_at", null)
     .order("opened_at", { ascending: false })
@@ -150,8 +151,11 @@ export default async function PosSessionsPage() {
       className: "w-20",
       render: (r) =>
         r.closed_at ? (
-          <span className="text-xs text-inkSoft font-mono">
-            {timeOnly(r.closed_at)}
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-xs text-inkSoft font-mono">{timeOnly(r.closed_at)}</span>
+            {r.auto_closed_reason ? (
+              <Badge tone="peri" title="Auto-closed — verify cash count">Auto</Badge>
+            ) : null}
           </span>
         ) : (
           <Badge tone="yellow">Open</Badge>
