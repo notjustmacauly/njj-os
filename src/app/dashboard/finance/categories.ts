@@ -15,6 +15,7 @@ export const FINANCE_CATEGORIES = [
   "Legal",
   "Taxes",
   "CSM",
+  "TBM",
   "Office",
   "Equipment",
   "Liabilities",

@@ -40,7 +40,12 @@ export default async function ReportsPage({
   const role = (roleRow?.role as Role | null) ?? null;
   if (!hasRole(role, OWNER_PARTNER)) redirect("/dashboard/finance");
 
-  const view = searchParams?.view === "profit" ? "profit" : "cashflow";
+  const view =
+    searchParams?.view === "profit"
+      ? "profit"
+      : searchParams?.view === "breakdown"
+        ? "breakdown"
+        : "cashflow";
 
   const { data: cashData } = await supabase.rpc("report_monthly_cashflow");
   const cashRows = (cashData ?? []) as CashRow[];
@@ -70,7 +75,7 @@ export default async function ReportsPage({
       </header>
 
       <nav className="flex gap-1 border-b border-border">
-        {([["cashflow", "Cash flow"], ["profit", "Profit"]] as const).map(([v, label]) => (
+        {([["cashflow", "Cash flow"], ["profit", "Profit"], ["breakdown", "Breakdown"]] as const).map(([v, label]) => (
           <Link
             key={v}
             href={yearQS(v)}
@@ -88,8 +93,10 @@ export default async function ReportsPage({
         <EmptyState emoji="📊" title="No financial activity yet" description="Once money moves through the ledger, monthly figures appear here." />
       ) : view === "cashflow" ? (
         <CashflowView rows={cashRows} year={selectedYear} />
-      ) : (
+      ) : view === "profit" ? (
         <ProfitView supabase={supabase} year={selectedYear} />
+      ) : (
+        <BreakdownView supabase={supabase} year={selectedYear} />
       )}
     </div>
   );
@@ -237,6 +244,124 @@ async function ProfitView({
         historical batches use estimated ingredient costs.
       </p>
     </>
+  );
+}
+
+// ── Breakdown view (month-by-month category / source tables) ────
+type BreakdownRow = { month: string; flow: string; category: string; amount: number | string };
+type MatrixRow = { category: string; byMonth: Record<string, number>; total: number };
+
+function buildMatrix(rows: BreakdownRow[], months: string[]) {
+  const map = new Map<string, MatrixRow>();
+  for (const r of rows) {
+    const mk = r.month.slice(0, 7);
+    const row = map.get(r.category) ?? { category: r.category, byMonth: {}, total: 0 };
+    row.byMonth[mk] = (row.byMonth[mk] ?? 0) + n(r.amount);
+    row.total += n(r.amount);
+    map.set(r.category, row);
+  }
+  const list = Array.from(map.values()).sort((a, b) => b.total - a.total);
+  const colTotals: Record<string, number> = {};
+  let grand = 0;
+  for (const m of months) {
+    colTotals[m] = list.reduce((s, r) => s + (r.byMonth[m] ?? 0), 0);
+    grand += colTotals[m];
+  }
+  return { list, colTotals, grand };
+}
+
+function monthLabel(mk: string): string {
+  const m = parseInt(mk.slice(5, 7), 10);
+  return MONTHS[m - 1] ?? mk;
+}
+
+async function BreakdownView({
+  supabase,
+  year,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
+  year: string;
+}) {
+  const { data } = await supabase.rpc("report_monthly_breakdown");
+  const rows = ((data ?? []) as BreakdownRow[]).filter((r) => r.month.slice(0, 4) === year);
+  const months = Array.from(new Set(rows.map((r) => r.month.slice(0, 7)))).sort();
+  const outM = buildMatrix(rows.filter((r) => r.flow === "out"), months);
+  const inM = buildMatrix(rows.filter((r) => r.flow === "in"), months);
+
+  return (
+    <div className="space-y-8">
+      <MatrixTable title={`Where money went · ${year}`} subtitle="Spending by category, month by month" rowLabel="Category" months={months} matrix={outM} tone="coral" />
+      <MatrixTable title={`Where money came from · ${year}`} subtitle="Income by source, month by month" rowLabel="Source" months={months} matrix={inM} tone="leaf" />
+    </div>
+  );
+}
+
+function MatrixTable({
+  title,
+  subtitle,
+  rowLabel,
+  months,
+  matrix,
+  tone,
+}: {
+  title: string;
+  subtitle: string;
+  rowLabel: string;
+  months: string[];
+  matrix: { list: MatrixRow[]; colTotals: Record<string, number>; grand: number };
+  tone: "coral" | "leaf";
+}) {
+  return (
+    <div className="space-y-2">
+      <div>
+        <h2 className="font-serif font-bold text-lg text-ink">{title}</h2>
+        <p className="text-xs text-inkSoft">{subtitle}</p>
+      </div>
+      {matrix.list.length === 0 ? (
+        <p className="text-sm text-inkSoft">No activity in this year.</p>
+      ) : (
+        <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-cream text-inkSoft">
+              <tr className="text-left">
+                <th className="px-4 py-2 font-semibold sticky left-0 bg-cream">{rowLabel}</th>
+                {months.map((m) => (
+                  <th key={m} className="px-3 py-2 font-semibold text-right whitespace-nowrap">{monthLabel(m)}</th>
+                ))}
+                <th className="px-4 py-2 font-semibold text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matrix.list.map((r) => (
+                <tr key={r.category} className="border-t border-border hover:bg-cream/30">
+                  <td className="px-4 py-2 font-medium sticky left-0 bg-white">{r.category}</td>
+                  {months.map((m) => (
+                    <td key={m} className="px-3 py-2 text-right font-mono tabular-nums text-inkSoft whitespace-nowrap">
+                      {r.byMonth[m] ? formatPHP(r.byMonth[m]) : "—"}
+                    </td>
+                  ))}
+                  <td className={cn("px-4 py-2 text-right font-mono tabular-nums font-semibold", tone === "leaf" ? "text-leaf" : "text-coral")}>
+                    {formatPHP(r.total)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-border bg-cream/40 font-semibold">
+                <td className="px-4 py-2 sticky left-0 bg-cream/40">Total</td>
+                {months.map((m) => (
+                  <td key={m} className="px-3 py-2 text-right font-mono tabular-nums whitespace-nowrap">
+                    {matrix.colTotals[m] ? formatPHP(matrix.colTotals[m]) : "—"}
+                  </td>
+                ))}
+                <td className="px-4 py-2 text-right font-mono tabular-nums">{formatPHP(matrix.grand)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 

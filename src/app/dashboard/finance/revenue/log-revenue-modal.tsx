@@ -15,6 +15,8 @@ import { useToast } from "@/components/ui/toast";
 import { formatPHP } from "@/lib/utils";
 
 export type RevenueCategory =
+  | "csm"
+  | "tbm"
   | "catering_contract"
   | "event"
   | "sponsorship"
@@ -22,6 +24,8 @@ export type RevenueCategory =
   | "other";
 
 export const REVENUE_CATEGORY_LABELS: Record<RevenueCategory, string> = {
+  csm: "CSM",
+  tbm: "TBM (The Bay Markets)",
   catering_contract: "Catering / contracts",
   event: "Events",
   sponsorship: "Sponsorship",
@@ -30,6 +34,8 @@ export const REVENUE_CATEGORY_LABELS: Record<RevenueCategory, string> = {
 };
 
 const CATEGORY_ORDER: RevenueCategory[] = [
+  "csm",
+  "tbm",
   "catering_contract",
   "event",
   "sponsorship",
