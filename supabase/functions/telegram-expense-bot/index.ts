@@ -69,8 +69,10 @@ const answer = (id: string, text?: string) => tg("answerCallbackQuery", { callba
 
 function summaryText(c: any): string {
   const acct = c.account_code ?? DEFAULT_ACCOUNT;
+  const desc = c.extracted?.description ?? c.vendor ?? "—";
   return (
     `🧾 <b>₱${Number(c.amount ?? 0).toLocaleString()}</b> · <b>${c.category ?? "Misc"}</b>\n` +
+    `📝 ${desc}\n` +
     `Vendor: ${c.vendor ?? "—"}\n` +
     `Date: ${c.expense_date ?? "—"}   Ref: ${c.payment_ref ?? "—"}\n` +
     `Account: ${acct}\n\n` +
@@ -110,16 +112,21 @@ async function extract(imageB64: string, mediaType: string, caption: string) {
       vendor: { type: "string" },
       reference: { type: "string" },
       category: { type: "string", enum: CATEGORIES },
+      description: { type: "string" },
     },
-    required: ["amount", "expense_date", "vendor", "reference", "category"],
+    required: ["amount", "expense_date", "vendor", "reference", "category", "description"],
   };
   const prompt =
     "You are reading a payment/receipt screenshot for a Philippine juice & events business. " +
     "Extract the total amount paid (number only, PHP), the payment date (YYYY-MM-DD; if only a " +
     "relative date is visible, use it as best you can), the vendor/merchant/recipient name, and " +
     "the reference/transaction number. Then choose the single best expense category from the " +
-    "provided list. Record the details using the record_expense tool. " +
-    "If the user caption gives a hint, prefer it. " +
+    "provided list. Also write a short, clean 'description' of what the payment was FOR " +
+    "(e.g. 'Grab delivery to the market', 'Ice for the event'). The description must NOT " +
+    "include bank/account names (rcbc, gcash, cash, xendit, corporate) or the category word — " +
+    "those are just routing hints, not part of the description. Record everything using the " +
+    "record_expense tool. If the user caption describes what it was for, use that for the " +
+    "description. " +
     (caption ? `User caption: "${caption}".` : "No caption.");
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -248,7 +255,7 @@ async function handleCallback(cb: any) {
       p_telegram_user_id: cap.telegram_user_id,
       p_amount: cap.amount,
       p_category: cap.category,
-      p_description: cap.vendor ? `${cap.vendor}${cap.raw_caption ? " — " + cap.raw_caption : ""}` : (cap.raw_caption || "Telegram expense"),
+      p_description: cap.extracted?.description || cap.vendor || "Telegram expense",
       p_account_code: cap.account_code ?? DEFAULT_ACCOUNT,
       p_expense_date: cap.expense_date,
       p_vendor: cap.vendor,
