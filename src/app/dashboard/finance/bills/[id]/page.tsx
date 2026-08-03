@@ -36,7 +36,7 @@ export default async function BillDetailPage({
     supabase
       .from("bills")
       .select(
-        "id, external_id, bill_date, due_date, payment_terms, status, subtotal, delivery_fees, discount, total, paid_amount, paid_date, paid_account_code, wix_invoice_id, wix_invoice_url, notes, cancel_reason, issued_at, cancelled_at, partner_id, partner:partners(name, external_id, address, registered_business_name, tin)",
+        "id, external_id, bill_date, due_date, payment_terms, status, subtotal, delivery_fees, discount, total, paid_amount, paid_date, paid_account_code, wix_invoice_id, wix_invoice_url, notes, cancel_reason, issued_at, cancelled_at, partner_id, partner:partners(name, external_id, address, registered_business_name, tin, email)",
       )
       .eq("id", params.id)
       .maybeSingle(),
@@ -81,6 +81,7 @@ export default async function BillDetailPage({
         address: string | null;
         registered_business_name: string | null;
         tin: string | null;
+        email: string | null;
       }
     | null;
 
@@ -151,6 +152,7 @@ export default async function BillDetailPage({
     partner_address: partner?.address ?? null,
     partner_registered_business_name: partner?.registered_business_name ?? null,
     partner_tin: partner?.tin ?? null,
+    partner_email: partner?.email ?? null,
   };
 
   return (

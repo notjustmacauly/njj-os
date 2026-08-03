@@ -3,10 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDownLeft, ArrowUpRight, Copy, FileText } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Copy, FileText, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
@@ -14,6 +15,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
+import { COMPANY } from "@/lib/company";
 import type { Role } from "@/lib/roles";
 import { accountEmoji } from "../../account-icons";
 
@@ -43,6 +45,7 @@ export type BillDetail = {
   partner_address: string | null;
   partner_registered_business_name: string | null;
   partner_tin: string | null;
+  partner_email: string | null;
 };
 
 export type LinkedOrder = {
@@ -113,6 +116,55 @@ export function BillDetailClient({
   const [cancelReason, setCancelReason] = React.useState("");
   const [cancelling, setCancelling] = React.useState(false);
   const [cancelErr, setCancelErr] = React.useState<string | null>(null);
+
+  const [showEmail, setShowEmail] = React.useState(false);
+  const [emailTo, setEmailTo] = React.useState(bill.partner_email ?? "");
+  const [emailCc, setEmailCc] = React.useState("");
+  const [emailMsg, setEmailMsg] = React.useState("");
+  const [sending, setSending] = React.useState(false);
+  const [emailErr, setEmailErr] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (showEmail) {
+      setEmailTo(bill.partner_email ?? "");
+      setEmailCc("");
+      setEmailMsg("");
+      setEmailErr(null);
+    }
+  }, [showEmail, bill.partner_email]);
+
+  async function handleSendEmail() {
+    if (sending) return;
+    if (!emailTo.trim()) {
+      setEmailErr("Enter a recipient email.");
+      return;
+    }
+    setSending(true);
+    setEmailErr(null);
+    try {
+      const res = await fetch(`/api/bills/${bill.id}/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: emailTo.trim(),
+          cc: emailCc.trim() || undefined,
+          message: emailMsg.trim() || undefined,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; to?: string; error?: string };
+      if (!res.ok || !json.ok) {
+        setEmailErr(json.error || "Couldn't send the bill.");
+        setSending(false);
+        return;
+      }
+      setSending(false);
+      setShowEmail(false);
+      toast.push(`Bill emailed to ${json.to ?? emailTo.trim()}.`, "success");
+    } catch (e) {
+      setEmailErr(e instanceof Error ? e.message : "Couldn't send the bill.");
+      setSending(false);
+    }
+  }
 
   React.useEffect(() => {
     setPayAmount(String(balance));
@@ -200,6 +252,7 @@ export function BillDetailClient({
   const canIssue = isOwner && bill.status === "draft";
   const canPay = isManagerOrAbove && bill.status === "issued";
   const canCancel = isOwner && (bill.status === "draft" || bill.status === "issued");
+  const canEmail = isOwner && bill.status !== "cancelled";
 
   const missingRegistered = !bill.partner_registered_business_name;
   const missingTin = !bill.partner_tin;
@@ -234,6 +287,12 @@ export function BillDetailClient({
             <FileText className="w-4 h-4" />
             View invoice
           </Link>
+          {canEmail ? (
+            <Button variant="ghost" onClick={() => setShowEmail(true)}>
+              <Mail className="w-4 h-4 mr-1.5" />
+              Email to partner
+            </Button>
+          ) : null}
           {canCancel ? (
             <Button variant="dangerGhost" onClick={() => setShowCancel(true)}>
               Cancel bill
@@ -614,6 +673,72 @@ export function BillDetailClient({
           {cancelErr ? (
             <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2 mt-2">
               {cancelErr}
+            </p>
+          ) : null}
+        </div>
+      </Modal>
+
+      <Modal
+        open={showEmail}
+        onClose={sending ? () => {} : () => setShowEmail(false)}
+        title={`Email ${bill.external_id ?? "bill"} to partner`}
+        description={`A branded PDF invoice is attached and sent from ${COMPANY.email}.`}
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setShowEmail(false)} disabled={sending}>
+              Cancel
+            </Button>
+            <Button onClick={handleSendEmail} disabled={sending}>
+              {sending ? "Sending…" : "Send invoice"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="be_to" required>
+              To
+            </Label>
+            <Input
+              id="be_to"
+              type="email"
+              value={emailTo}
+              onChange={(e) => setEmailTo(e.target.value)}
+              placeholder="partner@email.com"
+              disabled={sending}
+            />
+            {!bill.partner_email ? (
+              <p className="text-xs text-inkSoft">
+                This partner has no saved email — type one in, or add it on the partner’s profile.
+              </p>
+            ) : null}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="be_cc">CC (optional)</Label>
+            <Input
+              id="be_cc"
+              type="email"
+              value={emailCc}
+              onChange={(e) => setEmailCc(e.target.value)}
+              placeholder="e.g. your own inbox"
+              disabled={sending}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="be_msg">Message (optional)</Label>
+            <Textarea
+              id="be_msg"
+              value={emailMsg}
+              onChange={(e) => setEmailMsg(e.target.value)}
+              rows={3}
+              placeholder="Leave blank to use the default note."
+              disabled={sending}
+            />
+          </div>
+          {emailErr ? (
+            <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">
+              {emailErr}
             </p>
           ) : null}
         </div>
