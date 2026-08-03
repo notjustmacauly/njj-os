@@ -85,7 +85,7 @@ type PosUse = {
   transaction: {
     id: string;
     external_id: string | null;
-    transaction_date: string;
+    transaction_at: string;
   } | null;
 };
 
@@ -95,7 +95,8 @@ type DeductionUse = {
     id: string;
     external_id: string | null;
     deduction_date: string;
-    reason: string | null;
+    type: string | null;
+    recipient: string | null;
   } | null;
 };
 
@@ -765,7 +766,7 @@ function LinkedRecords({
               return (
                 <li key={`${t.id}-${i}`} className="text-sm flex items-center gap-3">
                   <span className="font-mono text-xs text-ink">{t.external_id ?? "—"}</span>
-                  <span className="text-xs text-inkSoft">{formatDate(t.transaction_date)}</span>
+                  <span className="text-xs text-inkSoft">{formatDate(t.transaction_at)}</span>
                   <span className="ml-auto font-mono text-xs">{r.qty} cans</span>
                 </li>
               );
@@ -787,8 +788,10 @@ function LinkedRecords({
                 <li key={`${d.id}-${i}`} className="text-sm flex items-center gap-3">
                   <span className="font-mono text-xs text-ink">{d.external_id ?? "—"}</span>
                   <span className="text-xs text-inkSoft">{formatDate(d.deduction_date)}</span>
-                  {d.reason ? (
-                    <span className="text-xs text-inkSoft truncate">{d.reason}</span>
+                  {d.type || d.recipient ? (
+                    <span className="text-xs text-inkSoft truncate">
+                      {[d.type, d.recipient].filter(Boolean).join(" · ")}
+                    </span>
                   ) : null}
                   <span className="ml-auto font-mono text-xs">{r.qty} cans</span>
                 </li>

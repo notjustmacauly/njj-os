@@ -79,12 +79,12 @@ export default async function BatchDetailPage({
         .eq("batch_id", params.id),
       supabase
         .from("pos_transaction_items")
-        .select("qty, transaction:pos_transactions(id, external_id, transaction_date)")
+        .select("qty, transaction:pos_transactions(id, external_id, transaction_at)")
         .eq("batch_id", params.id)
         .eq("item_type", "juice"),
       supabase
         .from("deduction_items")
-        .select("qty, deduction:deductions(id, external_id, deduction_date, reason)")
+        .select("qty, deduction:deductions(id, external_id, deduction_date, type, recipient)")
         .eq("batch_id", params.id),
     ]);
 
@@ -174,7 +174,7 @@ export default async function BatchDetailPage({
             transaction: {
               id: string;
               external_id: string | null;
-              transaction_date: string;
+              transaction_at: string;
             } | null;
           }>
         }
@@ -185,7 +185,8 @@ export default async function BatchDetailPage({
               id: string;
               external_id: string | null;
               deduction_date: string;
-              reason: string | null;
+              type: string | null;
+              recipient: string | null;
             } | null;
           }>
         }
