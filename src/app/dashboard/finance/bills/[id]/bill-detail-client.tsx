@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDownLeft, ArrowUpRight, Copy } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Copy, FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -227,6 +227,13 @@ export function BillDetailClient({
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Link
+            href={`/bill/${bill.id}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold text-ink hover:bg-cream transition"
+          >
+            <FileText className="w-4 h-4" />
+            View invoice
+          </Link>
           {canCancel ? (
             <Button variant="dangerGhost" onClick={() => setShowCancel(true)}>
               Cancel bill
