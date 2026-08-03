@@ -6,7 +6,7 @@ export const COMPANY = {
   brandName: "Not Just Juice",
   registeredName: "NotJust Enterprises Inc.",
   tin: "684-322-008-00000",
-  address: "", // optional: add a business address for the invoice header
+  address: "Lot 4 Osmeña Village, Casuntingan, Mandaue City, Philippines 6000",
   email: "notjustgroup@gmail.com",
   logoSrc: "/just-juice-logo.png",
 } as const;
