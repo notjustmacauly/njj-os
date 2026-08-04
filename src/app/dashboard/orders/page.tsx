@@ -76,9 +76,10 @@ export default async function OrdersListPage({
   const explicitTo = asString(searchParams?.to).trim();
   const from = explicitFrom || thirtyDaysAgoIso();
   const to = explicitTo || todayIso();
-  // When searching with no explicit date range, span all dates so matches
-  // aren't hidden by the default 30-day window. Explicit dates still apply.
-  const searchAllDates = !!q && !explicitFrom && !explicitTo;
+  // A text search should find the record wherever it is — always span all
+  // dates when searching, even if a date range is set, so partner/ID/customer
+  // matches outside the current window aren't silently hidden.
+  const searchAllDates = !!q;
   const partner = asString(searchParams?.partner).trim();
   const page = Math.max(1, parseInt(asString(searchParams?.page) || "1", 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
@@ -425,7 +426,7 @@ export default async function OrdersListPage({
       <div className="bg-white border border-border rounded-lg shadow-card p-3 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div className="md:col-span-2">
-            <UrlSearch placeholder="Search ID or customer…" />
+            <UrlSearch placeholder="Search ID, customer, or partner…" />
           </div>
           <UrlSelect paramKey="channel" options={channelOptions} ariaLabel="Channel" />
           <UrlSelect paramKey="fulfillment" options={fulfillmentOptions} ariaLabel="Fulfillment" />
