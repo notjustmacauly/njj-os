@@ -8,12 +8,15 @@ import { createClient } from "@/lib/supabase/client";
 import type { Role } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
+import { FINANCE_CATEGORIES } from "../../categories";
 import { accountEmoji } from "../../account-icons";
 
 export type PaymentDetail = {
@@ -149,19 +152,42 @@ export function PaymentDetailClient({
   const [cancelling, setCancelling] = React.useState(false);
   const [cancelError, setCancelError] = React.useState<string | null>(null);
 
-  // Approve modal — locks the account at approval time.
+  // Approve modal — locks the account and lets the approver correct the
+  // details (amount / payee / category / purpose) before approving.
   const [showApprove, setShowApprove] = React.useState(false);
   const [approveAccount, setApproveAccount] = React.useState<string>(
     payment.account_code ?? allowedAccounts[0]?.code ?? "",
   );
+  const [approveAmount, setApproveAmount] = React.useState(String(payment.amount ?? ""));
+  const [approvePayee, setApprovePayee] = React.useState(payment.payee ?? "");
+  const [approveCategory, setApproveCategory] = React.useState(payment.category ?? "");
+  const [approvePurpose, setApprovePurpose] = React.useState(payment.purpose ?? "");
   const [approveNotes, setApproveNotes] = React.useState("");
   const [approving, setApproving] = React.useState(false);
   const [approveError, setApproveError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (showApprove) {
+      setApproveAccount(payment.account_code ?? allowedAccounts[0]?.code ?? "");
+      setApproveAmount(String(payment.amount ?? ""));
+      setApprovePayee(payment.payee ?? "");
+      setApproveCategory(payment.category ?? "");
+      setApprovePurpose(payment.purpose ?? "");
+      setApproveNotes("");
+      setApproveError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showApprove]);
 
   async function handleApprove() {
     if (approving) return;
     if (!approveAccount) {
       setApproveError("Pick an account to lock for payment.");
+      return;
+    }
+    const amt = Number(approveAmount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setApproveError("Amount must be greater than 0.");
       return;
     }
     setApproving(true);
@@ -171,6 +197,10 @@ export function PaymentDetailClient({
       p_payment_id: payment.id,
       p_account_code: approveAccount,
       p_notes: approveNotes.trim() || null,
+      p_amount: amt,
+      p_payee: isTransfer ? null : approvePayee.trim(),
+      p_category: isTransfer ? null : approveCategory,
+      p_purpose: approvePurpose.trim(),
     });
     setApproving(false);
     if (error) {
@@ -459,6 +489,67 @@ export function PaymentDetailClient({
         }
       >
         <div className="space-y-3">
+          <p className="text-[11px] text-inkSoft">
+            Review and correct the details before approving — changes are saved with the approval.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="approve_amount" required>
+                Amount
+              </Label>
+              <NumberInput
+                id="approve_amount"
+                prefix="₱"
+                min="0"
+                step="1"
+                value={approveAmount}
+                onChange={(e) => setApproveAmount(e.target.value)}
+                disabled={approving}
+              />
+            </div>
+            {!isTransfer ? (
+              <div className="space-y-1">
+                <Label htmlFor="approve_category">Category</Label>
+                <Select
+                  id="approve_category"
+                  value={approveCategory}
+                  onChange={(e) => setApproveCategory(e.target.value)}
+                  disabled={approving}
+                >
+                  <option value="">— none —</option>
+                  {FINANCE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            ) : null}
+          </div>
+
+          {!isTransfer ? (
+            <div className="space-y-1">
+              <Label htmlFor="approve_payee">Payee</Label>
+              <Input
+                id="approve_payee"
+                value={approvePayee}
+                onChange={(e) => setApprovePayee(e.target.value)}
+                disabled={approving}
+              />
+            </div>
+          ) : null}
+
+          <div className="space-y-1">
+            <Label htmlFor="approve_purpose">Purpose</Label>
+            <Input
+              id="approve_purpose"
+              value={approvePurpose}
+              onChange={(e) => setApprovePurpose(e.target.value)}
+              disabled={approving}
+            />
+          </div>
+
           <div className="space-y-1">
             <Label htmlFor="approve_account" required>
               Pay from
