@@ -18,6 +18,7 @@ import {
   Settings,
   ShoppingCart,
   ScrollText,
+  Send,
   LogOut,
   Plus,
 } from "lucide-react";
@@ -89,6 +90,8 @@ const SECTIONS: Section[] = [
       { href: "/dashboard/settings", label: "Settings", icon: Settings, roles: ALL_ROLES },
       // Owner-only oversight: who changed what across the whole system.
       { href: "/dashboard/settings/activity", label: "Activity Log", icon: ScrollText, roles: ["owner"] },
+      // Owner-only: manage who can use the Telegram expense bot.
+      { href: "/dashboard/settings/telegram", label: "Expense bot", icon: Send, roles: ["owner"] },
     ],
   },
 ];
