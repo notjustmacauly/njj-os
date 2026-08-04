@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
+import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
@@ -78,6 +80,9 @@ export function DeliverOrderModal({
   const [allocs, setAllocs] = React.useState<ItemAllocations>({});
   const [busy, setBusy] = React.useState(false);
   const [override, setOverride] = React.useState(false);
+  const [deliveryDate, setDeliveryDate] = React.useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
 
   React.useEffect(() => {
     if (!open) return;
@@ -89,6 +94,7 @@ export function DeliverOrderModal({
     }
     setAllocs(seed);
     setOverride(false);
+    setDeliveryDate(new Date().toISOString().slice(0, 10));
   }, [open, items, batchesBySku]);
 
   function updateRow(itemId: string, idx: number, patch: Partial<AllocationRow>) {
@@ -161,6 +167,10 @@ export function DeliverOrderModal({
       toast.push("Fix allocation errors before delivering", "error");
       return;
     }
+    if (!deliveryDate) {
+      toast.push("Pick the delivery date", "error");
+      return;
+    }
     const payload: Array<{ order_item_id: string; batch_id: string; qty: number }> = [];
     for (const s of itemSummaries) {
       for (const r of s.rows) {
@@ -177,6 +187,7 @@ export function DeliverOrderModal({
       p_order_id: orderId,
       p_allocations: payload,
       p_allow_override: canOverride && override,
+      p_delivery_date: deliveryDate,
     });
     setBusy(false);
     if (error) {
@@ -210,6 +221,21 @@ export function DeliverOrderModal({
       }
     >
       <div className="space-y-5">
+        <div className="space-y-1 max-w-xs">
+          <Label htmlFor="deliver_date" required>
+            Delivery date
+          </Label>
+          <DateInput
+            id="deliver_date"
+            value={deliveryDate}
+            onChange={(e) => setDeliveryDate(e.target.value)}
+            disabled={busy}
+          />
+          <p className="text-xs text-inkSoft">
+            When the order was actually delivered — recorded on the order.
+          </p>
+        </div>
+
         {itemSummaries.length === 0 ? (
           <p className="text-sm text-inkSoft">This order has no line items.</p>
         ) : null}
