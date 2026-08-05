@@ -90,7 +90,7 @@ export function ReceivablesView({
   role: Role | null;
   accounts: Array<{ code: string; name: string }>;
 }) {
-  const canBill = role === "owner";
+  const canBill = role === "owner" || role === "partner" || role === "manager";
   const canMarkPaid = role === "owner" || role === "partner";
   // Bill modal works on one OR many receivables (multi-select grouping).
   const [billRows, setBillRows] = React.useState<ReceivableRow[]>([]);

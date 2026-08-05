@@ -3,14 +3,14 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ReceivablesView, type ReceivableRow } from "./receivables-view";
-import { OWNER_PARTNER, type Role } from "@/lib/roles";
+import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
 
 // Force fresh data on every request — without this Next.js's fetch cache
 // can hold a stale (often empty) Supabase response. Receivables can be
 // created seconds before this page is loaded; we must not cache them.
 export const dynamic = "force-dynamic";
 
-const FINANCE_ROLES = OWNER_PARTNER;
+const FINANCE_ROLES = OWNER_PARTNER_MANAGER;
 
 export default async function ReceivablesPage() {
   const supabase = await createClient();

@@ -249,7 +249,7 @@ export function BillDetailClient({
   //  - Mark paid (inflow reconciliation): owner / partner / manager
   const isOwner = role === "owner";
   const isManagerOrAbove = role === "owner" || role === "partner" || role === "manager";
-  const canIssue = isOwner && bill.status === "draft";
+  const canIssue = isManagerOrAbove && bill.status === "draft";
   const canPay = isManagerOrAbove && bill.status === "issued";
   const canCancel = isOwner && (bill.status === "draft" || bill.status === "issued");
   const canEmail = isOwner && bill.status !== "cancelled";

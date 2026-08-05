@@ -17,7 +17,7 @@ const ITEMS: { href: string; label: string; roles: readonly Role[] }[] = [
     roles: ["owner", "partner", "manager", "staff"],
   },
   { href: "/dashboard/finance/bills", label: "Bills", roles: ["owner", "partner", "manager"] },
-  { href: "/dashboard/finance/receivables", label: "Receivables", roles: ["owner", "partner"] },
+  { href: "/dashboard/finance/receivables", label: "Receivables", roles: ["owner", "partner", "manager"] },
   { href: "/dashboard/finance/accounts", label: "Accounts", roles: ["owner", "partner"] },
   {
     href: "/dashboard/finance/payees",
