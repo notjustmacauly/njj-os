@@ -450,6 +450,18 @@ export function OrderDetailClient({
               <span className="text-xs text-yellow font-semibold">Unsaved changes</span>
             ) : null}
           </div>
+
+          {order.fulfillment_status === "Delivered" ? (
+            <div className="flex items-start gap-2 rounded-lg border border-yellow/40 bg-yellow/10 px-3 py-2 text-xs text-ink">
+              <span aria-hidden className="mt-0.5">⚠️</span>
+              <span>
+                This order is already <span className="font-semibold">delivered</span>. Changing
+                the line items will re-adjust the stock pulled from batches and update the amount
+                owed on its receivable — only edit here to correct what was actually delivered.
+              </span>
+            </div>
+          ) : null}
+
           <OrderItemsEditor
             items={items}
             onChange={setItems}
