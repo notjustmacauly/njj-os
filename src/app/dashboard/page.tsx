@@ -3,6 +3,10 @@ import { formatPHP } from "@/lib/utils";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { hasRole, OWNER_PARTNER, type Role } from "@/lib/roles";
 
+// Always render fresh so the KPI counts reflect current data (avoid Next.js
+// serving a cached, stale snapshot).
+export const dynamic = "force-dynamic";
+
 function displayNameFromEmail(email: string | null | undefined): string {
   if (!email) return "there";
   const local = (email.split("@")[0] ?? "").replace(/^notjust/i, "");

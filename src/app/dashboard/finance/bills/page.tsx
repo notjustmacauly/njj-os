@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { BillsList, type BillRow } from "./bills-list";
 import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
 
+// Always render fresh so newly created/issued bills show up immediately.
+export const dynamic = "force-dynamic";
+
 const READ_ROLES = OWNER_PARTNER_MANAGER;
 
 export default async function BillsPage() {

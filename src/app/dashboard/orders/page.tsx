@@ -12,6 +12,10 @@ import { PagerPublisher } from "@/components/pager-publisher";
 import { filterAllowedAccounts } from "@/lib/allowed-accounts";
 import { OrderPayCell, OrdersBulkPay, type PayableOrder } from "./orders-pay";
 
+// Always render fresh so KPI counts + the list reflect current data rather
+// than a cached Supabase snapshot.
+export const dynamic = "force-dynamic";
+
 type OrderRow = {
   id: string;
   external_id: string | null;
