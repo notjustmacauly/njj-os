@@ -55,6 +55,7 @@ export default async function FinanceOverviewPage() {
     { data: balances },
     { data: receivables },
     { data: bills },
+    { data: payables },
     { data: mtdInRows },
     { data: lmInRows },
     { data: mtdExpRows },
@@ -70,10 +71,18 @@ export default async function FinanceOverviewPage() {
       .select("amount, partner_id, status")
       .in("status", ["pending", "billed"])
       .is("deleted_at", null),
+    // Issued partner bills — these are RECEIVABLES (money owed to us), used only
+    // for the "open bills" context on the receivable card, not as payables.
     supabase
       .from("bills")
       .select("total, paid_amount, status")
       .eq("status", "issued")
+      .is("deleted_at", null),
+    // Real payables — approved payments awaiting payout (money we owe).
+    supabase
+      .from("payments")
+      .select("amount, status")
+      .eq("status", "approved")
       .is("deleted_at", null),
     supabase
       .from("ledger_entries")
@@ -123,14 +132,18 @@ export default async function FinanceOverviewPage() {
     (receivables ?? []).map((r) => (r as { partner_id: string }).partner_id),
   ).size;
 
+  // Issued partner bills that still have a balance — this is receivable money
+  // (already inside totalReceivable via billed receivables); kept only as a
+  // count for context on the receivable card.
   const billRows = (bills ?? []) as Array<{ total: number | string; paid_amount: number | string }>;
-  const outstandingBills = billRows.filter(
+  const openBillsCount = billRows.filter(
     (b) => Number(b.total ?? 0) - Number(b.paid_amount ?? 0) > 0,
-  );
-  const totalPayable = outstandingBills.reduce(
-    (s, b) => s + (Number(b.total ?? 0) - Number(b.paid_amount ?? 0)),
-    0,
-  );
+  ).length;
+
+  // Real payables — approved payments not yet paid out (money we owe).
+  const payableRows = (payables ?? []) as Array<{ amount: number | string }>;
+  const totalPayable = payableRows.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const payableCount = payableRows.length;
 
   const mtdInRowsTyped = (mtdInRows ?? []) as Array<{
     amount: number | string;
@@ -206,13 +219,13 @@ export default async function FinanceOverviewPage() {
         <KpiCard
           label="Total receivable"
           value={formatPHP(totalReceivable)}
-          sub={`from ${recvPartners} customer${recvPartners === 1 ? "" : "s"}`}
+          sub={`from ${recvPartners} customer${recvPartners === 1 ? "" : "s"} · ${openBillsCount} open bill${openBillsCount === 1 ? "" : "s"}`}
           accent="peri"
         />
         <KpiCard
           label="Total payable"
           value={formatPHP(totalPayable)}
-          sub={`across ${outstandingBills.length} bill${outstandingBills.length === 1 ? "" : "s"}`}
+          sub={`${payableCount} approved payment${payableCount === 1 ? "" : "s"} to pay`}
           accent="coral"
         />
         <KpiCard
