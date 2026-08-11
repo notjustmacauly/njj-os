@@ -30,14 +30,38 @@ export default async function NewReimbursementPage() {
   const role = roleRow?.role as Role | null;
   if (!role || !WRITE_ROLES.includes(role)) redirect("/dashboard/finance/reimbursements");
 
-  // No allowed-accounts fetch — reimbursements no longer collect an account
-  // at submit time; the payer picks one at pay time.
+  // Payout accounts are private staff info — only surface them to the people
+  // who actually pay reimbursements out (owner / partner / manager).
+  const canSeeAccounts = role === "owner" || role === "partner" || role === "manager";
   const { data: teamMembers } = await supabase
     .from("team_members")
-    .select("user_id, display_name")
+    .select(
+      canSeeAccounts
+        ? "user_id, display_name, bank_name, account_number, account_name"
+        : "user_id, display_name",
+    )
     .eq("status", "active")
     .is("deleted_at", null)
     .order("display_name");
+
+  const memberRows = (teamMembers ?? []) as unknown as Array<{
+    user_id: string;
+    display_name: string;
+    bank_name?: string | null;
+    account_number?: string | null;
+    account_name?: string | null;
+  }>;
+
+  const payoutByName: Record<string, { bank_name: string | null; account_number: string | null; account_name: string | null }> = {};
+  if (canSeeAccounts) {
+    for (const m of memberRows) {
+      payoutByName[m.display_name.toLowerCase()] = {
+        bank_name: m.bank_name ?? null,
+        account_number: m.account_number ?? null,
+        account_name: m.account_name ?? null,
+      };
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -60,7 +84,8 @@ export default async function NewReimbursementPage() {
       </header>
 
       <NewReimbursementForm
-        teamMembers={(teamMembers ?? []) as Array<{ user_id: string; display_name: string }>}
+        teamMembers={memberRows.map((m) => ({ user_id: m.user_id, display_name: m.display_name }))}
+        payoutByName={payoutByName}
         requestedByName={displayNameFromEmail(user.email ?? "")}
       />
     </div>

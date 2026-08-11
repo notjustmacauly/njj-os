@@ -20,9 +20,11 @@ function todayIso(): string {
 
 export function NewReimbursementForm({
   teamMembers,
+  payoutByName = {},
   requestedByName,
 }: {
   teamMembers: Array<{ user_id: string; display_name: string }>;
+  payoutByName?: Record<string, { bank_name: string | null; account_number: string | null; account_name: string | null }>;
   requestedByName: string;
 }) {
   const router = useRouter();
@@ -124,6 +126,24 @@ export function NewReimbursementForm({
             className="mt-2"
           />
         ) : null}
+        {(() => {
+          if (personChoice === "Other") return null;
+          const p = payoutByName[personChoice.toLowerCase()];
+          if (!p) return null; // staff viewers don't get accounts passed
+          const acct = [p.bank_name, p.account_number, p.account_name].filter(Boolean).join(" · ");
+          return (
+            <div className="mt-1 text-xs bg-cream/50 border border-border rounded-md px-3 py-2">
+              <span className="font-semibold text-ink">Payout account:</span>{" "}
+              {acct ? (
+                <span className="font-mono text-inkSoft">{acct}</span>
+              ) : (
+                <span className="text-inkSoft">
+                  none on file — add it in Settings → Team.
+                </span>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

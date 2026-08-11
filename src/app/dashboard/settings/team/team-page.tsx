@@ -24,6 +24,9 @@ export type TeamRow = {
   hire_date: string | null;
   status: "active" | "inactive" | "on_leave";
   notes: string | null;
+  bank_name: string | null;
+  account_number: string | null;
+  account_name: string | null;
   role: Role;
   email: string | null;
   last_sign_in_at: string | null;
@@ -280,6 +283,9 @@ function MemberDetailModal({
   const [hireDate, setHireDate] = React.useState(member.hire_date ?? "");
   const [status, setStatus] = React.useState<TeamRow["status"]>(member.status);
   const [notes, setNotes] = React.useState(member.notes ?? "");
+  const [bankName, setBankName] = React.useState(member.bank_name ?? "");
+  const [accountNumber, setAccountNumber] = React.useState(member.account_number ?? "");
+  const [accountName, setAccountName] = React.useState(member.account_name ?? "");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -290,6 +296,9 @@ function MemberDetailModal({
     setHireDate(member.hire_date ?? "");
     setStatus(member.status);
     setNotes(member.notes ?? "");
+    setBankName(member.bank_name ?? "");
+    setAccountNumber(member.account_number ?? "");
+    setAccountName(member.account_name ?? "");
     setError(null);
   }, [member]);
 
@@ -299,7 +308,10 @@ function MemberDetailModal({
     photoUrl !== (member.photo_url ?? "") ||
     hireDate !== (member.hire_date ?? "") ||
     status !== member.status ||
-    notes !== (member.notes ?? "");
+    notes !== (member.notes ?? "") ||
+    bankName !== (member.bank_name ?? "") ||
+    accountNumber !== (member.account_number ?? "") ||
+    accountName !== (member.account_name ?? "");
 
   async function handleSave() {
     if (submitting || !dirty) return;
@@ -315,6 +327,9 @@ function MemberDetailModal({
         hire_date: hireDate || null,
         status,
         notes: notes.trim() || null,
+        bank_name: bankName.trim() || null,
+        account_number: accountNumber.trim() || null,
+        account_name: accountName.trim() || null,
       })
       .eq("user_id", member.user_id);
     setSubmitting(false);
@@ -443,6 +458,32 @@ function MemberDetailModal({
             />
           ) : (
             <p className="text-sm text-ink whitespace-pre-wrap">{member.notes ?? "—"}</p>
+          )}
+        </div>
+
+        <div className="space-y-2 rounded-lg border border-border bg-cream/30 p-4">
+          <span className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
+            Payout account (for reimbursements)
+          </span>
+          {canEdit ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="tm_bank">Bank</Label>
+                <Input id="tm_bank" value={bankName} onChange={(e) => setBankName(e.target.value)} disabled={submitting} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="tm_acctno">Account number</Label>
+                <Input id="tm_acctno" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} disabled={submitting} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="tm_acctname">Account name</Label>
+                <Input id="tm_acctname" value={accountName} onChange={(e) => setAccountName(e.target.value)} disabled={submitting} />
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-ink font-mono">
+              {[member.bank_name, member.account_number, member.account_name].filter(Boolean).join(" · ") || "—"}
+            </p>
           )}
         </div>
 

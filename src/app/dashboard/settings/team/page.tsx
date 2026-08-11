@@ -28,7 +28,7 @@ export default async function SettingsTeamPage() {
   const { data: members } = await supabase
     .from("team_members")
     .select(
-      "user_id, display_name, phone, photo_url, hire_date, status, notes, user_roles!inner(role)",
+      "user_id, display_name, phone, photo_url, hire_date, status, notes, bank_name, account_number, account_name, user_roles!inner(role)",
     )
     .is("deleted_at", null)
     .order("display_name");
@@ -41,6 +41,9 @@ export default async function SettingsTeamPage() {
     hire_date: string | null;
     status: "active" | "inactive" | "on_leave" | string;
     notes: string | null;
+    bank_name: string | null;
+    account_number: string | null;
+    account_name: string | null;
     user_roles:
       | { role: Role | string }
       | { role: Role | string }[]
@@ -78,6 +81,9 @@ export default async function SettingsTeamPage() {
       hire_date: m.hire_date,
       status: (m.status as TeamRow["status"]) ?? "active",
       notes: m.notes,
+      bank_name: m.bank_name,
+      account_number: m.account_number,
+      account_name: m.account_name,
       role: memberRole,
       email: authInfo?.email ?? null,
       last_sign_in_at: authInfo?.last_sign_in_at ?? null,
