@@ -249,12 +249,38 @@ export function ActivePosClient({
   }
 
   function addCupFlavor(cup: PosProductRef, flavor: Flavor) {
-    addJuiceRow({
-      code: flavor,
-      qty: 1,
-      unit_price: Number(cup.price ?? 0),
-      label: `${cup.name} · ${flavor}`,
-      emoji: cup.emoji ?? SKU_EMOJI[flavor],
+    // A cup is served fresh — it is NOT a finished can, so it must not draw
+    // from can inventory. Record it under its own cup_sm / cup_lg item type
+    // with NO batch_id (the flavor stays in sku_code for the sales mix), so
+    // recompute counts it as a cup and inventory never deducts a can.
+    const itemType = itemTypeForProduct(cup.code);
+    const unitPrice = Number(cup.price ?? 0);
+    const label = `${cup.name} · ${flavor}`;
+    setCart((prev) => {
+      const idx = prev.findIndex(
+        (it) =>
+          it.item_type === itemType &&
+          it.sku_code === flavor &&
+          it.label === label &&
+          it.unit_price === unitPrice,
+      );
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          id: newCartItemId(),
+          item_type: itemType,
+          sku_code: flavor,
+          label,
+          emoji: cup.emoji ?? SKU_EMOJI[flavor],
+          qty: 1,
+          unit_price: unitPrice,
+        },
+      ];
     });
   }
 
