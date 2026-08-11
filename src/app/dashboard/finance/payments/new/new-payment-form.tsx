@@ -33,7 +33,7 @@ export function NewPaymentForm({
 }) {
   const router = useRouter();
   const toast = useToast();
-  const { options: payeeOptions, details: payeeDetails, remember: rememberPayee } = usePayees();
+  const { options: payeeOptions, details: payeeDetails, reload: reloadPayees } = usePayees();
 
   // Only owner can transfer (and only owner reaches this page anyway).
   const canTransfer = role === "owner";
@@ -41,6 +41,25 @@ export function NewPaymentForm({
   const [type, setType] = React.useState<PaymentType>("general");
   const [purpose, setPurpose] = React.useState(defaultPurpose ?? "");
   const [payee, setPayee] = React.useState("");
+  // Payment details — pre-filled from the chosen payee, editable, and saved
+  // back to that payee on submit.
+  const [bankName, setBankName] = React.useState("");
+  const [accountNumber, setAccountNumber] = React.useState("");
+  const [accountName, setAccountName] = React.useState("");
+  const [contactNumber, setContactNumber] = React.useState("");
+
+  // When a saved payee is picked, load its account details. Runs on selection
+  // change only, so manual edits afterwards aren't clobbered.
+  function pickPayee(name: string) {
+    setPayee(name);
+    const d = payeeDetails[name.trim().toLowerCase()];
+    if (d) {
+      setBankName(d.bank_name ?? "");
+      setAccountNumber(d.account_number ?? "");
+      setAccountName(d.account_name ?? "");
+      setContactNumber(d.contact_number ?? "");
+    }
+  }
   const [category, setCategory] = React.useState<string>(FINANCE_CATEGORIES[0]);
   const [amount, setAmount] = React.useState(defaultAmount ?? "");
   // Empty string = "approver will pick at approval time" for general/transfer.
@@ -95,7 +114,19 @@ export function NewPaymentForm({
       return;
     }
 
-    if (type !== "transfer") void rememberPayee(payee);
+    // Best-effort: save the entered account details onto the payee so they
+    // auto-fill next time. Never blocks the submitted payment.
+    if (type !== "transfer" && payee.trim()) {
+      void supabase
+        .rpc("remember_payee_account", {
+          p_name: payee.trim(),
+          p_contact_number: contactNumber.trim() || null,
+          p_bank_name: bankName.trim() || null,
+          p_account_number: accountNumber.trim() || null,
+          p_account_name: accountName.trim() || null,
+        })
+        .then(() => reloadPayees());
+    }
     toast.push("Payment request submitted", "success");
     router.push("/dashboard/finance/payments?tab=pending");
     router.refresh();
@@ -156,34 +187,62 @@ export function NewPaymentForm({
             <Combobox
               ariaLabel="Payee"
               value={payee}
-              onChange={setPayee}
+              onChange={pickPayee}
               options={payeeOptions}
               creatable
               placeholder="Pick a payee or type a new one"
               emptyMessage="No saved payees yet — just type the name"
               disabled={submitting}
             />
-            {(() => {
-              const d = payeeDetails[payee.trim().toLowerCase()];
-              if (!d) return null;
-              const acct = [d.bank_name, d.account_number, d.account_name].filter(Boolean).join(" · ");
-              if (!acct && !d.contact_number) return null;
-              return (
-                <div className="mt-1 text-xs text-inkSoft bg-cream/50 border border-border rounded-md px-3 py-2 space-y-0.5">
-                  {acct ? (
-                    <div>
-                      <span className="font-semibold text-ink">Pay to:</span>{" "}
-                      <span className="font-mono">{acct}</span>
-                    </div>
-                  ) : null}
-                  {d.contact_number ? (
-                    <div>
-                      <span className="font-semibold text-ink">Contact:</span> {d.contact_number}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })()}
+          </div>
+
+          {/* Payment details — pre-fill from the payee, saved back on submit. */}
+          <div className="rounded-lg border border-border bg-cream/30 p-4 space-y-3">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
+                Payment details
+              </span>
+              <span className="text-[11px] text-inkSoft">Saved to this payee for next time</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="pay_bank">Bank</Label>
+                <Input
+                  id="pay_bank"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  placeholder="e.g. BDO"
+                  disabled={submitting}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="pay_acctno">Account number</Label>
+                <Input
+                  id="pay_acctno"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  disabled={submitting}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="pay_acctname">Account name</Label>
+                <Input
+                  id="pay_acctname"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  disabled={submitting}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="pay_contact">Contact number</Label>
+                <Input
+                  id="pay_contact"
+                  value={contactNumber}
+                  onChange={(e) => setContactNumber(e.target.value)}
+                  disabled={submitting}
+                />
+              </div>
+            </div>
           </div>
           <div className="space-y-1">
             <Label htmlFor="pay_category">Category</Label>
