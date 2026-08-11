@@ -33,6 +33,7 @@ export type ReceivableRow = {
   paid_account_code: string | null;
   partner_name: string;
   order_external_id: string | null;
+  order_delivery_date: string | null;
   bill_external_id: string | null;
 };
 
@@ -292,7 +293,7 @@ export function ReceivablesView({
           <thead className="bg-cream text-inkSoft">
             <tr className="text-left">
               {canBill ? <th className="px-4 py-2 font-semibold w-10" aria-label="Select" /> : null}
-              <th className="px-4 py-2 font-semibold w-24">Created</th>
+              <th className="px-4 py-2 font-semibold w-24">Delivered</th>
               <th className="px-4 py-2 font-semibold">Partner</th>
               <th className="px-4 py-2 font-semibold w-32">Order</th>
               <th className="px-4 py-2 font-semibold w-28 text-right">Amount</th>
@@ -356,7 +357,7 @@ export function ReceivablesView({
                       </td>
                     ) : null}
                     <td className="px-4 py-2.5 text-xs text-inkSoft whitespace-nowrap">
-                      {formatDate(r.created_at)}
+                      {r.order_delivery_date ? formatDate(r.order_delivery_date) : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-ink font-semibold">
                       <div>{r.partner_name}</div>
@@ -495,7 +496,11 @@ export function ReceivablesView({
                   ) : null}
                   <div className="flex items-center justify-between mt-2 text-xs">
                     <span className="text-inkSoft">
-                      {r.due_date ? `Due ${formatDate(r.due_date)}` : `Created ${formatDate(r.created_at)}`}
+                      {r.order_delivery_date
+                        ? `Delivered ${formatDate(r.order_delivery_date)}`
+                        : r.due_date
+                          ? `Due ${formatDate(r.due_date)}`
+                          : "—"}
                     </span>
                     <span className="font-serif font-bold text-base text-ink tabular-nums">
                       {formatPHP(r.amount)}

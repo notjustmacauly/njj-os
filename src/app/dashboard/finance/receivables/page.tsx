@@ -34,7 +34,7 @@ export default async function ReceivablesPage() {
     supabase
       .from("receivables")
       .select(
-        "id, external_id, created_at, amount, status, due_date, order_id, partner_id, bill_id, paid_amount, paid_date, paid_account_code, partner:partners(name), order_ref:orders(external_id), bill:bills!receivables_bill_id_fkey(external_id)",
+        "id, external_id, created_at, amount, status, due_date, order_id, partner_id, bill_id, paid_amount, paid_date, paid_account_code, partner:partners(name), order_ref:orders(external_id, delivery_date), bill:bills!receivables_bill_id_fkey(external_id)",
       )
       .is("deleted_at", null)
       .order("due_date", { ascending: true, nullsFirst: false })
@@ -62,7 +62,10 @@ export default async function ReceivablesPage() {
     paid_date: string | null;
     paid_account_code: string | null;
     partner: { name: string } | { name: string }[] | null;
-    order_ref: { external_id: string | null } | { external_id: string | null }[] | null;
+    order_ref:
+      | { external_id: string | null; delivery_date: string | null }
+      | { external_id: string | null; delivery_date: string | null }[]
+      | null;
     bill: { external_id: string | null } | { external_id: string | null }[] | null;
   }>).map((r) => {
     const partner = Array.isArray(r.partner) ? r.partner[0] : r.partner;
@@ -83,6 +86,7 @@ export default async function ReceivablesPage() {
       paid_account_code: r.paid_account_code,
       partner_name: partner?.name ?? "—",
       order_external_id: order?.external_id ?? null,
+      order_delivery_date: order?.delivery_date ?? null,
       bill_external_id: bill?.external_id ?? null,
     };
   });
