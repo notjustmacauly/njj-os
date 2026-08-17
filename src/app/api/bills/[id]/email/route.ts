@@ -49,7 +49,7 @@ export async function POST(
     message?: string;
   };
 
-  const [{ data: bill }, { data: linked }] = await Promise.all([
+  const [{ data: bill }, { data: linked }, { data: adjustmentsData }] = await Promise.all([
     supabase
       .from("bills")
       .select(
@@ -63,6 +63,11 @@ export async function POST(
         "receivable:receivables(external_id, amount, order:orders(external_id, order_date, delivery_date, public_token))",
       )
       .eq("bill_id", params.id),
+    supabase
+      .from("bill_adjustments")
+      .select("description, amount")
+      .eq("bill_id", params.id)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (!bill) return NextResponse.json({ error: "Bill not found" }, { status: 404 });
@@ -122,6 +127,10 @@ export async function POST(
       email: partner?.email ?? null,
     },
     lines,
+    adjustments: ((adjustmentsData ?? []) as Array<{ description: string; amount: number | string }>).map((a) => ({
+      description: a.description,
+      amount: Number(a.amount ?? 0),
+    })),
   };
 
   try {

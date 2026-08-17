@@ -69,6 +69,13 @@ export type LedgerLink = {
   ref_external_id: string | null;
 };
 
+export type Adjustment = {
+  id: string;
+  description: string;
+  amount: number | string;
+  created_at: string;
+};
+
 const STATUS_TONE: Record<BillDetail["status"], string> = {
   draft: "bg-creamDk text-inkSoft",
   issued: "bg-yellowBg text-yellow",
@@ -86,12 +93,14 @@ export function BillDetailClient({
   accounts,
   linkedOrders,
   ledgerEntries,
+  adjustments,
 }: {
   role: Role;
   bill: BillDetail;
   accounts: Array<{ code: string; name: string }>;
   linkedOrders: LinkedOrder[];
   ledgerEntries: LedgerLink[];
+  adjustments: Adjustment[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -253,11 +262,50 @@ export function BillDetailClient({
   const canPay = isManagerOrAbove && bill.status === "issued";
   const canCancel = isOwner && (bill.status === "draft" || bill.status === "issued");
   const canEmail = isOwner && bill.status !== "cancelled";
+  // Adjustments (credits/surcharges) allowed while the bill is unpaid.
+  const canAdjust = isManagerOrAbove && (bill.status === "draft" || bill.status === "issued");
 
   const missingRegistered = !bill.partner_registered_business_name;
   const missingTin = !bill.partner_tin;
   const missingBillingInfo = missingRegistered && missingTin;
   const partialBillingInfo = !missingBillingInfo && (missingRegistered || missingTin);
+
+  const [adjDesc, setAdjDesc] = React.useState("");
+  const [adjAmount, setAdjAmount] = React.useState("");
+  const [adjKind, setAdjKind] = React.useState<"credit" | "charge">("credit");
+  const [adjBusy, setAdjBusy] = React.useState(false);
+  const [adjErr, setAdjErr] = React.useState<string | null>(null);
+
+  async function handleAddAdjustment() {
+    if (adjBusy) return;
+    const amt = Number(adjAmount);
+    if (!adjDesc.trim()) return setAdjErr("Enter a reason.");
+    if (!Number.isFinite(amt) || amt <= 0) return setAdjErr("Amount must be greater than 0.");
+    setAdjBusy(true);
+    setAdjErr(null);
+    const supabase = createClient();
+    const signed = adjKind === "credit" ? -Math.abs(amt) : Math.abs(amt);
+    const { error } = await supabase.rpc("add_bill_adjustment", {
+      p_bill_id: bill.id,
+      p_description: adjDesc.trim(),
+      p_amount: signed,
+    });
+    setAdjBusy(false);
+    if (error) return setAdjErr(error.message);
+    setAdjDesc("");
+    setAdjAmount("");
+    setAdjKind("credit");
+    toast.push("Adjustment added", "success");
+    router.refresh();
+  }
+
+  async function handleRemoveAdjustment(id: string) {
+    const supabase = createClient();
+    const { error } = await supabase.rpc("remove_bill_adjustment", { p_id: id });
+    if (error) return toast.push(error.message, "error");
+    toast.push("Adjustment removed", "success");
+    router.refresh();
+  }
 
   return (
     <div className="space-y-6">
@@ -379,11 +427,79 @@ export function BillDetailClient({
           {bill.discount > 0 ? (
             <Row label="Discount" value={<span className="font-mono">−{formatPHP(bill.discount)}</span>} />
           ) : null}
+          {adjustments.map((a) => {
+            const amt = Number(a.amount);
+            const credit = amt < 0;
+            return (
+              <div key={a.id} className="flex items-start justify-between gap-3">
+                <span className="text-inkSoft flex items-start gap-1.5 min-w-0">
+                  {canAdjust ? (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAdjustment(a.id)}
+                      className="text-inkSoft hover:text-coral shrink-0"
+                      aria-label="Remove adjustment"
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  ) : null}
+                  <span className="min-w-0">{a.description}</span>
+                </span>
+                <span className={cn("font-mono whitespace-nowrap", credit ? "text-green" : "text-coral")}>
+                  {credit ? "−" : "+"}
+                  {formatPHP(Math.abs(amt))}
+                </span>
+              </div>
+            );
+          })}
           <Row label="Total" value={<span className="font-mono font-bold text-berry text-lg">{formatPHP(bill.total)}</span>} />
           <Row label="Paid" value={<span className="font-mono">{formatPHP(bill.paid_amount)}</span>} />
           <Row label="Balance" value={<span className="font-mono text-coral">{formatPHP(balance)}</span>} />
           {bill.notes ? <Row label="Notes" value={bill.notes} /> : null}
           {bill.cancel_reason ? <Row label="Cancel reason" value={bill.cancel_reason} /> : null}
+
+          {canAdjust ? (
+            <div className="border-t border-border pt-3 mt-1 space-y-2">
+              <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
+                Add adjustment
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <Select
+                  aria-label="Adjustment type"
+                  value={adjKind}
+                  onChange={(e) => setAdjKind(e.target.value as "credit" | "charge")}
+                  disabled={adjBusy}
+                  className="w-28"
+                >
+                  <option value="credit">Credit (−)</option>
+                  <option value="charge">Charge (+)</option>
+                </Select>
+                <Input
+                  aria-label="Adjustment reason"
+                  value={adjDesc}
+                  onChange={(e) => setAdjDesc(e.target.value)}
+                  placeholder="Reason — e.g. 8 cans expired"
+                  disabled={adjBusy}
+                  className="flex-1 min-w-[10rem]"
+                />
+                <NumberInput
+                  aria-label="Adjustment amount"
+                  prefix="₱"
+                  min="0"
+                  step="1"
+                  value={adjAmount}
+                  onChange={(e) => setAdjAmount(e.target.value)}
+                  disabled={adjBusy}
+                  className="w-28"
+                />
+                <Button size="sm" onClick={handleAddAdjustment} disabled={adjBusy}>
+                  {adjBusy ? "Adding…" : "Add"}
+                </Button>
+              </div>
+              {adjErr ? <p className="text-xs text-coral">{adjErr}</p> : null}
+            </div>
+          ) : null}
         </div>
 
         <div className="bg-white border border-border rounded-lg shadow-card p-5 space-y-3 text-sm">

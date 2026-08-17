@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { BillDetailClient, type BillDetail, type LinkedOrder, type LedgerLink } from "./bill-detail-client";
+import { BillDetailClient, type BillDetail, type LinkedOrder, type LedgerLink, type Adjustment } from "./bill-detail-client";
 import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
 import { RecordPager } from "@/components/record-pager";
 
@@ -32,6 +32,7 @@ export default async function BillDetailPage({
     { data: accounts },
     { data: linkedReceivables },
     { data: ledgerEntries },
+    { data: adjustments },
   ] = await Promise.all([
     supabase
       .from("bills")
@@ -57,6 +58,11 @@ export default async function BillDetailPage({
       .eq("ref_type", "bill")
       .eq("ref_id", params.id)
       .order("occurred_at", { ascending: true }),
+    supabase
+      .from("bill_adjustments")
+      .select("id, description, amount, created_at")
+      .eq("bill_id", params.id)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (!bill) {
@@ -178,6 +184,7 @@ export default async function BillDetailPage({
         accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
         linkedOrders={linkedOrders}
         ledgerEntries={(ledgerEntries ?? []) as LedgerLink[]}
+        adjustments={(adjustments ?? []) as Adjustment[]}
       />
     </div>
   );

@@ -36,7 +36,7 @@ export default async function BillInvoicePage({
   const role = roleRow?.role as Role | null;
   if (!role || !OWNER_PARTNER_MANAGER.includes(role)) redirect("/dashboard/finance");
 
-  const [{ data: bill }, { data: linked }] = await Promise.all([
+  const [{ data: bill }, { data: linked }, { data: adjustments }] = await Promise.all([
     supabase
       .from("bills")
       .select(
@@ -50,6 +50,11 @@ export default async function BillInvoicePage({
         "receivable:receivables(external_id, amount, order:orders(external_id, order_date, delivery_date, public_token))",
       )
       .eq("bill_id", params.id),
+    supabase
+      .from("bill_adjustments")
+      .select("id, description, amount")
+      .eq("bill_id", params.id)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (!bill) notFound();
@@ -196,6 +201,16 @@ export default async function BillInvoicePage({
             {Number(bill.discount ?? 0) > 0 ? (
               <TotalRow label="Discount" value={`− ${formatPHP(bill.discount)}`} />
             ) : null}
+            {((adjustments ?? []) as Array<{ id: string; description: string; amount: number | string }>).map((a) => {
+              const amt = Number(a.amount);
+              return (
+                <TotalRow
+                  key={a.id}
+                  label={a.description}
+                  value={`${amt < 0 ? "− " : "+ "}${formatPHP(Math.abs(amt))}`}
+                />
+              );
+            })}
             <div className="flex items-center justify-between border-t border-border pt-2 mt-1 text-base font-bold text-ink">
               <span>Total due</span>
               <span className="font-mono tabular-nums">{formatPHP(bill.total)}</span>

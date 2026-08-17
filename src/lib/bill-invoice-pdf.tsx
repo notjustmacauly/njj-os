@@ -39,6 +39,7 @@ export type InvoiceData = {
     amount: number;
     public_token: string | null;
   }>;
+  adjustments: Array<{ description: string; amount: number }>;
 };
 
 const INK = "#20130f";
@@ -186,6 +187,15 @@ export function BillInvoicePdf({ data }: { data: InvoiceData }) {
                 <Text style={s.mono}>- {formatPHP(bill.discount)}</Text>
               </View>
             ) : null}
+            {data.adjustments.map((a, i) => (
+              <View style={s.totalRow} key={i}>
+                <Text style={s.soft}>{a.description}</Text>
+                <Text style={s.mono}>
+                  {a.amount < 0 ? "- " : "+ "}
+                  {formatPHP(Math.abs(a.amount))}
+                </Text>
+              </View>
+            ))}
             <View style={s.totalFinal}>
               <Text style={s.bold}>Total due</Text>
               <Text style={[s.bold, s.mono]}>{formatPHP(bill.total)}</Text>
