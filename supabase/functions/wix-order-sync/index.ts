@@ -115,8 +115,8 @@ async function notifyOwner(title: string, message: string) {
   } catch (_e) { /* best-effort */ }
 }
 
-async function processOrder(order: any): Promise<Response> {
-  if (order.paymentStatus !== "PAID") {
+async function processOrder(order: any, dryRun = false): Promise<Response> {
+  if (order.paymentStatus !== "PAID" && !dryRun) {
     return Response.json({ skipped: "not paid", number: order.number });
   }
 
@@ -179,6 +179,23 @@ async function processOrder(order: any): Promise<Response> {
   const city = order.shippingInfo?.logistics?.shippingDestination?.address?.city ?? "";
   const notes = `Wix #${order.number} · ${order.buyerInfo?.email ?? ""}${city ? " · " + city : ""}`;
 
+  if (dryRun) {
+    const subtotal = items.reduce((s, i) => s + i.qty * i.unit_price, 0);
+    return Response.json({
+      dryRun: true,
+      wix_number: order.number,
+      payment_status: order.paymentStatus,
+      customer: customerName,
+      channel: "Online",
+      items,
+      subtotal: round2(subtotal),
+      delivery_fee: Number(order.priceSummary?.shipping?.amount ?? 0),
+      discount: Number(order.priceSummary?.discount?.amount ?? 0),
+      computed_total: round2(subtotal + Number(order.priceSummary?.shipping?.amount ?? 0) - Number(order.priceSummary?.discount?.amount ?? 0)),
+      wix_total: Number(order.priceSummary?.total?.amount ?? 0),
+    });
+  }
+
   const { data: oid, error: coErr } = await db.rpc("create_order", {
     p_idempotency_key: `wix-${order.number}`,
     p_channel: "Online",
@@ -229,19 +246,26 @@ Deno.serve(async (req) => {
   const secret = req.headers.get("x-webhook-secret") ?? url.searchParams.get("secret") ?? "";
   if (WEBHOOK_SECRET && secret !== WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });
 
+  const dryRun = url.searchParams.get("dryRun") === "1";
   let body: any = {};
-  try { body = await req.json(); } catch { /* may be empty */ }
+  try { body = await req.json(); } catch { /* may be empty (e.g. GET) */ }
 
   try {
-    const ref = extractRef(body);
+    // Order reference can come from query params (easy browser testing) or the
+    // webhook body.
+    const qId = url.searchParams.get("orderId");
+    const qNum = url.searchParams.get("orderNumber");
+    let ref: { id?: string; number?: string } =
+      qId && GUID.test(qId) ? { id: qId } : qNum ? { number: qNum } : extractRef(body);
+
     let order: any = null;
     if (ref.id) order = await wixGetOrder(ref.id);
     else if (ref.number) order = await wixSearchByNumber(ref.number);
     if (!order) {
-      console.log("no order ref in payload:", JSON.stringify(body).slice(0, 500));
+      console.log("no order ref:", JSON.stringify(body).slice(0, 500));
       return new Response("no order reference", { status: 200 });
     }
-    return await processOrder(order);
+    return await processOrder(order, dryRun);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("wix-order-sync error:", msg);
