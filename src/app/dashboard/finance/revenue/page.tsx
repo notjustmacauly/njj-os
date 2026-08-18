@@ -8,9 +8,9 @@ import {
   StandaloneRevenueEntries,
   type StandaloneRevenueRow,
 } from "./standalone-entries";
-import { OWNER_PARTNER, type Role } from "@/lib/roles";
+import { OWNER_ONLY, type Role } from "@/lib/roles";
 
-const FINANCE_ROLES = OWNER_PARTNER;
+const FINANCE_ROLES = OWNER_ONLY;
 
 function displayNameFromEmail(email: string | null | undefined): string {
   if (!email) return "";

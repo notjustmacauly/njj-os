@@ -95,11 +95,11 @@ export default async function ReceivablesPage() {
     <div className="space-y-6">
       <header>
         <Link
-          href="/dashboard/finance"
+          href="/dashboard/finance/billing"
           className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink mb-2"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Finance
+          Back to Billing
         </Link>
         <h1 className="font-serif font-bold text-3xl text-ink">
           <span aria-hidden className="mr-2">📨</span>

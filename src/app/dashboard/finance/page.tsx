@@ -3,13 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { formatPHP } from "@/lib/utils";
 import { ActivityFeed, type ActivityRow } from "./activity-feed";
-import { OWNER_PARTNER, type Role } from "@/lib/roles";
+import { OWNER_ONLY, type Role } from "@/lib/roles";
 
 // Always render fresh — otherwise Next.js's fetch cache can serve stale
 // Supabase counts (e.g. showing 0 bills/receivable after new ones are created).
 export const dynamic = "force-dynamic";
 
-const FINANCE_ROLES = OWNER_PARTNER;
+const FINANCE_ROLES = OWNER_ONLY;
 
 function mtdStart(): Date {
   const d = new Date();

@@ -15,6 +15,8 @@ import {
   // Ticket icon will return when /dashboard/tickets is built.
   Users,
   Wallet,
+  ReceiptText,
+  Banknote,
   Settings,
   ShoppingCart,
   ScrollText,
@@ -32,7 +34,20 @@ type NavItem = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   roles: readonly Role[];
+  // For the finance tabs, whose sub-pages don't share the href prefix, mark
+  // which finance group owns the tab so it stays highlighted across them.
+  financeGroup?: "billing" | "financials" | "spending";
 };
+
+// Which finance tab a path belongs to (mirrors the finance sub-nav grouping).
+function financeGroupForPath(pathname: string): NavItem["financeGroup"] | null {
+  const inAny = (...prefixes: string[]) =>
+    prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  if (inAny("/dashboard/finance/billing", "/dashboard/finance/receivables", "/dashboard/finance/bills")) return "billing";
+  if (inAny("/dashboard/finance/expenses", "/dashboard/finance/payments", "/dashboard/finance/reimbursements", "/dashboard/finance/payees")) return "spending";
+  if (pathname === "/dashboard/finance" || inAny("/dashboard/finance/reports", "/dashboard/finance/revenue", "/dashboard/finance/accounts")) return "financials";
+  return null;
+}
 
 type Section = {
   label: string;
@@ -73,13 +88,14 @@ const SECTIONS: Section[] = [
   {
     label: "Accounting",
     items: [
-      // Owner + partner land on Finance overview.
-      { href: "/dashboard/finance", label: "Finance", icon: Wallet, roles: ["owner", "partner"] },
-      // Manager can read expenses/payments/reimbursements/bills — deep-link to
-      // their first allowed page so they aren't bounced from the overview.
-      { href: "/dashboard/finance/expenses", label: "Finance", icon: Wallet, roles: ["manager"] },
-      // Staff only has reimbursements.
-      { href: "/dashboard/finance/reimbursements", label: "Reimbursement", icon: Wallet, roles: ["staff"] },
+      // Billing — receivables → bills. Owner/partner/manager (Chrissia).
+      { href: "/dashboard/finance/billing", label: "Billing", icon: ReceiptText, roles: ["owner", "partner", "manager"], financeGroup: "billing" },
+      // Financials — overview, reports, revenue, accounts. Owner only.
+      { href: "/dashboard/finance", label: "Financials", icon: Wallet, roles: ["owner"], financeGroup: "financials" },
+      // Spending — expenses, payments, reimbursements, payees. Manager+ land on
+      // expenses; staff land on reimbursements (their only allowed page).
+      { href: "/dashboard/finance/expenses", label: "Spending", icon: Banknote, roles: ["owner", "partner", "manager"], financeGroup: "spending" },
+      { href: "/dashboard/finance/reimbursements", label: "Reimbursement", icon: Banknote, roles: ["staff"], financeGroup: "spending" },
     ],
   },
   {
@@ -197,9 +213,9 @@ export function Sidebar({ role, email }: { role: Role; email: string }) {
               <div className="space-y-0.5">
                 {items.map((item) => {
                   const Icon = item.icon;
-                  const active =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/");
+                  const active = item.financeGroup
+                    ? financeGroupForPath(pathname) === item.financeGroup
+                    : pathname === item.href || pathname.startsWith(item.href + "/");
                   return (
                     <Link
                       key={item.href}

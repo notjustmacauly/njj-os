@@ -3,10 +3,10 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AccountCard, type AccountCardData } from "./account-card";
-import { OWNER_PARTNER, type Role } from "@/lib/roles";
+import { OWNER_ONLY, type Role } from "@/lib/roles";
 import { PagerPublisher } from "@/components/pager-publisher";
 
-const FINANCE_ROLES = OWNER_PARTNER;
+const FINANCE_ROLES = OWNER_ONLY;
 
 function todayManilaStartUtc(): Date {
   const fmt = new Intl.DateTimeFormat("en-CA", {

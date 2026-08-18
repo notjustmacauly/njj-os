@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { BarChart3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { cn, formatPHP } from "@/lib/utils";
-import { hasRole, OWNER_PARTNER, type Role } from "@/lib/roles";
+import { hasRole, OWNER_ONLY, type Role } from "@/lib/roles";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { UrlSelect } from "@/components/ui/url-filters";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -38,7 +38,7 @@ export default async function ReportsPage({
   if (!user) redirect("/login");
   const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", user.id).single();
   const role = (roleRow?.role as Role | null) ?? null;
-  if (!hasRole(role, OWNER_PARTNER)) redirect("/dashboard/finance");
+  if (!hasRole(role, OWNER_ONLY)) redirect("/dashboard");
 
   const view =
     searchParams?.view === "profit"
