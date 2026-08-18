@@ -9,7 +9,16 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import { COMPANY } from "@/lib/company";
-import { formatPHP, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+
+// react-pdf's built-in fonts have no ₱ (peso) glyph — it renders as a broken
+// box that overlaps the next digit. Use a plain "PHP" prefix in the PDF.
+function peso(n: number | string | null | undefined): string {
+  return `PHP ${new Intl.NumberFormat("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(n ?? 0))}`;
+}
 
 export type InvoiceData = {
   origin: string;
@@ -159,7 +168,7 @@ export function BillInvoicePdf({ data }: { data: InvoiceData }) {
                     </View>
                     <Text style={[s.cDate, s.soft]}>{l.order_date ? formatDate(l.order_date) : "—"}</Text>
                     <Text style={[s.cDate, s.soft]}>{l.delivery_date ? formatDate(l.delivery_date) : "—"}</Text>
-                    <Text style={[s.cAmt, s.mono]}>{formatPHP(l.amount)}</Text>
+                    <Text style={[s.cAmt, s.mono]}>{peso(l.amount)}</Text>
                   </View>
                 );
               })}
@@ -173,18 +182,18 @@ export function BillInvoicePdf({ data }: { data: InvoiceData }) {
           <View style={s.totals}>
             <View style={s.totalRow}>
               <Text style={s.soft}>Subtotal</Text>
-              <Text style={s.mono}>{formatPHP(bill.subtotal)}</Text>
+              <Text style={s.mono}>{peso(bill.subtotal)}</Text>
             </View>
             {bill.delivery_fees > 0 ? (
               <View style={s.totalRow}>
                 <Text style={s.soft}>Delivery fees</Text>
-                <Text style={s.mono}>{formatPHP(bill.delivery_fees)}</Text>
+                <Text style={s.mono}>{peso(bill.delivery_fees)}</Text>
               </View>
             ) : null}
             {bill.discount > 0 ? (
               <View style={s.totalRow}>
                 <Text style={s.soft}>Discount</Text>
-                <Text style={s.mono}>- {formatPHP(bill.discount)}</Text>
+                <Text style={s.mono}>- {peso(bill.discount)}</Text>
               </View>
             ) : null}
             {data.adjustments.map((a, i) => (
@@ -192,13 +201,13 @@ export function BillInvoicePdf({ data }: { data: InvoiceData }) {
                 <Text style={s.soft}>{a.description}</Text>
                 <Text style={s.mono}>
                   {a.amount < 0 ? "- " : "+ "}
-                  {formatPHP(Math.abs(a.amount))}
+                  {peso(Math.abs(a.amount))}
                 </Text>
               </View>
             ))}
             <View style={s.totalFinal}>
               <Text style={s.bold}>Total due</Text>
-              <Text style={[s.bold, s.mono]}>{formatPHP(bill.total)}</Text>
+              <Text style={[s.bold, s.mono]}>{peso(bill.total)}</Text>
             </View>
           </View>
         </View>
