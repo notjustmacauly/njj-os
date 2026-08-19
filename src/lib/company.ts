@@ -26,7 +26,7 @@ export const COMPANY = {
       accountNumber: "75 9129 7137",
     },
   ],
-  // Path to a payment QR image placed in /public (e.g. "/pay-qr.png"). Leave
-  // blank until the QR image is added; the QR only renders when set.
-  payQrSrc: "",
+  // Path to a payment QR image placed in /public. Leave blank to hide the QR.
+  // InstaPay QR (interoperable — scannable by GCash, Maya, and bank apps).
+  payQrSrc: "/pay-qr.jpg",
 } as const;
