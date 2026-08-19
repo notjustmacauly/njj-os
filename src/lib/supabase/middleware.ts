@@ -43,7 +43,12 @@ export async function updateSession(request: NextRequest) {
   const isPublicAsset =
     path.startsWith("/_next") ||
     path.startsWith("/favicon") ||
-    path === "/";
+    path === "/" ||
+    // Token-gated public pages a logged-out partner can open: the shareable
+    // invoice (/i/<token>) and per-delivery receipts (/receipt/<token>).
+    // Served by anon, token-only RPCs — no login required.
+    path.startsWith("/i/") ||
+    path.startsWith("/receipt/");
 
   if (!user && !isAuthPage && !isPublicAsset) {
     const url = request.nextUrl.clone();
