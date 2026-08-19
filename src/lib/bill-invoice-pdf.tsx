@@ -210,6 +210,36 @@ export function BillInvoicePdf({ data }: { data: InvoiceData }) {
               <Text style={[s.bold, s.mono]}>{peso(bill.total)}</Text>
             </View>
           </View>
+
+          {COMPANY.accountNumber ? (
+            <View
+              style={{
+                marginTop: 18,
+                paddingTop: 8,
+                borderTopWidth: 1,
+                borderTopColor: BORDER,
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+              }}
+            >
+              <View>
+                <Text style={s.label}>Pay to</Text>
+                <Text style={s.bold}>{COMPANY.accountName || COMPANY.registeredName}</Text>
+                <Text style={[s.soft, s.mono]}>
+                  {[COMPANY.bankName, COMPANY.accountNumber].filter(Boolean).join(" · ")}
+                </Text>
+                {COMPANY.altPayment ? <Text style={s.soft}>{COMPANY.altPayment}</Text> : null}
+              </View>
+              {COMPANY.payQrSrc ? (
+                <View style={{ alignItems: "center" }}>
+                  {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                  <Image style={{ width: 84, height: 84 }} src={`${origin}${COMPANY.payQrSrc}`} />
+                  <Text style={[s.soft, { fontSize: 8, marginTop: 2 }]}>Scan to pay</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         <Text style={s.footer} fixed>

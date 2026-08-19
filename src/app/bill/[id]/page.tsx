@@ -217,6 +217,27 @@ export default async function BillInvoicePage({
             </div>
           </div>
 
+          {COMPANY.accountNumber ? (
+            <div className="border-t border-border pt-4 flex items-start justify-between gap-4">
+              <div className="text-sm">
+                <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">
+                  Pay to
+                </div>
+                <div className="font-semibold text-ink">{COMPANY.accountName || COMPANY.registeredName}</div>
+                <div className="text-inkSoft font-mono">
+                  {[COMPANY.bankName, COMPANY.accountNumber].filter(Boolean).join(" · ")}
+                </div>
+                {COMPANY.altPayment ? <div className="text-inkSoft">{COMPANY.altPayment}</div> : null}
+              </div>
+              {COMPANY.payQrSrc ? (
+                <div className="text-center">
+                  <Image src={COMPANY.payQrSrc} alt="Payment QR" width={112} height={112} className="w-28 h-28 object-contain" />
+                  <div className="text-[10px] text-inkSoft mt-1">Scan to pay</div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="text-center text-xs text-inkSoft pt-4 border-t border-border">
             {COMPANY.brandName} — Thank you for your business. Questions? {COMPANY.email}
           </div>
