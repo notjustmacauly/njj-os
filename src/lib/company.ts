@@ -10,13 +10,22 @@ export const COMPANY = {
   email: "notjustgroup@gmail.com",
   logoSrc: "/just-juice-logo.png",
 
-  // Corporate payment details shown in the invoice "Pay to" block. Fill these
-  // in to make the section appear (it's hidden while bankName/accountNumber are
-  // blank). altPayment is an optional 2nd line (e.g. a GCash number).
-  bankName: "", // e.g. "RCBC"
-  accountName: "", // e.g. "NotJust Enterprises Inc."
-  accountNumber: "", // e.g. "1234567890"
-  altPayment: "", // optional, e.g. "GCash: 0917 123 4567"
+  // Corporate payment details shown in the invoice "Pay to" block. Each entry
+  // is a labelled account. The section is hidden when the list is empty.
+  paymentAccounts: [
+    {
+      label: "Check payments",
+      bank: "RCBC / DiskarTech",
+      accountName: "NotJust Enterprises Inc.",
+      accountNumber: "75 9142 0257",
+    },
+    {
+      label: "Bank transfers",
+      bank: "RCBC / DiskarTech",
+      accountName: "Macauly Gary Gosta S. Lofgren",
+      accountNumber: "75 9129 7137",
+    },
+  ],
   // Path to a payment QR image placed in /public (e.g. "/pay-qr.png"). Leave
   // blank until the QR image is added; the QR only renders when set.
   payQrSrc: "",

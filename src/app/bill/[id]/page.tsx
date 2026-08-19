@@ -217,20 +217,24 @@ export default async function BillInvoicePage({
             </div>
           </div>
 
-          {COMPANY.accountNumber ? (
+          {COMPANY.paymentAccounts.length > 0 ? (
             <div className="border-t border-border pt-4 flex items-start justify-between gap-4">
-              <div className="text-sm">
-                <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">
+              <div className="text-sm space-y-3">
+                <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
                   Pay to
                 </div>
-                <div className="font-semibold text-ink">{COMPANY.accountName || COMPANY.registeredName}</div>
-                <div className="text-inkSoft font-mono">
-                  {[COMPANY.bankName, COMPANY.accountNumber].filter(Boolean).join(" · ")}
-                </div>
-                {COMPANY.altPayment ? <div className="text-inkSoft">{COMPANY.altPayment}</div> : null}
+                {COMPANY.paymentAccounts.map((a) => (
+                  <div key={a.label}>
+                    <div className="text-xs text-inkSoft">{a.label}</div>
+                    <div className="font-semibold text-ink">{a.accountName}</div>
+                    <div className="text-inkSoft">
+                      {a.bank} · <span className="font-mono">{a.accountNumber}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
               {COMPANY.payQrSrc ? (
-                <div className="text-center">
+                <div className="text-center shrink-0">
                   <Image src={COMPANY.payQrSrc} alt="Payment QR" width={112} height={112} className="w-28 h-28 object-contain" />
                   <div className="text-[10px] text-inkSoft mt-1">Scan to pay</div>
                 </div>

@@ -211,7 +211,7 @@ export function BillInvoicePdf({ data }: { data: InvoiceData }) {
             </View>
           </View>
 
-          {COMPANY.accountNumber ? (
+          {COMPANY.paymentAccounts.length > 0 ? (
             <View
               style={{
                 marginTop: 18,
@@ -225,11 +225,15 @@ export function BillInvoicePdf({ data }: { data: InvoiceData }) {
             >
               <View>
                 <Text style={s.label}>Pay to</Text>
-                <Text style={s.bold}>{COMPANY.accountName || COMPANY.registeredName}</Text>
-                <Text style={[s.soft, s.mono]}>
-                  {[COMPANY.bankName, COMPANY.accountNumber].filter(Boolean).join(" · ")}
-                </Text>
-                {COMPANY.altPayment ? <Text style={s.soft}>{COMPANY.altPayment}</Text> : null}
+                {COMPANY.paymentAccounts.map((a) => (
+                  <View key={a.label} style={{ marginTop: 4 }}>
+                    <Text style={[s.soft, { fontSize: 8 }]}>{a.label}</Text>
+                    <Text style={s.bold}>{a.accountName}</Text>
+                    <Text style={s.soft}>
+                      {a.bank} · <Text style={s.mono}>{a.accountNumber}</Text>
+                    </Text>
+                  </View>
+                ))}
               </View>
               {COMPANY.payQrSrc ? (
                 <View style={{ alignItems: "center" }}>
