@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDownLeft, ArrowUpRight, Copy, FileText, Link2, Mail } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Copy, Download, FileText, Link2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -351,6 +351,13 @@ export function BillDetailClient({
               Copy share link
             </Button>
           ) : null}
+          <a
+            href={`/api/bills/${bill.id}/pdf`}
+            className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-ink hover:bg-cream transition"
+          >
+            <Download className="w-4 h-4" />
+            Download PDF
+          </a>
           {canEmail ? (
             <Button variant="ghost" onClick={() => setShowEmail(true)}>
               <Mail className="w-4 h-4 mr-1.5" />
