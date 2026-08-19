@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDownLeft, ArrowUpRight, Copy, FileText, Mail } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Copy, FileText, Link2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -22,6 +22,7 @@ import { accountEmoji } from "../../account-icons";
 export type BillDetail = {
   id: string;
   external_id: string | null;
+  public_token: string | null;
   bill_date: string;
   due_date: string | null;
   payment_terms: string | null;
@@ -252,6 +253,15 @@ export function BillDetailClient({
     );
   }
 
+  function copyShareLink() {
+    if (!bill.public_token) return;
+    const url = `${window.location.origin}/i/${bill.public_token}`;
+    navigator.clipboard?.writeText(url).then(
+      () => toast.push("Share link copied — paste it into any chat", "success"),
+      () => toast.push("Couldn't copy — try again", "error"),
+    );
+  }
+
   // Per access matrix:
   //  - Issue (draft → issued): owner only
   //  - Cancel: owner only
@@ -335,6 +345,12 @@ export function BillDetailClient({
             <FileText className="w-4 h-4" />
             View invoice
           </Link>
+          {bill.status !== "cancelled" && bill.public_token ? (
+            <Button variant="ghost" onClick={copyShareLink}>
+              <Link2 className="w-4 h-4 mr-1.5" />
+              Copy share link
+            </Button>
+          ) : null}
           {canEmail ? (
             <Button variant="ghost" onClick={() => setShowEmail(true)}>
               <Mail className="w-4 h-4 mr-1.5" />
