@@ -84,8 +84,19 @@ export default async function ProductDetailPage({
           <div className="mt-4 flex items-baseline gap-3">
             <span className="text-2xl text-ink font-semibold tabular-nums">{formatPHP(product.price)}</span>
             <span className="text-sm text-inkSoft">
-              {product.cans_per_unit} × 355&nbsp;ml cans
+              {product.cans_per_unit} × 330&nbsp;ml cans
             </span>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {["High-protein collagen", "No added sugar", "Cold-pressed"].map((f) => (
+              <span
+                key={f}
+                className="rounded-full bg-cream px-3 py-1 text-xs font-semibold text-ink/80 ring-1 ring-border"
+              >
+                {f}
+              </span>
+            ))}
           </div>
 
           {product.description ? (

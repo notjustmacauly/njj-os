@@ -22,7 +22,8 @@ export default async function ShopPage() {
       <header className="mb-8">
         <h1 className="font-display text-3xl sm:text-4xl font-semibold text-ink">Shop</h1>
         <p className="text-inkSoft mt-2">
-          Cold-pressed 355&nbsp;ml cans in 4-packs and 7-day sets. Delivered fresh.
+          Cold-pressed 330&nbsp;ml cans with high-protein collagen — in 4-packs and
+          7-day sets, delivered fresh.
         </p>
       </header>
 

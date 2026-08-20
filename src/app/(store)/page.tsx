@@ -37,7 +37,7 @@ export default async function StoreHome() {
           {/* Copy */}
           <div className="njj-rise">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur px-3.5 py-1.5 text-xs font-semibold uppercase tracking-smallcaps text-berry">
-              Cold-pressed · No added sugar
+              Cold-pressed · High-protein collagen
             </span>
             <h1 className="font-display font-semibold text-ink leading-[0.98] tracking-tight mt-5 text-5xl sm:text-6xl lg:text-7xl">
               Juice that
@@ -46,9 +46,22 @@ export default async function StoreHome() {
               <span className="italic text-berry">glow.</span>
             </h1>
             <p className="mt-6 text-lg text-inkSoft max-w-md">
-              Real fruit, cold-pressed into 355&nbsp;ml cans. Pick a 4-pack or a
-              7-day set and we&rsquo;ll bring the glow to your door.
+              Real fruit, cold-pressed into 330&nbsp;ml cans — with{" "}
+              <span className="text-ink font-semibold">high-protein collagen</span> and
+              no added sugar. Pick a 4-pack or a 7-day set and we&rsquo;ll bring the
+              glow to your door.
             </p>
+            {/* Product facts */}
+            <div className="mt-6 flex flex-wrap gap-2">
+              {["High-protein collagen", "No added sugar", "Cold-pressed", "330 ml"].map((f) => (
+                <span
+                  key={f}
+                  className="rounded-full bg-white/60 backdrop-blur px-3 py-1.5 text-sm font-semibold text-ink/80"
+                >
+                  {f}
+                </span>
+              ))}
+            </div>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
                 href="/shop"
@@ -149,12 +162,14 @@ export default async function StoreHome() {
             </h2>
             <p className="mt-5 text-lg text-inkSoft leading-relaxed">
               We started Not Just Juice with one belief: what goes into your body
-              should be simple and honest. Every can is cold-pressed from real
-              fruit — no concentrate, no added sugar, no shortcuts.
+              should be simple and honest. Every 330&nbsp;ml can is cold-pressed from
+              real fruit and boosted with{" "}
+              <span className="text-ink font-semibold">high-protein collagen</span> —
+              no concentrate, no added sugar, no shortcuts.
             </p>
             <p className="mt-4 text-inkSoft leading-relaxed">
-              Pressed fresh, delivered cold, and made to make your everyday feel a
-              little brighter.
+              Glow from within: collagen and protein in every can, pressed fresh and
+              delivered cold.
             </p>
           </div>
         </div>
