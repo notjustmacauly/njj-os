@@ -28,9 +28,15 @@ export function ProductCard({ item }: { item: CatalogItem }) {
       href={`/shop/${item.slug}`}
       className="group block rounded-2xl border border-border bg-white overflow-hidden shadow-card hover:shadow-lg transition"
     >
-      <div className={`relative aspect-[4/3] bg-gradient-to-br ${art.gradient}`}>
+      <div className={`relative aspect-[4/5] bg-gradient-to-br ${art.gradient}`}>
         {item.image_url ? (
-          <Image src={item.image_url} alt={item.name} fill className="object-cover" />
+          <Image
+            src={item.image_url}
+            alt={item.name}
+            fill
+            sizes="(max-width: 640px) 70vw, 320px"
+            className="object-contain p-6 drop-shadow-[0_18px_28px_rgba(26,19,15,0.22)] transition duration-300 group-hover:scale-[1.04]"
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-6xl opacity-80">
             <span aria-hidden>{art.emoji}</span>

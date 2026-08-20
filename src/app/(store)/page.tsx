@@ -1,8 +1,8 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ProductCard, type CatalogItem } from "./_components/product-card";
-import { flavorArt } from "./_components/flavor";
 
 export const dynamic = "force-dynamic";
 
@@ -13,13 +13,6 @@ export default async function StoreHome() {
     .select("*")
     .order("sort_order", { ascending: true });
   const items = (data ?? []) as CatalogItem[];
-
-  // One "can" per flavour for the hero cluster.
-  const heroFlavors = [
-    { sku: "PCL", label: "Pineapple Cucumber Lemon" },
-    { sku: "WPM", label: "Watermelon Passionfruit Mint" },
-    { sku: "ACG", label: "Apple Carrot Grape" },
-  ];
 
   return (
     <>
@@ -79,35 +72,18 @@ export default async function StoreHome() {
             </div>
           </div>
 
-          {/* Floating cans */}
-          <div className="relative h-[22rem] sm:h-[26rem] lg:h-[30rem]">
-            <div className="absolute inset-0" style={{ perspective: "1000px" }}>
-              {heroFlavors.map((f, i) => {
-                const art = flavorArt(f.sku);
-                const pos = [
-                  "left-[6%] top-[18%] rotate-[-8deg] z-10",
-                  "left-1/2 -translate-x-1/2 top-0 z-20 scale-110",
-                  "right-[6%] top-[22%] rotate-[8deg] z-10",
-                ][i];
-                const anim = ["njj-floaty", "njj-floaty-slow", "njj-floaty"][i];
-                return (
-                  <div key={f.sku} className={`absolute ${pos}`}>
-                    <div className={anim}>
-                      <div
-                        className={`w-32 sm:w-40 h-56 sm:h-72 rounded-[2rem] bg-gradient-to-b ${art.gradient} shadow-2xl ring-1 ring-white/50 flex flex-col items-center justify-between py-6`}
-                      >
-                        <span className="text-3xl sm:text-4xl" aria-hidden>
-                          {art.emoji}
-                        </span>
-                        <span className="px-3 text-center font-display font-semibold text-ink/70 text-xs sm:text-sm leading-tight">
-                          {f.label}
-                        </span>
-                        <span className="w-14 h-1.5 rounded-full bg-white/60" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Hero product shot */}
+          <div className="njj-rise relative">
+            <div className="overflow-hidden rounded-[2rem] shadow-2xl ring-1 ring-white/50">
+              <Image
+                src="/hero-shot.jpg"
+                alt="Not Just Juice — cold-pressed high-protein collagen in apple, pineapple and watermelon"
+                width={1600}
+                height={853}
+                priority
+                sizes="(max-width: 1024px) 100vw, 620px"
+                className="w-full h-auto"
+              />
             </div>
           </div>
         </div>

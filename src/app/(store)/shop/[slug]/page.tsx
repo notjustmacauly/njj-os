@@ -61,7 +61,14 @@ export default async function ProductDetailPage({
         {/* Art */}
         <div className={`relative aspect-square rounded-3xl bg-gradient-to-br ${art.gradient} overflow-hidden`}>
           {product.image_url ? (
-            <Image src={product.image_url} alt={product.name} fill className="object-cover" />
+            <Image
+              src={product.image_url}
+              alt={product.name}
+              fill
+              sizes="(max-width: 768px) 90vw, 480px"
+              priority
+              className="object-contain p-10 drop-shadow-[0_25px_35px_rgba(26,19,15,0.25)]"
+            />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-[8rem] opacity-80">
               <span aria-hidden>{art.emoji}</span>
