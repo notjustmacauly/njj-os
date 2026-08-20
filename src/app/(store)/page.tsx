@@ -28,9 +28,9 @@ export default async function StoreHome() {
         {/* animated colour depth */}
         <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute inset-0 bg-gradient-to-b from-salmonBg via-cream to-cream" />
-          <div className="njj-blob absolute -top-40 -left-32 w-[40rem] h-[40rem] rounded-full bg-[#FBE7A1] opacity-60 blur-3xl" />
-          <div className="njj-blob absolute -top-20 right-[-10rem] w-[34rem] h-[34rem] rounded-full bg-[#E7B3C6] opacity-55 blur-3xl" style={{ animationDelay: "-4s" }} />
-          <div className="njj-blob absolute bottom-[-12rem] left-1/4 w-[36rem] h-[36rem] rounded-full bg-[#8FD3B6] opacity-45 blur-3xl" style={{ animationDelay: "-8s" }} />
+          <div className="absolute -top-40 -left-32 w-[40rem] h-[40rem] rounded-full bg-[#FBE7A1] opacity-60 blur-3xl" />
+          <div className="absolute -top-20 right-[-10rem] w-[34rem] h-[34rem] rounded-full bg-[#E7B3C6] opacity-55 blur-3xl" />
+          <div className="absolute bottom-[-12rem] left-1/4 w-[36rem] h-[36rem] rounded-full bg-[#8FD3B6] opacity-45 blur-3xl" />
         </div>
 
         <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-8 items-center pt-16 pb-20 lg:pt-24 lg:pb-28">
