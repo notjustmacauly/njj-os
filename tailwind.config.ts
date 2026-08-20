@@ -12,6 +12,7 @@ const config: Config = {
         berryBg:  "#F8E4EB",   // active nav background
         coral:    "#E07856",   // pending/warning accents, salmon→coral fade
         salmon:   "#F0AA9A",   // sidebar header band, soft accents
+        brandpink:"#E89F8F",   // exact logo background — storefront header
         salmonBg: "#FCE8E0",   // soft fill (e.g. pending row tint)
         peri:     "#7B5BA8",   // periwinkle — info / counts
         periBg:   "#E8DEF0",
@@ -32,10 +33,13 @@ const config: Config = {
         xl:      "20px",
       },
       fontFamily: {
-        // Body / UI text — clean sans
+        // Body / UI text — clean sans (OS dashboard)
         sans: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
-        // Page titles + KPI numbers — warm serif
+        // Page titles + KPI numbers — warm serif (OS dashboard)
         serif: ["ui-serif", "Georgia", "Cambria", "Times New Roman", "serif"],
+        // Storefront — modern, premium (loaded via next/font in the store layout)
+        body:    ["var(--font-body)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "ui-serif", "Georgia", "serif"],
       },
       letterSpacing: {
         // Small-caps section labels

@@ -53,10 +53,10 @@ export function ProductCard({ item }: { item: CatalogItem }) {
       </div>
       <div className="p-4 space-y-1">
         <div className="flex items-baseline justify-between gap-2">
-          <h3 className="font-serif font-bold text-ink leading-tight group-hover:text-berry transition">
+          <h3 className="font-display font-semibold text-ink leading-tight group-hover:text-berry transition">
             {item.name}
           </h3>
-          <span className="font-mono text-ink shrink-0">{formatPHP(item.price)}</span>
+          <span className="text-ink font-semibold tabular-nums shrink-0">{formatPHP(item.price)}</span>
         </div>
         <p className="text-sm text-inkSoft">
           {item.subtitle ? `${item.subtitle} · ` : ""}

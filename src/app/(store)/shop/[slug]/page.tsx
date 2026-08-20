@@ -76,13 +76,13 @@ export default async function ProductDetailPage({
               {product.subtitle}
             </span>
           ) : null}
-          <h1 className="font-serif text-3xl sm:text-4xl font-bold text-ink mt-1">
+          <h1 className="font-display text-3xl sm:text-4xl font-semibold text-ink mt-1">
             {product.name}
           </h1>
           <p className="text-inkSoft mt-1">{product.flavor_name}</p>
 
           <div className="mt-4 flex items-baseline gap-3">
-            <span className="font-mono text-2xl text-ink">{formatPHP(product.price)}</span>
+            <span className="text-2xl text-ink font-semibold tabular-nums">{formatPHP(product.price)}</span>
             <span className="text-sm text-inkSoft">
               {product.cans_per_unit} × 355&nbsp;ml cans
             </span>

@@ -20,7 +20,7 @@ export default async function ShopPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
       <header className="mb-8">
-        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-ink">Shop</h1>
+        <h1 className="font-display text-3xl sm:text-4xl font-semibold text-ink">Shop</h1>
         <p className="text-inkSoft mt-2">
           Cold-pressed 355&nbsp;ml cans in 4-packs and 7-day sets. Delivered fresh.
         </p>

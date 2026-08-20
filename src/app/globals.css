@@ -10,3 +10,34 @@ html, body {
   background: theme(colors.cream);
   color: theme(colors.ink);
 }
+
+/* ── Storefront motion + helpers ─────────────────────────────── */
+@keyframes njj-floaty {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-22px) rotate(2deg); }
+}
+@keyframes njj-floaty-slow {
+  0%, 100% { transform: translateY(0) rotate(3deg); }
+  50%      { transform: translateY(-16px) rotate(-2deg); }
+}
+@keyframes njj-blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(3%, -4%) scale(1.08); }
+  66%      { transform: translate(-3%, 3%) scale(0.96); }
+}
+@keyframes njj-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.njj-floaty      { animation: njj-floaty 7s ease-in-out infinite; }
+.njj-floaty-slow { animation: njj-floaty-slow 9s ease-in-out infinite; }
+.njj-blob        { animation: njj-blob 16s ease-in-out infinite; will-change: transform; }
+.njj-rise        { animation: njj-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Hide scrollbar on the horizontal product rail while keeping scroll */
+.njj-noscroll { -ms-overflow-style: none; scrollbar-width: none; }
+.njj-noscroll::-webkit-scrollbar { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .njj-floaty, .njj-floaty-slow, .njj-blob, .njj-rise { animation: none; }
+}
