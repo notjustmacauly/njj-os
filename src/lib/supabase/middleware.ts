@@ -48,7 +48,9 @@ export async function updateSession(request: NextRequest) {
     // invoice (/i/<token>) and per-delivery receipts (/receipt/<token>).
     // Served by anon, token-only RPCs — no login required.
     path.startsWith("/i/") ||
-    path.startsWith("/receipt/");
+    path.startsWith("/receipt/") ||
+    // Public customer storefront (Wix replacement) — open to anyone.
+    path.startsWith("/shop");
 
   if (!user && !isAuthPage && !isPublicAsset) {
     const url = request.nextUrl.clone();
