@@ -72,6 +72,25 @@ export default async function PaymentDetailPage({
     ? "/dashboard/finance/reimbursements"
     : "/dashboard/finance/payments";
 
+  // Pull the payee's saved bank/account details so the approver can see where
+  // to actually send the money. Matched on the payee name (normalized).
+  let payeeAccount: {
+    bank_name: string | null;
+    account_number: string | null;
+    account_name: string | null;
+    contact_number: string | null;
+  } | null = null;
+  if (payment.payee && payment.type !== "transfer") {
+    const { data: pd } = await supabase
+      .from("payees")
+      .select("bank_name, account_number, account_name, contact_number")
+      .eq("normalized_name", payment.payee.trim().toLowerCase())
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+    payeeAccount = pd ?? null;
+  }
+
   // For reimbursements, also fetch the auto-created expense (when payment is paid).
   let linkedExpense: { id: string; external_id: string | null; category: string } | null = null;
   if (isReimbursement && payment.status === "paid" && payment.external_id) {
@@ -115,6 +134,7 @@ export default async function PaymentDetailPage({
         )}
         ledgerEntries={(ledgerEntries ?? []) as LedgerLink[]}
         linkedExpense={linkedExpense}
+        payeeAccount={payeeAccount}
       />
     </div>
   );

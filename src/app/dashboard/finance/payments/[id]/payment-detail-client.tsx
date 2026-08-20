@@ -93,6 +93,7 @@ export function PaymentDetailClient({
   allowedAccounts,
   ledgerEntries,
   linkedExpense,
+  payeeAccount,
 }: {
   role: Role;
   currentUserId: string;
@@ -101,6 +102,12 @@ export function PaymentDetailClient({
   allowedAccounts: Array<{ code: string; name: string }>;
   ledgerEntries: LedgerLink[];
   linkedExpense: { id: string; external_id: string | null; category: string } | null;
+  payeeAccount: {
+    bank_name: string | null;
+    account_number: string | null;
+    account_name: string | null;
+    contact_number: string | null;
+  } | null;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -345,6 +352,32 @@ export function PaymentDetailClient({
             />
           ) : null}
           {!isTransfer && payment.payee ? <Row label="Payee" value={payment.payee} /> : null}
+          {!isTransfer && payeeAccount &&
+          (payeeAccount.bank_name ||
+            payeeAccount.account_number ||
+            payeeAccount.account_name ||
+            payeeAccount.contact_number) ? (
+            <div className="rounded-lg border border-border bg-cream/40 p-3 space-y-1.5">
+              <div className="text-[11px] uppercase tracking-smallcaps font-semibold text-inkSoft">
+                Where to pay
+              </div>
+              {payeeAccount.bank_name ? (
+                <Row label="Bank" value={payeeAccount.bank_name} />
+              ) : null}
+              {payeeAccount.account_name ? (
+                <Row label="Account name" value={payeeAccount.account_name} />
+              ) : null}
+              {payeeAccount.account_number ? (
+                <Row
+                  label="Account no."
+                  value={<span className="font-mono">{payeeAccount.account_number}</span>}
+                />
+              ) : null}
+              {payeeAccount.contact_number ? (
+                <Row label="Contact" value={payeeAccount.contact_number} />
+              ) : null}
+            </div>
+          ) : null}
           {payment.category ? <Row label="Category" value={payment.category} /> : null}
           {payment.notes ? <Row label="Notes" value={payment.notes} /> : null}
           {payment.requested_by_name ? (
