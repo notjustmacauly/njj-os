@@ -16,40 +16,44 @@ export default async function StoreHome() {
 
   return (
     <>
-      {/* ── Hero ─────────────────────────────────────────────── */}
+      {/* ── Hero (full-bleed photo + overlaid card) ──────────── */}
       <section className="relative overflow-hidden">
-        {/* animated colour depth */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute inset-0 bg-gradient-to-b from-salmonBg via-cream to-cream" />
-          <div className="absolute -top-40 -left-32 w-[40rem] h-[40rem] rounded-full bg-[#FBE7A1] opacity-60 blur-3xl" />
-          <div className="absolute -top-20 right-[-10rem] w-[34rem] h-[34rem] rounded-full bg-[#E7B3C6] opacity-55 blur-3xl" />
-          <div className="absolute bottom-[-12rem] left-1/4 w-[36rem] h-[36rem] rounded-full bg-[#8FD3B6] opacity-45 blur-3xl" />
+        {/* Full-bleed product photo */}
+        <div className="absolute inset-0">
+          <Image
+            src="/hero-shot.jpg"
+            alt="Not Just Juice — cold-pressed high-protein collagen in apple, pineapple and watermelon"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-[68%_center]"
+          />
+          {/* soft wash on the left so the card reads on any screen */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-transparent lg:hidden" />
         </div>
 
-        <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-8 items-center pt-16 pb-20 lg:pt-24 lg:pb-28">
-          {/* Copy */}
-          <div className="njj-rise">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur px-3.5 py-1.5 text-xs font-semibold uppercase tracking-smallcaps text-berry">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 flex items-center min-h-[78vh] lg:min-h-[86vh] py-16">
+          <div className="njj-rise w-full max-w-lg bg-white/95 backdrop-blur rounded-[2.5rem] shadow-2xl ring-1 ring-white/60 p-8 sm:p-10">
+            <span className="inline-flex items-center gap-2 rounded-full bg-salmonBg px-3.5 py-1.5 text-xs font-semibold uppercase tracking-smallcaps text-berry">
               Cold-pressed · High-protein collagen
             </span>
-            <h1 className="font-display font-semibold text-ink leading-[0.98] tracking-tight mt-5 text-5xl sm:text-6xl lg:text-7xl">
+            <h1 className="font-display font-semibold text-ink leading-[0.98] tracking-tight mt-5 text-4xl sm:text-5xl lg:text-6xl">
               Juice that
               <br />
               makes you{" "}
               <span className="italic text-berry">glow.</span>
             </h1>
-            <p className="mt-6 text-lg text-inkSoft max-w-md">
+            <p className="mt-5 text-lg text-inkSoft">
               Real fruit, cold-pressed into 330&nbsp;ml cans — with{" "}
               <span className="text-ink font-semibold">high-protein collagen</span> and
-              no added sugar. Pick a 4-pack or a 7-day set and we&rsquo;ll bring the
-              glow to your door.
+              no added sugar. Delivered fresh to your door.
             </p>
             {/* Product facts */}
             <div className="mt-6 flex flex-wrap gap-2">
-              {["High-protein collagen", "No added sugar", "Cold-pressed", "330 ml"].map((f) => (
+              {["High-protein collagen", "No added sugar", "330 ml"].map((f) => (
                 <span
                   key={f}
-                  className="rounded-full bg-white/60 backdrop-blur px-3 py-1.5 text-sm font-semibold text-ink/80"
+                  className="rounded-full bg-cream px-3 py-1.5 text-sm font-semibold text-ink/80 ring-1 ring-border"
                 >
                   {f}
                 </span>
@@ -65,25 +69,10 @@ export default async function StoreHome() {
               </Link>
               <Link
                 href="/#about"
-                className="inline-flex items-center rounded-full bg-white/70 backdrop-blur text-ink font-semibold px-6 py-3.5 hover:bg-white transition"
+                className="inline-flex items-center rounded-full bg-cream text-ink font-semibold px-6 py-3.5 hover:bg-creamDk transition"
               >
                 Our story
               </Link>
-            </div>
-          </div>
-
-          {/* Hero product shot */}
-          <div className="njj-rise relative">
-            <div className="overflow-hidden rounded-[2rem] shadow-2xl ring-1 ring-white/50">
-              <Image
-                src="/hero-shot.jpg"
-                alt="Not Just Juice — cold-pressed high-protein collagen in apple, pineapple and watermelon"
-                width={1600}
-                height={853}
-                priority
-                sizes="(max-width: 1024px) 100vw, 620px"
-                className="w-full h-auto"
-              />
             </div>
           </div>
         </div>
