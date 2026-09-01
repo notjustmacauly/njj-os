@@ -18,7 +18,7 @@ export type ExpenseRow = {
   category: string;
   description: string;
   vendor: string | null;
-  amount: number | string;
+  amount: number | string | null;
   account_code: string;
   payment_ref: string | null;
   receipt_url: string | null;
@@ -44,6 +44,7 @@ export function ExpensesView({
   role,
   canManage,
   canVoid,
+  hideAmounts = false,
   defaultLoggedByName,
   accounts,
   allowedAccounts,
@@ -52,6 +53,7 @@ export function ExpensesView({
   role: Role;
   canManage: boolean;
   canVoid: boolean;
+  hideAmounts?: boolean;
   defaultLoggedByName: string;
   accounts: Array<{ code: string; name: string }>;
   allowedAccounts: Array<{ code: string; name: string }>;
@@ -314,7 +316,7 @@ export function ExpensesView({
                         voided ? "line-through" : "text-coral",
                       )}
                     >
-                      {formatPHP(r.amount)}
+                      {hideAmounts ? "•••" : formatPHP(r.amount)}
                     </td>
                     <td className="px-4 py-2.5 text-xs">
                       {voided ? (
@@ -335,7 +337,7 @@ export function ExpensesView({
                   Active total ({filtered.filter((e) => !e.voided_at).length} entries)
                 </td>
                 <td className="px-4 py-2.5 text-right font-mono font-semibold text-coral tabular-nums">
-                  {formatPHP(activeTotal)}
+                  {hideAmounts ? "•••" : formatPHP(activeTotal)}
                 </td>
                 <td />
               </tr>
@@ -401,7 +403,7 @@ export function ExpensesView({
                         voided ? "line-through text-inkSoft" : "text-coral",
                       )}
                     >
-                      {formatPHP(r.amount)}
+                      {hideAmounts ? "•••" : formatPHP(r.amount)}
                     </span>
                   </div>
                 </button>
@@ -412,7 +414,7 @@ export function ExpensesView({
                 Active total ({filtered.filter((e) => !e.voided_at).length} entries)
               </span>
               <span className="font-mono font-semibold text-coral tabular-nums">
-                {formatPHP(activeTotal)}
+                {hideAmounts ? "•••" : formatPHP(activeTotal)}
               </span>
             </div>
           </>
@@ -435,6 +437,7 @@ export function ExpensesView({
         expense={openDetail}
         accounts={accounts}
         canVoid={canVoid}
+        hideAmounts={hideAmounts}
         onClose={() => setOpenDetail(null)}
         onVoided={() => {
           setOpenDetail(null);

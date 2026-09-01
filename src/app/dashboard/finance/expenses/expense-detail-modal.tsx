@@ -15,12 +15,14 @@ export function ExpenseDetailModal({
   expense,
   accounts,
   canVoid,
+  hideAmounts = false,
   onClose,
   onVoided,
 }: {
   expense: ExpenseRow | null;
   accounts: Array<{ code: string; name: string }>;
   canVoid: boolean;
+  hideAmounts?: boolean;
   onClose: () => void;
   onVoided: () => void;
 }) {
@@ -92,7 +94,15 @@ export function ExpenseDetailModal({
           <Row label="Description" value={expense.description} />
           <Row
             label="Amount"
-            value={<span className="font-mono text-coral">{formatPHP(expense.amount)}</span>}
+            value={
+              hideAmounts ? (
+                <span className="text-inkSoft" title="Hidden for your access level">
+                  ••• <span className="text-[10px] uppercase tracking-smallcaps">hidden</span>
+                </span>
+              ) : (
+                <span className="font-mono text-coral">{formatPHP(expense.amount)}</span>
+              )
+            }
           />
           <Row
             label="Account"

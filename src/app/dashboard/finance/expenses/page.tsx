@@ -57,15 +57,27 @@ export default async function ExpensesPage() {
   const accountList = (accounts ?? []) as Array<{ code: string; name: string }>;
   const allowedAccounts = await filterAllowedAccounts(supabase, role, user.id, accountList);
 
+  // Confidentiality: some team members (e.g. Ops Associates) must not see
+  // expense amounts (payroll is logged as expenses). When flagged, strip the
+  // amount server-side so it never reaches their browser.
+  const { data: hideRaw } = await supabase.rpc("hide_expense_amounts_for_me");
+  const hideAmounts = hideRaw === true;
+
+  let rows = (expenses ?? []) as ExpenseRow[];
+  if (hideAmounts) {
+    rows = rows.map((e) => ({ ...e, amount: null }));
+  }
+
   return (
     <ExpensesView
       role={role}
       canManage={canManage}
       canVoid={canVoid}
+      hideAmounts={hideAmounts}
       defaultLoggedByName={displayNameFromEmail(user.email ?? "")}
       accounts={accountList}
       allowedAccounts={allowedAccounts}
-      expenses={(expenses ?? []) as ExpenseRow[]}
+      expenses={rows}
     />
   );
 }
