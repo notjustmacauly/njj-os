@@ -60,7 +60,7 @@ export function NewPaymentForm({
       setContactNumber(d.contact_number ?? "");
     }
   }
-  const [category, setCategory] = React.useState<string>(FINANCE_CATEGORIES[0]);
+  const [category, setCategory] = React.useState<string>("");
   const [amount, setAmount] = React.useState(defaultAmount ?? "");
   // Empty string = "approver will pick at approval time" for general/transfer.
   // Reimbursements need a real account at submit (see validation below).
@@ -80,6 +80,7 @@ export function NewPaymentForm({
     setError(null);
 
     if (!purpose.trim()) return setError("Purpose is required.");
+    if (type !== "transfer" && !category) return setError("Choose a category.");
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) return setError("Amount must be > 0.");
     // For general/transfer the approver locks the account at approve time.
@@ -252,6 +253,9 @@ export function NewPaymentForm({
               onChange={(e) => setCategory(e.target.value)}
               disabled={submitting}
             >
+              <option value="" disabled>
+                — Choose a category —
+              </option>
               {FINANCE_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}

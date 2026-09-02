@@ -437,6 +437,7 @@ export function ExpensesView({
         expense={openDetail}
         accounts={accounts}
         canVoid={canVoid}
+        canEdit={role === "owner"}
         hideAmounts={hideAmounts}
         onClose={() => setOpenDetail(null)}
         onVoided={() => {

@@ -43,7 +43,7 @@ export function ExpenseFormModal({
 
   const [idempotencyKey, setIdempotencyKey] = React.useState(() => crypto.randomUUID());
   const [expenseDate, setExpenseDate] = React.useState(todayIso());
-  const [category, setCategory] = React.useState<string>(FINANCE_CATEGORIES[0]);
+  const [category, setCategory] = React.useState<string>("");
   const [vendor, setVendor] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [amount, setAmount] = React.useState("");
@@ -58,7 +58,7 @@ export function ExpenseFormModal({
     if (open) {
       setIdempotencyKey(crypto.randomUUID());
       setExpenseDate(todayIso());
-      setCategory(FINANCE_CATEGORIES[0]);
+      setCategory("");
       setVendor("");
       setDescription("");
       setAmount("");
@@ -96,6 +96,7 @@ export function ExpenseFormModal({
   async function handleSubmit() {
     if (!canSubmit) return;
     setError(null);
+    if (!category) return setError("Choose a category.");
     if (!description.trim()) return setError("Description is required.");
     if (!accountCode) return setError("Pick an account.");
 
@@ -173,6 +174,9 @@ export function ExpenseFormModal({
               onChange={(e) => setCategory(e.target.value)}
               disabled={submitting}
             >
+              <option value="" disabled>
+                — Choose a category —
+              </option>
               {FINANCE_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
