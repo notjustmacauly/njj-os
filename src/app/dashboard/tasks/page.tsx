@@ -26,7 +26,7 @@ export default async function TasksPage() {
     supabase
       .from("tasks")
       .select(
-        "id, board, title, description, assigned_by_user_id, assigned_to_user_id, priority, due_date, status, work_link, proposed_caption, post_date, created_at, updated_at",
+        "id, board, title, description, assigned_by_user_id, assigned_to_user_id, priority, due_date, status, work_link, proposed_caption, post_date, brand, created_at, updated_at",
       )
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),

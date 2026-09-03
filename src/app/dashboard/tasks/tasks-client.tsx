@@ -28,9 +28,12 @@ export type TaskRow = {
   work_link: string | null;
   proposed_caption: string | null;
   post_date: string | null;
+  brand: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export const BRANDS = ["NJJ", "NJF", "CSM", "TBM", "OTHER"] as const;
 export type Member = { user_id: string; display_name: string };
 export type TaskTemplate = {
   id: string;
@@ -153,6 +156,7 @@ export function TasksClient({
                   </>
                 ) : (
                   <>
+                    <th className="text-left font-semibold px-4 py-2">Brand</th>
                     <th className="text-left font-semibold px-4 py-2">Post date</th>
                     <th className="text-left font-semibold px-4 py-2">Link</th>
                   </>
@@ -182,6 +186,11 @@ export function TasksClient({
                     </>
                   ) : (
                     <>
+                      <td className="px-4 py-2.5">
+                        {t.brand ? (
+                          <span className="inline-flex items-center rounded-full bg-periBg text-peri px-2 py-0.5 text-xs font-semibold">{t.brand}</span>
+                        ) : <span className="text-inkSoft/50">—</span>}
+                      </td>
                       <td className="px-4 py-2.5 text-inkSoft whitespace-nowrap">{t.post_date ? formatDate(t.post_date) : "—"}</td>
                       <td className="px-4 py-2.5">
                         {t.work_link ? (
@@ -265,6 +274,7 @@ function TaskFormModal({
   const [workLink, setWorkLink] = React.useState(editing?.work_link ?? "");
   const [caption, setCaption] = React.useState(editing?.proposed_caption ?? "");
   const [postDate, setPostDate] = React.useState(editing?.post_date ?? "");
+  const [brand, setBrand] = React.useState(editing?.brand ?? "NJJ");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -283,6 +293,7 @@ function TaskFormModal({
       p_work_link: board === "marketing" ? workLink.trim() || null : null,
       p_proposed_caption: board === "marketing" ? caption.trim() || null : null,
       p_post_date: board === "marketing" ? postDate || null : null,
+      p_brand: board === "marketing" ? brand : null,
     };
     const { error: err } = editing
       ? await supabase.rpc("update_task", { p_task_id: editing.id, ...args })
@@ -351,6 +362,14 @@ function TaskFormModal({
           </div>
         ) : (
           <>
+            <div className="space-y-1">
+              <Label htmlFor="t_brand">Brand</Label>
+              <Select id="t_brand" value={brand} onChange={(e) => setBrand(e.target.value)} disabled={saving}>
+                {BRANDS.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </Select>
+            </div>
             <div className="space-y-1">
               <Label htmlFor="t_link">Work link (GDrive)</Label>
               <Input id="t_link" type="url" placeholder="https://drive.google.com/…" value={workLink} onChange={(e) => setWorkLink(e.target.value)} disabled={saving} />
@@ -519,6 +538,9 @@ function TaskDetailModal({
           </div>
         ) : (
           <div className="space-y-2">
+            {task.brand ? (
+              <div className="text-inkSoft"><span className="text-xs uppercase tracking-smallcaps">Brand</span><div className="text-ink font-semibold">{task.brand}</div></div>
+            ) : null}
             {task.work_link ? (
               <a href={task.work_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-berry hover:underline">
                 <ExternalLink className="w-4 h-4" /> Open work link

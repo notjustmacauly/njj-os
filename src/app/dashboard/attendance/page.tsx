@@ -20,7 +20,11 @@ export default async function AttendancePage() {
   const role = roleRow?.role as Role | null;
   if (!role || !TRACKER_ROLES.includes(role)) redirect("/dashboard");
 
-  const canSeeAll = role === "owner" || role === "partner" || role === "manager";
+  // Owner/partner see everyone; a flagged supervisor (e.g. Chrissia) sees the
+  // team; everyone else (incl. other managers/staff/marketing) sees only their
+  // own — enforced by RLS + mirrored here for the UI.
+  const { data: isSuper } = await supabase.rpc("am_attendance_supervisor");
+  const canSeeAll = role === "owner" || role === "partner" || isSuper === true;
 
   const [{ data: rows }, { data: members }, hoursRes] = await Promise.all([
     supabase
