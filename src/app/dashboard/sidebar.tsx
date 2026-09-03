@@ -23,10 +23,11 @@ import {
   Send,
   LogOut,
   Plus,
+  ListChecks,
 } from "lucide-react";
 
 import type { Role } from "@/lib/roles";
-import { ALL_ROLES } from "@/lib/roles";
+import { ALL_ROLES, TRACKER_ROLES } from "@/lib/roles";
 import { NotificationsBell } from "./notifications-bell";
 
 type NavItem = {
@@ -59,6 +60,7 @@ const SECTIONS: Section[] = [
     label: "Overview",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ALL_ROLES },
+      { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, roles: TRACKER_ROLES },
     ],
   },
   {
@@ -103,7 +105,7 @@ const SECTIONS: Section[] = [
     items: [
       // Catalog view is all-roles, so everyone can hit /dashboard/settings;
       // the page redirects to /dashboard/settings/catalog.
-      { href: "/dashboard/settings", label: "Settings", icon: Settings, roles: ALL_ROLES },
+      { href: "/dashboard/settings", label: "Settings", icon: Settings, roles: TRACKER_ROLES },
       // Owner-only oversight: who changed what across the whole system.
       { href: "/dashboard/settings/activity", label: "Activity Log", icon: ScrollText, roles: ["owner"] },
       // Owner-only: manage who can use the Telegram expense bot.
@@ -252,9 +254,7 @@ export function Sidebar({ role, email }: { role: Role; email: string }) {
             </div>
           </div>
         </div>
-        {role === "owner" || role === "partner" ? (
-          <NotificationsBell role={role} />
-        ) : null}
+        <NotificationsBell role={role} />
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-inkSoft hover:bg-cream hover:text-ink transition"

@@ -33,7 +33,7 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-type Role = "owner" | "partner" | "manager" | "staff";
+type Role = "owner" | "partner" | "manager" | "staff" | "marketing";
 
 export function NewBatchForm({
   skus,

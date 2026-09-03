@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { createClient } from "@/lib/supabase/client";
 
-type Role = "owner" | "partner" | "manager" | "staff";
+type Role = "owner" | "partner" | "manager" | "staff" | "marketing";
 
 export function DraftRowActions({
   batchId,

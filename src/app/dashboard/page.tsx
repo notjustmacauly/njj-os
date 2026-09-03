@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatPHP } from "@/lib/utils";
 import { KpiCard } from "@/components/ui/kpi-card";
@@ -24,6 +25,9 @@ export default async function DashboardPage() {
     ? await supabase.from("user_roles").select("role").eq("user_id", user.id).single()
     : { data: null };
   const role = (roleRow?.role as Role | null) ?? null;
+  // Marketing is a restricted role — send them straight to their tasks instead
+  // of the operational overview (which they can't act on).
+  if (role === "marketing") redirect("/dashboard/tasks");
   const canSeeFinancials = hasRole(role, OWNER_PARTNER);
 
   const today = new Date().toISOString().slice(0, 10);

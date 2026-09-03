@@ -37,6 +37,7 @@ const ROLE_BADGE: Record<Role, string> = {
   partner: "bg-salmonBg text-coral",
   manager: "bg-cream text-ink border border-border",
   staff: "bg-creamDk text-inkSoft",
+  marketing: "bg-periBg text-peri",
 };
 
 const ROLE_AVATAR: Record<Role, string> = {
@@ -44,6 +45,7 @@ const ROLE_AVATAR: Record<Role, string> = {
   partner: "bg-salmonBg text-coral",
   manager: "bg-cream text-ink",
   staff: "bg-creamDk text-inkSoft",
+  marketing: "bg-periBg text-peri",
 };
 
 const STATUS_BADGE: Record<TeamRow["status"], { tone: string; label: string }> = {
