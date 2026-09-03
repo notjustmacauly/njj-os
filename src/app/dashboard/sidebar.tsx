@@ -156,7 +156,7 @@ export function Sidebar({ role, email }: { role: Role; email: string }) {
   const name = displayNameFromEmail(email);
 
   return (
-    <aside className="w-60 bg-white border-r border-border flex flex-col">
+    <aside className="w-60 bg-white border-r border-border flex flex-col h-full overflow-y-auto lg:h-auto lg:overflow-visible overscroll-contain">
       {/* Salmon header band — brand wordmark */}
       <div className="bg-salmon">
         <Image
