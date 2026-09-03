@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatPHP } from "@/lib/utils";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { hasRole, OWNER_PARTNER, type Role } from "@/lib/roles";
 import { MyDayCard, type MyTask } from "./my-day-card";
+import type { ChecklistItem } from "./my-checklist";
 
 // Always render fresh so the KPI counts reflect current data (avoid Next.js
 // serving a cached, stale snapshot).
@@ -26,9 +26,8 @@ export default async function DashboardPage() {
     ? await supabase.from("user_roles").select("role").eq("user_id", user.id).single()
     : { data: null };
   const role = (roleRow?.role as Role | null) ?? null;
-  // Marketing is a restricted role — send them straight to their tasks instead
-  // of the operational overview (which they can't act on).
-  if (role === "marketing") redirect("/dashboard/tasks");
+  // Marketing is a restricted role — they get My Day only, no operational KPIs.
+  const isMarketing = role === "marketing";
   const canSeeFinancials = hasRole(role, OWNER_PARTNER);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -69,11 +68,12 @@ export default async function DashboardPage() {
       )
     : 0;
 
-  // My Day: my current shift + my open tasks.
+  // My Day: my current shift + my open tasks + my personal checklist.
   let myShift: { id: string; clock_in_at: string } | null = null;
   let myTasks: MyTask[] = [];
+  let myChecklist: ChecklistItem[] = [];
   if (user) {
-    const [{ data: s }, { data: ts }] = await Promise.all([
+    const [{ data: s }, { data: ts }, { data: cl }] = await Promise.all([
       supabase.from("attendance").select("id, clock_in_at").eq("user_id", user.id).is("clock_out_at", null).maybeSingle(),
       supabase
         .from("tasks")
@@ -82,9 +82,15 @@ export default async function DashboardPage() {
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(30),
+      supabase
+        .from("checklist_items")
+        .select("id, title, cadence, weekday, completed_at, last_done_on")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true }),
     ]);
     myShift = (s as { id: string; clock_in_at: string } | null) ?? null;
     myTasks = ((ts ?? []) as MyTask[]).filter((t) => t.status !== "done" && t.status !== "posted");
+    myChecklist = (cl ?? []) as ChecklistItem[];
   }
 
   const name = displayNameFromEmail(user?.email);
@@ -100,8 +106,10 @@ export default async function DashboardPage() {
         </p>
       </header>
 
-      <MyDayCard openShift={myShift} tasks={myTasks} />
+      <MyDayCard openShift={myShift} tasks={myTasks} checklist={myChecklist} />
 
+      {isMarketing ? null : (
+      <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard
           label="Total orders"
@@ -151,6 +159,8 @@ export default async function DashboardPage() {
           <li>The KPIs above run as live queries against the Postgres views.</li>
         </ul>
       </section>
+      </>
+      )}
     </div>
   );
 }

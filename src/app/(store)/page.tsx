@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ProductCard, type CatalogItem } from "./_components/product-card";
@@ -8,6 +9,21 @@ export const dynamic = "force-dynamic";
 
 export default async function StoreHome() {
   const supabase = await createClient();
+
+  // Staff (anyone with an OS role) who lands on the public home — e.g. after
+  // accepting a Supabase invite, which redirects here — goes to the dashboard.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const { data: roleRow } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (roleRow?.role) redirect("/dashboard");
+  }
+
   const { data } = await supabase
     .from("web_catalog")
     .select("*")

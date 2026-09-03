@@ -61,7 +61,7 @@ const SECTIONS: Section[] = [
   {
     label: "Overview",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ALL_ROLES },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: TRACKER_ROLES },
       { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, roles: TRACKER_ROLES },
       { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays, roles: TRACKER_ROLES },
       { href: "/dashboard/attendance", label: "Time-in", icon: Clock, roles: TRACKER_ROLES },

@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { MyChecklist, type ChecklistItem } from "./my-checklist";
 
 export type MyTask = {
   id: string;
@@ -45,9 +46,11 @@ function since(iso: string): string {
 export function MyDayCard({
   openShift,
   tasks,
+  checklist,
 }: {
   openShift: { id: string; clock_in_at: string } | null;
   tasks: MyTask[];
+  checklist: ChecklistItem[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -70,6 +73,7 @@ export function MyDayCard({
   }
 
   return (
+    <div className="space-y-4">
     <div className="grid gap-4 md:grid-cols-3">
       {/* Clock-in */}
       <div className="bg-white border border-border rounded-lg shadow-card p-4 flex flex-col justify-between">
@@ -129,6 +133,8 @@ export function MyDayCard({
           </ul>
         )}
       </div>
+    </div>
+    <MyChecklist initialItems={checklist} />
     </div>
   );
 }

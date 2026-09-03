@@ -140,44 +140,73 @@ export function TasksClient({
           No {board} tasks yet.
         </div>
       ) : (
-        <div className="grid gap-3">
-          {boardTasks.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setOpenTask(t)}
-              className="w-full text-left bg-white border border-border rounded-lg shadow-card p-4 hover:bg-cream/40 transition"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-semibold text-ink truncate">{t.title}</div>
-                  <div className="text-xs text-inkSoft mt-0.5">
-                    {board === "admin" ? (
-                      <>
-                        {nameOf(t.assigned_to_user_id)}
-                        {t.due_date ? ` · due ${formatDate(t.due_date)}` : ""}
-                        {t.priority ? ` · ${t.priority}` : ""}
-                      </>
-                    ) : (
-                      <>
-                        {nameOf(t.assigned_to_user_id)}
-                        {t.post_date ? ` · post ${formatDate(t.post_date)}` : ""}
-                        {t.work_link ? " · link attached" : ""}
-                      </>
-                    )}
-                  </div>
-                </div>
-                <span
-                  className={cn(
-                    "shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                    STATUS_TONE[t.status] ?? "bg-creamDk text-inkSoft",
-                  )}
+        <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-cream text-inkSoft">
+              <tr>
+                <th className="text-left font-semibold px-4 py-2">{board === "marketing" ? "Content" : "Task"}</th>
+                <th className="text-left font-semibold px-4 py-2">Assignee</th>
+                {board === "admin" ? (
+                  <>
+                    <th className="text-left font-semibold px-4 py-2">Priority</th>
+                    <th className="text-left font-semibold px-4 py-2">Due</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="text-left font-semibold px-4 py-2">Post date</th>
+                    <th className="text-left font-semibold px-4 py-2">Link</th>
+                  </>
+                )}
+                <th className="text-left font-semibold px-4 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {boardTasks.map((t) => (
+                <tr
+                  key={t.id}
+                  onClick={() => setOpenTask(t)}
+                  className="cursor-pointer hover:bg-cream/40 transition"
                 >
-                  {STATUS_LABEL[t.status] ?? t.status}
-                </span>
-              </div>
-            </button>
-          ))}
+                  <td className="px-4 py-2.5 font-medium text-ink max-w-[280px] truncate" title={t.title}>{t.title}</td>
+                  <td className="px-4 py-2.5 text-inkSoft whitespace-nowrap">{nameOf(t.assigned_to_user_id)}</td>
+                  {board === "admin" ? (
+                    <>
+                      <td className="px-4 py-2.5">
+                        {t.priority ? (
+                          <span className={cn("capitalize", t.priority === "urgent" || t.priority === "high" ? "text-coral font-semibold" : "text-inkSoft")}>
+                            {t.priority}
+                          </span>
+                        ) : <span className="text-inkSoft/50">—</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-inkSoft whitespace-nowrap">{t.due_date ? formatDate(t.due_date) : "—"}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-4 py-2.5 text-inkSoft whitespace-nowrap">{t.post_date ? formatDate(t.post_date) : "—"}</td>
+                      <td className="px-4 py-2.5">
+                        {t.work_link ? (
+                          <a
+                            href={t.work_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-berry hover:underline inline-flex items-center gap-1"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> Open
+                          </a>
+                        ) : <span className="text-inkSoft/50">—</span>}
+                      </td>
+                    </>
+                  )}
+                  <td className="px-4 py-2.5">
+                    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", STATUS_TONE[t.status] ?? "bg-creamDk text-inkSoft")}>
+                      {STATUS_LABEL[t.status] ?? t.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
