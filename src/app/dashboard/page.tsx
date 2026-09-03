@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatPHP } from "@/lib/utils";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { hasRole, OWNER_PARTNER, type Role } from "@/lib/roles";
+import { MyDayCard, type MyTask } from "./my-day-card";
 
 // Always render fresh so the KPI counts reflect current data (avoid Next.js
 // serving a cached, stale snapshot).
@@ -68,6 +69,24 @@ export default async function DashboardPage() {
       )
     : 0;
 
+  // My Day: my current shift + my open tasks.
+  let myShift: { id: string; clock_in_at: string } | null = null;
+  let myTasks: MyTask[] = [];
+  if (user) {
+    const [{ data: s }, { data: ts }] = await Promise.all([
+      supabase.from("attendance").select("id, clock_in_at").eq("user_id", user.id).is("clock_out_at", null).maybeSingle(),
+      supabase
+        .from("tasks")
+        .select("id, board, title, status, due_date, post_date")
+        .eq("assigned_to_user_id", user.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(30),
+    ]);
+    myShift = (s as { id: string; clock_in_at: string } | null) ?? null;
+    myTasks = ((ts ?? []) as MyTask[]).filter((t) => t.status !== "done" && t.status !== "posted");
+  }
+
   const name = displayNameFromEmail(user?.email);
 
   return (
@@ -80,6 +99,8 @@ export default async function DashboardPage() {
           The new Supabase-backed system, live.
         </p>
       </header>
+
+      <MyDayCard openShift={myShift} tasks={myTasks} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard

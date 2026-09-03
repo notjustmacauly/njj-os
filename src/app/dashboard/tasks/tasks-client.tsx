@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, MessageSquare, Plus } from "lucide-react";
+import { ExternalLink, MessageSquare, Plus, Repeat } from "lucide-react";
+import { RecurringModal } from "./recurring-modal";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -31,6 +32,19 @@ export type TaskRow = {
   updated_at: string;
 };
 export type Member = { user_id: string; display_name: string };
+export type TaskTemplate = {
+  id: string;
+  board: "admin" | "marketing";
+  title: string;
+  description: string | null;
+  assigned_to_user_id: string | null;
+  priority: string | null;
+  cadence: "daily" | "weekly" | "monthly";
+  weekday: number | null;
+  day_of_month: number | null;
+  lead_days: number;
+  active: boolean;
+};
 type Board = "admin" | "marketing";
 
 const STATUSES: Record<Board, string[]> = {
@@ -64,14 +78,17 @@ export function TasksClient({
   canAssign,
   tasks,
   members,
+  templates,
 }: {
   currentUserId: string;
   canAssign: boolean;
   tasks: TaskRow[];
   members: Member[];
+  templates: TaskTemplate[];
 }) {
   const [board, setBoard] = React.useState<Board>("admin");
   const [showNew, setShowNew] = React.useState(false);
+  const [showRecurring, setShowRecurring] = React.useState(false);
   const [openTask, setOpenTask] = React.useState<TaskRow | null>(null);
 
   const nameOf = (id: string | null) =>
@@ -85,10 +102,18 @@ export function TasksClient({
           <h1 className="font-serif font-bold text-3xl text-ink">Tasks</h1>
           <p className="text-sm text-inkSoft mt-1">Assign work, track status, and comment.</p>
         </div>
-        <Button onClick={() => setShowNew(true)}>
-          <Plus className="w-4 h-4" />
-          New task
-        </Button>
+        <div className="flex gap-2">
+          {canAssign ? (
+            <Button variant="ghost" onClick={() => setShowRecurring(true)}>
+              <Repeat className="w-4 h-4 mr-1.5" />
+              Recurring
+            </Button>
+          ) : null}
+          <Button onClick={() => setShowNew(true)}>
+            <Plus className="w-4 h-4" />
+            New task
+          </Button>
+        </div>
       </div>
 
       {/* Board tabs */}
@@ -164,6 +189,10 @@ export function TasksClient({
           members={members}
           onClose={() => setShowNew(false)}
         />
+      ) : null}
+
+      {showRecurring ? (
+        <RecurringModal templates={templates} members={members} onClose={() => setShowRecurring(false)} />
       ) : null}
 
       {openTask ? (

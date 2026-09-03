@@ -15,12 +15,20 @@ export type AttendanceRow = {
   clock_in_lat: number | null;
   clock_in_lng: number | null;
   clock_in_accuracy: number | null;
+  clock_in_far: boolean | null;
   clock_out_at: string | null;
   clock_out_lat: number | null;
   clock_out_lng: number | null;
   clock_out_accuracy: number | null;
 };
 export type Member = { user_id: string; display_name: string };
+export type HoursRow = {
+  user_id: string;
+  display_name: string;
+  shifts: number;
+  total_minutes: number;
+  open_shifts: number;
+};
 
 function fmt(iso: string | null): string {
   if (!iso) return "—";
@@ -56,11 +64,13 @@ export function AttendanceClient({
   canSeeAll,
   rows,
   members,
+  hours,
 }: {
   currentUserId: string;
   canSeeAll: boolean;
   rows: AttendanceRow[];
   members: Member[];
+  hours: HoursRow[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -157,16 +167,53 @@ export function AttendanceClient({
         <AttendanceTable rows={myRows.slice(0, 20)} showName={false} nameOf={nameOf} />
       </div>
 
-      {/* Team (owner/partner/manager) */}
+      {/* Hours this month + Team (owner/partner/manager) */}
       {canSeeAll ? (
-        <div>
-          <h2 className="font-serif font-bold text-lg text-ink mb-2">Team</h2>
-          <AttendanceTable
-            rows={rows.filter((r) => r.user_id !== currentUserId).slice(0, 100)}
-            showName
-            nameOf={nameOf}
-          />
-        </div>
+        <>
+          <div>
+            <h2 className="font-serif font-bold text-lg text-ink mb-2">Hours this month</h2>
+            {hours.length === 0 ? (
+              <div className="bg-white border border-border rounded-lg shadow-card p-6 text-center text-sm text-inkSoft">
+                No shifts logged this month yet.
+              </div>
+            ) : (
+              <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-cream text-inkSoft">
+                    <tr>
+                      <th className="text-left font-semibold px-4 py-2">Who</th>
+                      <th className="text-right font-semibold px-4 py-2">Shifts</th>
+                      <th className="text-right font-semibold px-4 py-2">Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {hours.map((h) => (
+                      <tr key={h.user_id}>
+                        <td className="px-4 py-2 font-medium text-ink">{h.display_name}</td>
+                        <td className="px-4 py-2 text-right text-inkSoft">
+                          {h.shifts}
+                          {h.open_shifts > 0 ? <span className="text-green"> · {h.open_shifts} open</span> : null}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono tabular-nums text-ink">
+                          {Math.floor(h.total_minutes / 60)}h {h.total_minutes % 60}m
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <h2 className="font-serif font-bold text-lg text-ink mb-2">Team shifts</h2>
+            <AttendanceTable
+              rows={rows.filter((r) => r.user_id !== currentUserId).slice(0, 100)}
+              showName
+              nameOf={nameOf}
+            />
+          </div>
+        </>
       ) : null}
     </div>
   );
@@ -210,18 +257,28 @@ function AttendanceTable({
               </td>
               <td className="px-4 py-2 text-inkSoft">{duration(r.clock_in_at, r.clock_out_at)}</td>
               <td className="px-4 py-2">
-                {r.clock_in_lat != null ? (
-                  <a
-                    href={`https://maps.google.com/?q=${r.clock_in_lat},${r.clock_in_lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-berry hover:underline inline-flex items-center gap-1"
-                  >
-                    <MapPin className="w-3.5 h-3.5" /> Map
-                  </a>
-                ) : (
-                  <span className="text-inkSoft/60 text-xs">—</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {r.clock_in_lat != null ? (
+                    <a
+                      href={`https://maps.google.com/?q=${r.clock_in_lat},${r.clock_in_lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-berry hover:underline inline-flex items-center gap-1"
+                    >
+                      <MapPin className="w-3.5 h-3.5" /> Map
+                    </a>
+                  ) : (
+                    <span className="text-inkSoft/60 text-xs">—</span>
+                  )}
+                  {r.clock_in_far ? (
+                    <span
+                      className="inline-flex items-center rounded-full bg-salmonBg text-coral px-2 py-0.5 text-[11px] font-semibold"
+                      title="Clocked in away from a known work site"
+                    >
+                      ⚠ Far
+                    </span>
+                  ) : null}
+                </div>
               </td>
             </tr>
           ))}

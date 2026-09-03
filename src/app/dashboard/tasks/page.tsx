@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TRACKER_ROLES, type Role } from "@/lib/roles";
-import { TasksClient, type TaskRow, type Member } from "./tasks-client";
+import { TasksClient, type TaskRow, type Member, type TaskTemplate } from "./tasks-client";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,9 @@ export default async function TasksPage() {
   const role = roleRow?.role as Role | null;
   if (!role || !TRACKER_ROLES.includes(role)) redirect("/dashboard");
 
-  const [{ data: tasks }, { data: members }] = await Promise.all([
+  const canAssign = role === "owner" || role === "partner" || role === "manager";
+
+  const [{ data: tasks }, { data: members }, templatesRes] = await Promise.all([
     supabase
       .from("tasks")
       .select(
@@ -29,9 +31,14 @@ export default async function TasksPage() {
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
     supabase.rpc("list_team_names"),
+    canAssign
+      ? supabase
+          .from("task_templates")
+          .select("id, board, title, description, assigned_to_user_id, priority, cadence, weekday, day_of_month, lead_days, active")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
   ]);
-
-  const canAssign = role === "owner" || role === "partner" || role === "manager";
 
   return (
     <TasksClient
@@ -39,6 +46,7 @@ export default async function TasksPage() {
       canAssign={canAssign}
       tasks={(tasks ?? []) as TaskRow[]}
       members={(members ?? []) as Member[]}
+      templates={(templatesRes.data ?? []) as TaskTemplate[]}
     />
   );
 }
