@@ -49,14 +49,18 @@ function duration(a: string, b: string | null): string {
 }
 
 function getPosition(): Promise<{ lat: number; lng: number; acc: number } | null> {
-  return new Promise((resolve) => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return resolve(null);
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
-    );
-  });
+  const tryGet = (hi: boolean) =>
+    new Promise<{ lat: number; lng: number; acc: number } | null>((resolve) => {
+      if (typeof navigator === "undefined" || !navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
+        () => resolve(null),
+        { enableHighAccuracy: hi, timeout: 10000, maximumAge: hi ? 0 : 60000 },
+      );
+    });
+  // Try precise GPS first, then fall back to a coarse fix so a permission-
+  // granted device still returns something.
+  return tryGet(true).then((r) => r ?? tryGet(false));
 }
 
 export function AttendanceClient({
@@ -84,6 +88,11 @@ export function AttendanceClient({
     if (busy) return;
     setBusy(true);
     const pos = await getPosition();
+    if (kind === "in" && !pos) {
+      setBusy(false);
+      toast.push("Location is required to time in. Allow location access in your browser, then try again.", "error");
+      return;
+    }
     const supabase = createClient();
     const fn = kind === "in" ? "clock_in" : "clock_out";
     const { error } = await supabase.rpc(fn, {
