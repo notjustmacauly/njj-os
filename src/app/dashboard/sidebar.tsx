@@ -25,6 +25,7 @@ import {
   Plus,
   ListChecks,
   Clock,
+  CalendarDays,
 } from "lucide-react";
 
 import type { Role } from "@/lib/roles";
@@ -62,6 +63,7 @@ const SECTIONS: Section[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ALL_ROLES },
       { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, roles: TRACKER_ROLES },
+      { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays, roles: TRACKER_ROLES },
       { href: "/dashboard/attendance", label: "Time-in", icon: Clock, roles: TRACKER_ROLES },
     ],
   },
