@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -5,9 +6,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Owner-only: generate a one-time set-password link for a team member WITHOUT
-// sending an email (the owner copies it and sends it however they like). Robust
-// against Supabase's flaky/rate-limited default email delivery.
+// Owner-only: set a TEMPORARY password for a team member via the admin API and
+// return it, so the owner can share it directly. This sends no email at all,
+// so it isn't affected by Supabase's email rate limit ("email limit reached").
+// The member logs in with it, then can change it at /auth/set-password.
 export async function POST(req: Request) {
   const supabase = await createClient();
   const {
@@ -37,16 +39,16 @@ export async function POST(req: Request) {
   }
 
   const { data: u } = await admin.auth.admin.getUserById(targetId);
-  const email = u?.user?.email;
-  if (!email) return NextResponse.json({ error: "That member has no email on file." }, { status: 404 });
+  const email = u?.user?.email ?? null;
 
-  const origin = new URL(req.url).origin;
-  const { data: link, error } = await admin.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: { redirectTo: `${origin}/auth/callback?next=/auth/set-password` },
+  // Readable temp password: letters + digits, ~14 chars, prefixed for clarity.
+  const tempPassword = "NJJ-" + randomBytes(9).toString("base64url").replace(/[-_]/g, "").slice(0, 10);
+
+  const { error } = await admin.auth.admin.updateUserById(targetId, {
+    password: tempPassword,
+    email_confirm: true,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  return NextResponse.json({ ok: true, link: link.properties?.action_link ?? null, email });
+  return NextResponse.json({ ok: true, tempPassword, email });
 }

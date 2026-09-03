@@ -354,27 +354,24 @@ function MemberDetailModal({
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [linkBusy, setLinkBusy] = React.useState(false);
+  const [tempCred, setTempCred] = React.useState<{ email: string | null; password: string } | null>(null);
 
-  async function copySetupLink() {
+  async function setTempPassword() {
     if (linkBusy) return;
     setLinkBusy(true);
+    setTempCred(null);
     const res = await fetch("/api/team/setup-link", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: member.user_id }),
     });
-    const json = (await res.json().catch(() => ({}))) as { link?: string; error?: string };
+    const json = (await res.json().catch(() => ({}))) as { tempPassword?: string; email?: string | null; error?: string };
     setLinkBusy(false);
-    if (!res.ok || !json.link) {
-      toast.push(json.error ?? "Couldn't generate a link.", "error");
+    if (!res.ok || !json.tempPassword) {
+      toast.push(json.error ?? "Couldn't set a password.", "error");
       return;
     }
-    try {
-      await navigator.clipboard.writeText(json.link);
-      toast.push("Set-password link copied — send it to them.", "success");
-    } catch {
-      window.prompt("Copy this set-password link and send it to them:", json.link);
-    }
+    setTempCred({ email: json.email ?? null, password: json.tempPassword });
   }
 
   React.useEffect(() => {
@@ -456,15 +453,45 @@ function MemberDetailModal({
     >
       <div className="space-y-4">
         {canEdit ? (
-          <div className="rounded-lg border border-border bg-cream/30 p-3 flex items-center justify-between gap-3">
-            <div className="text-xs text-inkSoft">
-              Setting up or resetting? Copy a one-time set-password link and send it to them
-              (no email needed).
+          tempCred ? (
+            <div className="rounded-lg border border-green/40 bg-greenBg/50 p-3 space-y-2">
+              <div className="text-xs font-semibold text-green">
+                Temporary password set — send these to {tempCred.email ?? "them"}:
+              </div>
+              <div className="text-sm space-y-0.5">
+                <div>
+                  <span className="text-inkSoft">Email:</span>{" "}
+                  <span className="font-mono">{tempCred.email ?? "—"}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-inkSoft">Password:</span>
+                  <span className="font-mono font-semibold">{tempCred.password}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigator.clipboard?.writeText(`Email: ${tempCred.email}\nPassword: ${tempCred.password}`)
+                    }
+                    className="text-xs text-berry hover:underline"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <p className="text-[11px] text-inkSoft">
+                They sign in at <span className="font-mono">njj-os.netlify.app/login</span> with this, then can
+                change it any time at <span className="font-mono">/auth/set-password</span>.
+              </p>
             </div>
-            <Button variant="ghost" onClick={copySetupLink} disabled={linkBusy}>
-              {linkBusy ? "…" : "Copy set-password link"}
-            </Button>
-          </div>
+          ) : (
+            <div className="rounded-lg border border-border bg-cream/30 p-3 flex items-center justify-between gap-3">
+              <div className="text-xs text-inkSoft">
+                Onboarding or locked out? Set a temporary password to share — no email needed.
+              </div>
+              <Button variant="ghost" onClick={setTempPassword} disabled={linkBusy}>
+                {linkBusy ? "…" : "Set temporary password"}
+              </Button>
+            </div>
+          )
         ) : null}
 
         <div className="space-y-1">
