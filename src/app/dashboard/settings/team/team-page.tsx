@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Mail, UserPlus, Users } from "lucide-react";
+import { Mail, UserPlus, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -111,10 +111,12 @@ export function TeamPage({
             {activeCount} active member{activeCount === 1 ? "" : "s"}
           </p>
         </div>
-        <Button onClick={() => setInviteOpen(true)}>
-          <UserPlus className="w-4 h-4" />
-          Invite member
-        </Button>
+        {canEdit ? (
+          <Button onClick={() => setInviteOpen(true)}>
+            <UserPlus className="w-4 h-4" />
+            Invite member
+          </Button>
+        ) : null}
       </div>
 
       <div className="bg-white border border-border rounded-lg shadow-card overflow-hidden">
@@ -197,7 +199,11 @@ export function TeamPage({
         </p>
       ) : null}
 
-      <InviteMemberModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
+      <InviteMemberModal
+        open={inviteOpen}
+        adminApiAvailable={adminApiAvailable}
+        onClose={() => setInviteOpen(false)}
+      />
 
       {editing ? (
         <MemberDetailModal
@@ -210,59 +216,116 @@ export function TeamPage({
   );
 }
 
+const INVITE_ROLES: Array<{ value: Role; label: string }> = [
+  { value: "marketing", label: "Marketing (restricted — tasks/calendar/time-in only)" },
+  { value: "staff", label: "Staff" },
+  { value: "manager", label: "Manager / Ops" },
+  { value: "partner", label: "Partner" },
+  { value: "owner", label: "Owner" },
+];
+
 function InviteMemberModal({
   open,
+  adminApiAvailable,
   onClose,
 }: {
   open: boolean;
+  adminApiAvailable: boolean;
   onClose: () => void;
 }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [email, setEmail] = React.useState("");
+  const [displayName, setDisplayName] = React.useState("");
+  const [role, setRole] = React.useState<Role>("staff");
+  const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      setEmail("");
+      setDisplayName("");
+      setRole("staff");
+      setError(null);
+    }
+  }, [open]);
+
+  async function submit() {
+    if (submitting) return;
+    setError(null);
+    if (!email.includes("@")) return setError("Enter a valid email.");
+    if (!displayName.trim()) return setError("Enter a display name.");
+    setSubmitting(true);
+    const res = await fetch("/api/team/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), displayName: displayName.trim(), role }),
+    });
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; email?: string; error?: string };
+    setSubmitting(false);
+    if (!res.ok || !json.ok) {
+      setError(json.error ?? "Invite failed.");
+      return;
+    }
+    toast.push(`Invite sent to ${json.email}`, "success");
+    onClose();
+    router.refresh();
+  }
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
-      title="Invite a new team member"
+      onClose={submitting ? () => {} : onClose}
+      title="Invite a team member"
       size="md"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
-            Close
+          <Button variant="ghost" onClick={onClose} disabled={submitting}>
+            Cancel
           </Button>
-          <Link
-            href={SUPABASE_USERS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-berry text-white font-semibold text-sm hover:bg-berry/90 transition"
-          >
-            <ExternalLink className="w-4 h-4" />
-            Open Supabase dashboard
-          </Link>
+          <Button onClick={submit} disabled={submitting || !adminApiAvailable}>
+            {submitting ? "Sending…" : "Send invite"}
+          </Button>
         </>
       }
     >
-      <div className="text-sm text-ink space-y-3">
-        <ol className="list-decimal list-outside ml-5 space-y-2">
-          <li>
-            Open Supabase dashboard → Authentication → Users → <strong>Add user</strong> →{" "}
-            <strong>Send invitation</strong>.
-          </li>
-          <li>Enter the new member&rsquo;s email. They&rsquo;ll receive a sign-up link.</li>
-          <li>
-            After they accept, run two SQL snippets in the Supabase SQL editor (replace
-            <code className="font-mono mx-1">THEIR_AUTH_USER_ID</code> with their real id):
-          </li>
-        </ol>
-        <pre className="bg-cream rounded-md px-3 py-2 text-xs font-mono overflow-x-auto whitespace-pre">
-{`insert into public.user_roles (user_id, role)
-  values ('THEIR_AUTH_USER_ID', 'manager');   -- pick role
-
-insert into public.team_members (user_id, display_name)
-  values ('THEIR_AUTH_USER_ID', 'Display Name');`}
-        </pre>
-        <p className="text-xs text-inkSoft">
-          Refresh this page after the SQL runs — the new member will appear in the list.
-        </p>
-      </div>
+      {!adminApiAvailable ? (
+        <div className="text-sm text-ink space-y-2">
+          <p>
+            In-app invites need <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> set in
+            Netlify env (then redeploy). Until then, invite from the{" "}
+            <Link href={SUPABASE_USERS_URL} target="_blank" rel="noopener noreferrer" className="text-berry underline">
+              Supabase dashboard
+            </Link>
+            .
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="inv_email" required>Email</Label>
+            <Input id="inv_email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@gmail.com" disabled={submitting} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="inv_name" required>Display name</Label>
+            <Input id="inv_name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} disabled={submitting} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="inv_role" required>Role</Label>
+            <Select id="inv_role" value={role} onChange={(e) => setRole(e.target.value as Role)} disabled={submitting}>
+              {INVITE_ROLES.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </Select>
+          </div>
+          <p className="text-xs text-inkSoft">
+            They&rsquo;ll get an email with a link to set their password, then land in the app with this role — no Supabase dashboard needed.
+          </p>
+          {error ? (
+            <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">{error}</p>
+          ) : null}
+        </div>
+      )}
     </Modal>
   );
 }
