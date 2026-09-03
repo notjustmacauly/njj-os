@@ -219,6 +219,30 @@ export function AttendanceClient({
   );
 }
 
+function LocationCell({ lat, lng, accuracy }: { lat: number | null; lng: number | null; accuracy: number | null }) {
+  if (lat == null || lng == null) return <span className="text-inkSoft/60">no location</span>;
+  // Accuracy over ~500m usually means WiFi/IP (not GPS) — unreliable.
+  const coarse = accuracy != null && accuracy > 500;
+  const acc =
+    accuracy == null
+      ? ""
+      : accuracy >= 1000
+        ? `±${(accuracy / 1000).toFixed(accuracy >= 10000 ? 0 : 1)}km`
+        : `±${Math.round(accuracy)}m`;
+  return (
+    <a
+      href={`https://maps.google.com/?q=${lat},${lng}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn("inline-flex items-center gap-1 hover:underline", coarse ? "text-coral" : "text-berry")}
+      title={coarse ? "Low accuracy — likely WiFi/IP, not GPS" : undefined}
+    >
+      <MapPin className="w-3.5 h-3.5" /> Map
+      {acc ? <span className="text-inkSoft">{acc}{coarse ? " · approx" : ""}</span> : null}
+    </a>
+  );
+}
+
 function AttendanceTable({
   rows,
   showName,
@@ -257,26 +281,24 @@ function AttendanceTable({
               </td>
               <td className="px-4 py-2 text-inkSoft">{duration(r.clock_in_at, r.clock_out_at)}</td>
               <td className="px-4 py-2">
-                <div className="flex items-center gap-2">
-                  {r.clock_in_lat != null ? (
-                    <a
-                      href={`https://maps.google.com/?q=${r.clock_in_lat},${r.clock_in_lng}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-berry hover:underline inline-flex items-center gap-1"
-                    >
-                      <MapPin className="w-3.5 h-3.5" /> Map
-                    </a>
-                  ) : (
-                    <span className="text-inkSoft/60 text-xs">—</span>
-                  )}
-                  {r.clock_in_far ? (
-                    <span
-                      className="inline-flex items-center rounded-full bg-salmonBg text-coral px-2 py-0.5 text-[11px] font-semibold"
-                      title="Clocked in away from a known work site"
-                    >
-                      ⚠ Far
-                    </span>
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-inkSoft w-6 shrink-0">In</span>
+                    <LocationCell lat={r.clock_in_lat} lng={r.clock_in_lng} accuracy={r.clock_in_accuracy} />
+                    {r.clock_in_far ? (
+                      <span
+                        className="inline-flex items-center rounded-full bg-salmonBg text-coral px-1.5 py-0.5 text-[10px] font-semibold"
+                        title="Away from a known work site"
+                      >
+                        ⚠ Far
+                      </span>
+                    ) : null}
+                  </div>
+                  {r.clock_out_at ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-inkSoft w-6 shrink-0">Out</span>
+                      <LocationCell lat={r.clock_out_lat} lng={r.clock_out_lng} accuracy={r.clock_out_accuracy} />
+                    </div>
                   ) : null}
                 </div>
               </td>
