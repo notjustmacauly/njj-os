@@ -240,6 +240,7 @@ function InviteMemberModal({
   const [role, setRole] = React.useState<Role>("staff");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [result, setResult] = React.useState<{ email: string; password: string } | null>(null);
 
   React.useEffect(() => {
     if (open) {
@@ -247,6 +248,7 @@ function InviteMemberModal({
       setDisplayName("");
       setRole("staff");
       setError(null);
+      setResult(null);
     }
   }, [open]);
 
@@ -261,14 +263,13 @@ function InviteMemberModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: email.trim(), displayName: displayName.trim(), role }),
     });
-    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; email?: string; error?: string };
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; email?: string; tempPassword?: string; error?: string };
     setSubmitting(false);
-    if (!res.ok || !json.ok) {
+    if (!res.ok || !json.ok || !json.tempPassword) {
       setError(json.error ?? "Invite failed.");
       return;
     }
-    toast.push(`Invite sent to ${json.email}`, "success");
-    onClose();
+    setResult({ email: json.email ?? email.trim(), password: json.tempPassword });
     router.refresh();
   }
 
@@ -279,17 +280,43 @@ function InviteMemberModal({
       title="Invite a team member"
       size="md"
       footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={submitting || !adminApiAvailable}>
-            {submitting ? "Sending…" : "Send invite"}
-          </Button>
-        </>
+        result ? (
+          <Button onClick={onClose}>Done</Button>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={onClose} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={submitting || !adminApiAvailable}>
+              {submitting ? "Creating…" : "Create & get password"}
+            </Button>
+          </>
+        )
       }
     >
-      {!adminApiAvailable ? (
+      {result ? (
+        <div className="rounded-lg border border-green/40 bg-greenBg/50 p-3 space-y-2">
+          <div className="text-sm font-semibold text-green">Account created — send these to them:</div>
+          <div className="text-sm space-y-0.5">
+            <div><span className="text-inkSoft">Email:</span> <span className="font-mono">{result.email}</span></div>
+            <div className="flex items-center gap-2">
+              <span className="text-inkSoft">Password:</span>
+              <span className="font-mono font-semibold">{result.password}</span>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(`Email: ${result.email}\nPassword: ${result.password}`)}
+                className="text-xs text-berry hover:underline"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+          <p className="text-[11px] text-inkSoft">
+            They sign in at <span className="font-mono">njj-os.netlify.app/login</span>, then can change it at{" "}
+            <span className="font-mono">/auth/set-password</span>.
+          </p>
+        </div>
+      ) : !adminApiAvailable ? (
         <div className="text-sm text-ink space-y-2">
           <p>
             In-app invites need <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> set in
@@ -319,7 +346,8 @@ function InviteMemberModal({
             </Select>
           </div>
           <p className="text-xs text-inkSoft">
-            They&rsquo;ll get an email with a link to set their password, then land in the app with this role — no Supabase dashboard needed.
+            Creates the account with a temporary password you can share — no email needed. They land
+            in the app with this role.
           </p>
           {error ? (
             <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">{error}</p>
