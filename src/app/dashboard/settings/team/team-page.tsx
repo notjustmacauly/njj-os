@@ -353,6 +353,29 @@ function MemberDetailModal({
   const [accountName, setAccountName] = React.useState(member.account_name ?? "");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [linkBusy, setLinkBusy] = React.useState(false);
+
+  async function copySetupLink() {
+    if (linkBusy) return;
+    setLinkBusy(true);
+    const res = await fetch("/api/team/setup-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: member.user_id }),
+    });
+    const json = (await res.json().catch(() => ({}))) as { link?: string; error?: string };
+    setLinkBusy(false);
+    if (!res.ok || !json.link) {
+      toast.push(json.error ?? "Couldn't generate a link.", "error");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(json.link);
+      toast.push("Set-password link copied — send it to them.", "success");
+    } catch {
+      window.prompt("Copy this set-password link and send it to them:", json.link);
+    }
+  }
 
   React.useEffect(() => {
     setDisplayName(member.display_name);
@@ -432,6 +455,18 @@ function MemberDetailModal({
       }
     >
       <div className="space-y-4">
+        {canEdit ? (
+          <div className="rounded-lg border border-border bg-cream/30 p-3 flex items-center justify-between gap-3">
+            <div className="text-xs text-inkSoft">
+              Setting up or resetting? Copy a one-time set-password link and send it to them
+              (no email needed).
+            </div>
+            <Button variant="ghost" onClick={copySetupLink} disabled={linkBusy}>
+              {linkBusy ? "…" : "Copy set-password link"}
+            </Button>
+          </div>
+        ) : null}
+
         <div className="space-y-1">
           <Label htmlFor="tm_display_name" required={canEdit}>
             Display name
