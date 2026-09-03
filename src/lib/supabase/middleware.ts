@@ -43,6 +43,9 @@ export async function updateSession(request: NextRequest) {
   const isPublicAsset =
     path.startsWith("/_next") ||
     path.startsWith("/favicon") ||
+    // Auth callback + set-password must be reachable mid-sign-in (before a
+    // session exists) and after (to change the password) — so not gated.
+    path.startsWith("/auth") ||
     path === "/" ||
     // Token-gated public pages a logged-out partner can open: the shareable
     // invoice (/i/<token>) and per-delivery receipts (/receipt/<token>).
