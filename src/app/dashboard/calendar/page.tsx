@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TRACKER_ROLES, type Role } from "@/lib/roles";
-import { CalendarClient, type CalEvent, type CalTaskItem } from "./calendar-client";
+import { CalendarClient, type CalEvent, type CalTaskItem, type Member } from "./calendar-client";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +47,7 @@ export default async function CalendarPage({
   const winStart = new Date(Date.UTC(yy, mm - 1, 1) - 8 * 3600e3 - 8 * 864e5).toISOString();
   const winEnd = new Date(Date.UTC(yy, mm, 1) - 8 * 3600e3 + 8 * 864e5).toISOString();
 
-  const [{ data: events }, { data: tasks }] = await Promise.all([
+  const [{ data: events }, { data: tasks }, { data: members }] = await Promise.all([
     supabase
       .from("calendar_events")
       .select("id, title, event_type, starts_at, ends_at, all_day, location, notes, created_by_user_id")
@@ -59,9 +59,25 @@ export default async function CalendarPage({
       .from("tasks")
       .select("id, board, title, status, due_date, post_date")
       .is("deleted_at", null),
+    supabase.rpc("list_team_names"),
   ]);
 
-  const calEvents: CalEvent[] = ((events ?? []) as CalEvent[]).map((e) => ({ ...e, date: phDate(e.starts_at) }));
+  const eventIds = ((events ?? []) as Array<{ id: string }>).map((e) => e.id);
+  const { data: attendeeRows } = eventIds.length
+    ? await supabase.from("calendar_event_attendees").select("event_id, user_id").in("event_id", eventIds)
+    : { data: [] as Array<{ event_id: string; user_id: string }> };
+  const attMap = new Map<string, string[]>();
+  for (const a of (attendeeRows ?? []) as Array<{ event_id: string; user_id: string }>) {
+    const list = attMap.get(a.event_id) ?? [];
+    list.push(a.user_id);
+    attMap.set(a.event_id, list);
+  }
+
+  const calEvents: CalEvent[] = ((events ?? []) as Omit<CalEvent, "date" | "attendees">[]).map((e) => ({
+    ...e,
+    date: phDate(e.starts_at),
+    attendees: attMap.get(e.id) ?? [],
+  }));
 
   const taskItems: CalTaskItem[] = [];
   for (const t of (tasks ?? []) as Array<{ id: string; board: string; title: string; status: string; due_date: string | null; post_date: string | null }>) {
@@ -80,6 +96,7 @@ export default async function CalendarPage({
       month={month}
       events={calEvents}
       taskItems={taskItems}
+      members={(members ?? []) as Member[]}
       currentUserId={user.id}
       canManage={canManage}
     />

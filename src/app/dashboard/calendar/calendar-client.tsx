@@ -26,8 +26,10 @@ export type CalEvent = {
   notes: string | null;
   created_by_user_id: string;
   date: string; // YYYY-MM-DD (PH)
+  attendees: string[];
 };
 export type CalTaskItem = { id: string; date: string; title: string; kind: "due" | "post"; status: string };
+export type Member = { user_id: string; display_name: string };
 
 const TYPE_TONE: Record<string, string> = {
   meeting: "bg-periBg text-peri",
@@ -62,12 +64,14 @@ export function CalendarClient({
   month,
   events,
   taskItems,
+  members,
   currentUserId,
   canManage,
 }: {
   month: string;
   events: CalEvent[];
   taskItems: CalTaskItem[];
+  members: Member[];
   currentUserId: string;
   canManage: boolean;
 }) {
@@ -210,11 +214,12 @@ export function CalendarClient({
       </div>
 
       {showNew ? (
-        <EventFormModal presetDate={showNew} onClose={() => setShowNew(null)} onSaved={() => { setShowNew(null); router.refresh(); }} />
+        <EventFormModal presetDate={showNew} members={members} onClose={() => setShowNew(null)} onSaved={() => { setShowNew(null); router.refresh(); }} />
       ) : null}
       {openEvent ? (
         <EventDetailModal
           event={openEvent}
+          members={members}
           canManage={canManage || openEvent.created_by_user_id === currentUserId}
           onClose={() => setOpenEvent(null)}
           onChanged={() => { setOpenEvent(null); router.refresh(); }}
@@ -227,11 +232,13 @@ export function CalendarClient({
 function EventFormModal({
   presetDate,
   editing,
+  members,
   onClose,
   onSaved,
 }: {
   presetDate?: string;
   editing?: CalEvent;
+  members: Member[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -245,8 +252,12 @@ function EventFormModal({
   );
   const [location, setLocation] = React.useState(editing?.location ?? "");
   const [notes, setNotes] = React.useState(editing?.notes ?? "");
+  const [attendees, setAttendees] = React.useState<string[]>(editing?.attendees ?? []);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const toggleAttendee = (id: string) =>
+    setAttendees((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   async function save() {
     if (saving) return;
@@ -264,6 +275,7 @@ function EventFormModal({
       p_all_day: allDay,
       p_location: location.trim() || null,
       p_notes: notes.trim() || null,
+      p_attendee_ids: attendees,
     };
     const { error: err } = editing
       ? await supabase.rpc("update_calendar_event", { p_id: editing.id, ...args })
@@ -324,6 +336,35 @@ function EventFormModal({
           <Label htmlFor="ev_notes">Notes</Label>
           <Textarea id="ev_notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} disabled={saving} />
         </div>
+
+        <div className="space-y-1">
+          <Label>Attending / affected</Label>
+          <p className="text-[11px] text-inkSoft">Tagged people get a notification.</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {members.length === 0 ? (
+              <span className="text-xs text-inkSoft">No team members found.</span>
+            ) : (
+              members.map((m) => {
+                const on = attendees.includes(m.user_id);
+                return (
+                  <button
+                    key={m.user_id}
+                    type="button"
+                    onClick={() => toggleAttendee(m.user_id)}
+                    disabled={saving}
+                    className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-medium border transition",
+                      on ? "bg-berry text-white border-berry" : "bg-white text-ink border-border hover:bg-cream",
+                    )}
+                  >
+                    {on ? "✓ " : ""}{m.display_name}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+
         {error ? <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">{error}</p> : null}
       </div>
     </Modal>
@@ -332,11 +373,13 @@ function EventFormModal({
 
 function EventDetailModal({
   event,
+  members,
   canManage,
   onClose,
   onChanged,
 }: {
   event: CalEvent;
+  members: Member[];
   canManage: boolean;
   onClose: () => void;
   onChanged: () => void;
@@ -344,6 +387,10 @@ function EventDetailModal({
   const toast = useToast();
   const [editing, setEditing] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const attendeeNames = event.attendees
+    .map((id) => members.find((m) => m.user_id === id)?.display_name)
+    .filter(Boolean)
+    .join(", ");
 
   async function del() {
     if (deleting) return;
@@ -357,7 +404,7 @@ function EventDetailModal({
   }
 
   if (editing) {
-    return <EventFormModal editing={event} onClose={() => setEditing(false)} onSaved={onChanged} />;
+    return <EventFormModal editing={event} members={members} onClose={() => setEditing(false)} onSaved={onChanged} />;
   }
 
   return (
@@ -382,6 +429,12 @@ function EventDetailModal({
       <div className="space-y-2 text-sm">
         {event.location ? (
           <div className="flex items-center gap-1.5 text-inkSoft"><MapPin className="w-4 h-4" /> {event.location}</div>
+        ) : null}
+        {attendeeNames ? (
+          <div>
+            <span className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">Attending / affected</span>
+            <p className="text-ink">{attendeeNames}</p>
+          </div>
         ) : null}
         {event.notes ? <p className="text-ink whitespace-pre-wrap">{event.notes}</p> : <p className="text-inkSoft text-xs">No notes.</p>}
       </div>
