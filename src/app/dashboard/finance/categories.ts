@@ -5,6 +5,7 @@
 export const FINANCE_CATEGORIES = [
   "Production",
   "Human",
+  "Payroll",
   "Logistics",
   "Event",
   "Marketing",

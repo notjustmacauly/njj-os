@@ -21,6 +21,7 @@ import {
   ShoppingCart,
   ScrollText,
   Send,
+  Coins,
   LogOut,
   Plus,
   ListChecks,
@@ -39,7 +40,7 @@ type NavItem = {
   roles: readonly Role[];
   // For the finance tabs, whose sub-pages don't share the href prefix, mark
   // which finance group owns the tab so it stays highlighted across them.
-  financeGroup?: "billing" | "financials" | "spending";
+  financeGroup?: "billing" | "financials" | "spending" | "payroll";
 };
 
 // Which finance tab a path belongs to (mirrors the finance sub-nav grouping).
@@ -48,6 +49,7 @@ function financeGroupForPath(pathname: string): NavItem["financeGroup"] | null {
     prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
   if (inAny("/dashboard/finance/billing", "/dashboard/finance/receivables", "/dashboard/finance/bills")) return "billing";
   if (inAny("/dashboard/finance/expenses", "/dashboard/finance/payments", "/dashboard/finance/reimbursements", "/dashboard/finance/payees")) return "spending";
+  if (inAny("/dashboard/finance/payroll")) return "payroll";
   if (pathname === "/dashboard/finance" || inAny("/dashboard/finance/reports", "/dashboard/finance/revenue", "/dashboard/finance/accounts")) return "financials";
   return null;
 }
@@ -101,6 +103,8 @@ const SECTIONS: Section[] = [
       // Spending — expenses, payments, reimbursements, payees. Manager+ land on
       // expenses; staff land on reimbursements (their only allowed page).
       { href: "/dashboard/finance/expenses", label: "Spending", icon: Banknote, roles: ["owner", "partner", "manager"], financeGroup: "spending" },
+      // Payroll — confidential, OWNER ONLY (not even partner).
+      { href: "/dashboard/finance/payroll", label: "Payroll", icon: Coins, roles: ["owner"], financeGroup: "payroll" },
       { href: "/dashboard/finance/reimbursements", label: "Reimbursement", icon: Banknote, roles: ["staff"], financeGroup: "spending" },
     ],
   },
