@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -30,13 +30,17 @@ export function MyChecklist({ initialItems }: { initialItems: ChecklistItem[] })
   const [cadence, setCadence] = React.useState<"once" | "daily" | "weekly">("daily");
   const [weekday, setWeekday] = React.useState(1);
   const [adding, setAdding] = React.useState(false);
+  const [showDone, setShowDone] = React.useState(false);
   const { date: today, dow } = React.useMemo(phToday, []);
 
-  const visible = items.filter((i) =>
-    i.cadence === "once" ? true : i.cadence === "daily" ? true : i.weekday === dow,
-  );
   const isDone = (i: ChecklistItem) =>
     i.cadence === "once" ? !!i.completed_at : i.last_done_on === today;
+  // Today's list: recurring items always show (they reset each day); one-offs
+  // show until ticked, then drop into the collapsible "Done" section below so
+  // finished one-offs don't pile up.
+  const todaysItems = items.filter((i) => (i.cadence === "weekly" ? i.weekday === dow : true));
+  const active = todaysItems.filter((i) => !(i.cadence === "once" && i.completed_at));
+  const doneOnce = items.filter((i) => i.cadence === "once" && i.completed_at);
 
   async function toggle(i: ChecklistItem) {
     // optimistic
@@ -88,10 +92,10 @@ export function MyChecklist({ initialItems }: { initialItems: ChecklistItem[] })
       <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">My daily checklist</div>
 
       <ul className="mt-2 divide-y divide-border">
-        {visible.length === 0 ? (
+        {active.length === 0 ? (
           <li className="py-2 text-sm text-inkSoft">Nothing for today — add your routines below.</li>
         ) : (
-          visible.map((i) => {
+          active.map((i) => {
             const done = isDone(i);
             return (
               <li key={i.id} className="flex items-center gap-2 py-2 group">
@@ -121,6 +125,45 @@ export function MyChecklist({ initialItems }: { initialItems: ChecklistItem[] })
           })
         )}
       </ul>
+
+      {/* Done — ticked one-offs, tucked away so they don't clog the list. */}
+      {doneOnce.length > 0 ? (
+        <div className="mt-2 border-t border-border pt-2">
+          <button
+            type="button"
+            onClick={() => setShowDone((v) => !v)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-inkSoft hover:text-ink"
+          >
+            <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", showDone && "rotate-90")} />
+            Done · {doneOnce.length}
+          </button>
+          {showDone ? (
+            <ul className="mt-1 divide-y divide-border">
+              {doneOnce.map((i) => (
+                <li key={i.id} className="flex items-center gap-2 py-2 group">
+                  <button
+                    type="button"
+                    onClick={() => toggle(i)}
+                    className="w-5 h-5 rounded-md border border-green bg-green text-white flex items-center justify-center shrink-0"
+                    aria-label="Mark not done"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="flex-1 text-sm text-inkSoft line-through">{i.title}</span>
+                  <button
+                    type="button"
+                    onClick={() => remove(i.id)}
+                    className="opacity-0 group-hover:opacity-100 text-inkSoft hover:text-coral transition"
+                    aria-label="Remove"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Add */}
       <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
