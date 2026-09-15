@@ -98,6 +98,7 @@ export function PayrollClient({
   accounts: Array<{ code: string; name: string }>;
 }) {
   const router = useRouter();
+  const [tab, setTab] = React.useState<"runs" | "timesheet">("runs");
   const [showNew, setShowNew] = React.useState(false);
   const [showSetup, setShowSetup] = React.useState(false);
   const [openRun, setOpenRun] = React.useState<Run | null>(null);
@@ -131,12 +132,42 @@ export function PayrollClient({
           <Button variant="ghost" onClick={() => setShowSetup(true)}>
             <Settings2 className="w-4 h-4" /> Pay setup
           </Button>
-          <Button onClick={() => setShowNew(true)} disabled={onPayrollCount === 0}>
-            <Plus className="w-4 h-4" /> New run
-          </Button>
+          {tab === "runs" ? (
+            <Button onClick={() => setShowNew(true)} disabled={onPayrollCount === 0}>
+              <Plus className="w-4 h-4" /> New run
+            </Button>
+          ) : null}
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        {(["runs", "timesheet"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={cn(
+              "px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition capitalize",
+              tab === t ? "text-berry border-berry" : "text-inkSoft border-transparent hover:text-ink",
+            )}
+          >
+            {t === "runs" ? "Payroll runs" : "Timesheet"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "timesheet" ? (
+        <TimesheetTab
+          members={members}
+          people={people}
+          accounts={accounts}
+          draftRuns={runs.filter((r) => r.status === "draft")}
+          itemsByRun={itemsByRun}
+          onSaved={() => { router.refresh(); setTab("runs"); }}
+        />
+      ) : (
+      <>
       {onPayrollCount === 0 ? (
         <div className="bg-white border border-border rounded-lg shadow-card p-6 text-sm text-inkSoft">
           No one is on payroll yet. Open <button className="text-berry font-semibold hover:underline" onClick={() => setShowSetup(true)}>Pay setup</button> to
@@ -184,6 +215,8 @@ export function PayrollClient({
           </tbody>
         </table>
       </div>
+      </>
+      )}
 
       {showNew ? (
         <NewRunModal onClose={() => setShowNew(false)} onSaved={(id) => { setShowNew(false); router.refresh(); const r = runs.find((x) => x.id === id); if (r) setOpenRun(r); }} />
@@ -199,6 +232,225 @@ export function PayrollClient({
           onClose={() => setOpenRun(null)}
           onChanged={() => { setOpenRun(null); router.refresh(); }}
         />
+      ) : null}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Timesheet */
+function datesBetween(start: string, end: string): string[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return [];
+  const out: string[] = [];
+  let d = new Date(start + "T00:00:00Z");
+  const e = new Date(end + "T00:00:00Z");
+  let guard = 0;
+  while (d.getTime() <= e.getTime() && guard < 120) {
+    out.push(d.toISOString().slice(0, 10));
+    d = new Date(d.getTime() + 86400000);
+    guard++;
+  }
+  return out;
+}
+
+type TDay = { date: string; start: string; end: string; break1h: boolean; rate: string; amount: string };
+
+function TimesheetTab({
+  members,
+  people,
+  accounts,
+  draftRuns,
+  itemsByRun,
+  onSaved,
+}: {
+  members: PayMember[];
+  people: PayPerson[];
+  accounts: Array<{ code: string; name: string }>;
+  draftRuns: Run[];
+  itemsByRun: Map<string, Item[]>;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const today = phToday();
+  const [ty, tmn, tdy] = today.split("-").map(Number);
+  const firstHalf = tdy <= 15;
+  const defStart = firstHalf ? `${ty}-${pad(tmn)}-01` : `${ty}-${pad(tmn)}-16`;
+  const defEnd = firstHalf ? `${ty}-${pad(tmn)}-15` : `${ty}-${pad(tmn)}-${pad(lastDayOfMonth(ty, tmn))}`;
+
+  const [subject, setSubject] = React.useState("");
+  const [adhoc, setAdhoc] = React.useState("");
+  const [start, setStart] = React.useState(defStart);
+  const [end, setEnd] = React.useState(defEnd);
+  const [days, setDays] = React.useState<TDay[] | null>(null);
+  const [target, setTarget] = React.useState("");
+  const [account, setAccount] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+
+  const activeMembers = members.filter((m) => (m.status ?? "active") === "active");
+  void itemsByRun;
+
+  function netHrs(x: TDay): number {
+    return Math.max(0, round2(hoursBetween(x.start, x.end) - (x.break1h ? 1 : 0)));
+  }
+  function build() {
+    const ds = datesBetween(start, end);
+    if (ds.length === 0) return toast.push("Pick a valid start and end date.", "error");
+    setDays(ds.map((date) => ({ date, start: "", end: "", break1h: false, rate: "", amount: "" })));
+    const match = draftRuns.find((r) => r.period_start === start && r.period_end === end);
+    setTarget(match ? match.id : "");
+  }
+  function setDay<K extends keyof TDay>(i: number, k: K, v: TDay[K]) {
+    setDays((prev) => {
+      if (!prev) return prev;
+      const next = prev.map((x, idx) => (idx === i ? { ...x, [k]: v } : x));
+      const x = next[i];
+      if (x.rate.trim() !== "") x.amount = String(round2(netHrs(x) * (Number(x.rate) || 0)));
+      return next;
+    });
+  }
+
+  const totalPay = (days ?? []).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const totalHrs = (days ?? []).reduce((s, x) => s + netHrs(x), 0);
+
+  function subjectInfo() {
+    if (subject.startsWith("m:")) {
+      const m = activeMembers.find((x) => x.user_id === subject.slice(2));
+      return { user_id: m?.user_id ?? null, person_id: null as string | null, name: m?.display_name ?? "" };
+    }
+    if (subject.startsWith("p:")) {
+      const p = people.find((x) => x.id === subject.slice(2));
+      return { user_id: null as string | null, person_id: p?.id ?? null, name: p?.name ?? "" };
+    }
+    return { user_id: null as string | null, person_id: null as string | null, name: adhoc.trim() };
+  }
+
+  async function save() {
+    if (!days) return;
+    const info = subjectInfo();
+    if (!info.name) return toast.push("Choose an employee (or type a name).", "error");
+    const rows = days
+      .filter((x) => (Number(x.amount) || 0) > 0 || x.start || x.end)
+      .map((x) => ({
+        label: `${x.date} · ${weekdayOf(x.date)}`,
+        date: x.date, start: x.start, end: x.end, break1h: x.break1h,
+        hours: hoursBetween(x.start, x.end), rate: Number(x.rate) || 0, amount: Number(x.amount) || 0,
+      }));
+    if (rows.length === 0) return toast.push("Fill in at least one day.", "error");
+    const base = round2(rows.reduce((s, r) => s + r.amount, 0));
+    const hours = round2(rows.reduce((s, r) => s + Math.max(0, r.hours - (r.break1h ? 1 : 0)), 0));
+
+    setBusy(true);
+    const supabase = createClient();
+    let runId = target;
+    if (!runId) {
+      const { data, error } = await supabase.rpc("create_payroll_run", { p_period_start: start, p_period_end: end, p_pay_date: end, p_label: null });
+      if (error) { setBusy(false); return toast.push(error.message, "error"); }
+      runId = data as string;
+    }
+    const { error: upErr } = await supabase.rpc("upsert_timesheet_line", {
+      p_run_id: runId, p_user_id: info.user_id, p_person_id: info.person_id, p_name: info.name,
+      p_breakdown: rows, p_base: base, p_hours: hours, p_account_code: account || null,
+    });
+    setBusy(false);
+    if (upErr) return toast.push(upErr.message, "error");
+    toast.push(`Timesheet added to payroll · ${peso.format(base)}`, "success");
+    onSaved();
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-border rounded-lg shadow-card p-4 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div className="space-y-1 sm:col-span-2">
+            <Label>Employee</Label>
+            <Select value={subject} onChange={(e) => { setSubject(e.target.value); setDays(null); }} disabled={busy}>
+              <option value="">— choose —</option>
+              {people.length > 0 ? (
+                <optgroup label="Paper / off-system">
+                  {people.map((p) => <option key={p.id} value={`p:${p.id}`}>{p.name}</option>)}
+                </optgroup>
+              ) : null}
+              {activeMembers.length > 0 ? (
+                <optgroup label="Team (system)">
+                  {activeMembers.map((m) => <option key={m.user_id} value={`m:${m.user_id}`}>{m.display_name}</option>)}
+                </optgroup>
+              ) : null}
+              <option value="other">Someone else…</option>
+            </Select>
+            {subject === "other" ? (
+              <Input value={adhoc} onChange={(e) => setAdhoc(e.target.value)} placeholder="Type their name" disabled={busy} className="mt-1" />
+            ) : null}
+          </div>
+          <div className="space-y-1">
+            <Label>Start date</Label>
+            <DateInput value={start} onChange={(e) => { setStart(e.target.value); setDays(null); }} disabled={busy} />
+          </div>
+          <div className="space-y-1">
+            <Label>End date</Label>
+            <DateInput value={end} onChange={(e) => { setEnd(e.target.value); setDays(null); }} disabled={busy} />
+          </div>
+        </div>
+        <Button onClick={build} disabled={busy || !subject || (subject === "other" && !adhoc.trim())}>
+          Build timesheet
+        </Button>
+      </div>
+
+      {days ? (
+        <div className="bg-white border border-border rounded-lg shadow-card p-4 space-y-3">
+          <div className="overflow-x-auto">
+            <div className="min-w-[660px] space-y-1">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-smallcaps text-inkSoft">
+                <span className="w-28">Date</span>
+                <span className="w-10"></span>
+                <span className="w-20">Start</span>
+                <span className="w-20">End</span>
+                <span className="w-16 text-center">−1h break</span>
+                <span className="w-14 text-right">Hours</span>
+                <span className="w-20 text-right">Rate ₱/hr</span>
+                <span className="w-28 text-right">Pay ₱</span>
+              </div>
+              {days.map((x, i) => (
+                <div key={x.date} className={cn("flex items-center gap-1.5 rounded", isWeekend(x.date) && "bg-salmonBg/30")}>
+                  <span className="w-28 text-xs text-ink">{fmtDate(x.date)}</span>
+                  <span className={cn("w-10 text-[10px] font-semibold", isWeekend(x.date) ? "text-coral" : "text-inkSoft")}>{weekdayOf(x.date)}</span>
+                  <Input type="time" value={x.start} onChange={(e) => setDay(i, "start", e.target.value)} className="w-20" disabled={busy} />
+                  <Input type="time" value={x.end} onChange={(e) => setDay(i, "end", e.target.value)} className="w-20" disabled={busy} />
+                  <span className="w-16 flex justify-center">
+                    <input type="checkbox" checked={x.break1h} onChange={() => setDay(i, "break1h", !x.break1h)} disabled={busy} title="Deduct 1h unpaid break" />
+                  </span>
+                  <span className={cn("w-14 text-right text-xs tabular-nums", x.break1h ? "text-coral" : "text-inkSoft")}>{netHrs(x).toFixed(2)}</span>
+                  <NumberInput min="0" step="0.01" value={x.rate} onChange={(e) => setDay(i, "rate", e.target.value)} placeholder="—" className="w-20 text-right" disabled={busy} />
+                  <NumberInput prefix="₱" min="0" step="0.01" value={x.amount} onChange={(e) => setDay(i, "amount", e.target.value)} placeholder="0" className="w-28 text-right" disabled={busy} />
+                </div>
+              ))}
+              <div className="flex items-center gap-1.5 pt-1 border-t border-border text-xs font-semibold text-ink">
+                <span className="w-28">Total</span>
+                <span className="w-10"></span><span className="w-20"></span><span className="w-20"></span><span className="w-16"></span>
+                <span className="w-14 text-right tabular-nums">{totalHrs.toFixed(2)}</span>
+                <span className="w-20"></span>
+                <span className="w-28 text-right tabular-nums">{peso.format(totalPay)}</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] text-inkSoft">Type a <b>rate</b> to auto-fill that day&rsquo;s pay from hours, or just type the <b>pay</b> for a flat day (weekends are shaded).</p>
+
+          <div className="flex flex-wrap items-end gap-3 border-t border-border pt-3">
+            <div className="space-y-1">
+              <Label className="text-[10px]">Add to</Label>
+              <Select value={target} onChange={(e) => setTarget(e.target.value)} disabled={busy} className="w-64">
+                <option value="">＋ New draft run · {fmtDate(start)}–{fmtDate(end)}</option>
+                {draftRuns.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Pay from</Label>
+              <Select value={account} onChange={(e) => setAccount(e.target.value)} disabled={busy} className="w-40">
+                <option value="">— set later —</option>
+                {accounts.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
+              </Select>
+            </div>
+            <Button onClick={save} disabled={busy || totalPay <= 0}>{busy ? "Saving…" : "Add to payroll"}</Button>
+          </div>
+        </div>
       ) : null}
     </div>
   );
