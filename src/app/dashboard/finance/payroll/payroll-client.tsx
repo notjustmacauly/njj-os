@@ -541,23 +541,21 @@ function RunModal({
   function setAllAccounts(code: string) {
     setDraft((prev) => Object.fromEntries(Object.entries(prev).map(([id, d]) => [id, { ...d, account: code }])));
   }
-  function addDay(id: string, seedRate?: string) {
+  function addDay(id: string) {
     setExpanded((e) => ({ ...e, [id]: true }));
     setDraft((prev) => ({
       ...prev,
-      [id]: { ...prev[id], breakdown: [...prev[id].breakdown, { label: "", date: "", start: "", end: "", hours: "", rate: seedRate ?? prev[id].rate ?? "", amount: "" }] },
+      [id]: { ...prev[id], breakdown: [...prev[id].breakdown, { label: "", date: "", start: "", end: "", hours: "", rate: "", amount: "" }] },
     }));
   }
   function setDay(id: string, idx: number, k: keyof BreakdownRow, v: string) {
     setDraft((prev) => {
       const bd = prev[id].breakdown.map((b, i) => (i === idx ? { ...b, [k]: v } : b));
       const b = bd[idx];
-      // Times → hours; hours × rate → amount (rate blank = flat/weekend pay you type).
+      // Times just tally the hours for the record — the amount is always yours
+      // to type (pay varies per day/person), never auto-overwritten.
       if (k === "start" || k === "end") {
         if (b.start.trim() !== "" && b.end.trim() !== "") b.hours = String(hoursBetween(b.start, b.end));
-      }
-      if (k === "start" || k === "end" || k === "hours" || k === "rate") {
-        if (b.rate.trim() !== "") b.amount = String(round2((Number(b.hours) || 0) * (Number(b.rate) || 0)));
       }
       return { ...prev, [id]: { ...prev[id], breakdown: bd } };
     });
@@ -801,20 +799,19 @@ function RunModal({
                     <td colSpan={9} className="px-3 py-2">
                       <div className="text-[11px] uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">Timesheet — enter each day from the sheet</div>
                       <p className="text-[11px] text-inkSoft mb-2">
-                        Weekday: pick the date, type <b>start</b> &amp; <b>end</b> time and the hourly <b>rate</b> — hours &amp; amount tally automatically.
-                        Weekend / special day: leave rate blank and just type the flat <b>amount</b>.
+                        Pick the <b>date</b> and the <b>start</b> &amp; <b>end</b> time (hours tally for the record), then type that day&rsquo;s <b>pay</b>.
+                        Pay is yours to set per day — it&rsquo;s never auto-calculated.
                       </p>
                       {(d?.breakdown ?? []).length > 0 ? (
                         <div className="mb-2 overflow-x-auto">
-                          <div className="min-w-[640px] space-y-1">
+                          <div className="min-w-[560px] space-y-1">
                             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-smallcaps text-inkSoft">
                               <span className="w-32">Date</span>
                               <span className="w-10"></span>
                               <span className="w-20">Start</span>
                               <span className="w-20">End</span>
                               <span className="w-14 text-right">Hours</span>
-                              <span className="w-20 text-right">Rate ₱</span>
-                              <span className="w-24 text-right">Amount ₱</span>
+                              <span className="w-28 text-right">Pay ₱</span>
                             </div>
                             {d!.breakdown.map((b, idx) => (
                               <div key={idx} className="flex items-center gap-1.5">
@@ -823,8 +820,7 @@ function RunModal({
                                 <Input type="time" value={b.start} onChange={(e) => setDay(it.id, idx, "start", e.target.value)} className="w-20" disabled={!editable} />
                                 <Input type="time" value={b.end} onChange={(e) => setDay(it.id, idx, "end", e.target.value)} className="w-20" disabled={!editable} />
                                 <span className="w-14 text-right text-xs tabular-nums text-inkSoft">{b.hours || "0"}</span>
-                                <NumberInput min="0" step="0.01" value={b.rate} onChange={(e) => setDay(it.id, idx, "rate", e.target.value)} placeholder="—" className="w-20 text-right" disabled={!editable} />
-                                <NumberInput min="0" step="0.01" value={b.amount} onChange={(e) => setDay(it.id, idx, "amount", e.target.value)} placeholder="0" className="w-24 text-right" disabled={!editable} />
+                                <NumberInput prefix="₱" min="0" step="0.01" value={b.amount} onChange={(e) => setDay(it.id, idx, "amount", e.target.value)} placeholder="0" className="w-28 text-right" disabled={!editable} />
                                 {editable ? <button onClick={() => removeDay(it.id, idx)} className="text-inkSoft hover:text-coral" aria-label="Remove day"><Trash2 className="w-3.5 h-3.5" /></button> : null}
                               </div>
                             ))}
@@ -834,8 +830,7 @@ function RunModal({
                               <span className="w-20"></span>
                               <span className="w-20"></span>
                               <span className="w-14 text-right tabular-nums">{hoursFromDraft(d!).toFixed(2)}</span>
-                              <span className="w-20"></span>
-                              <span className="w-24 text-right tabular-nums">{peso.format(baseFromDraft(d!))}</span>
+                              <span className="w-28 text-right tabular-nums">{peso.format(baseFromDraft(d!))}</span>
                             </div>
                           </div>
                         </div>
