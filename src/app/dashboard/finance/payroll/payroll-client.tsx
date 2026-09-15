@@ -102,6 +102,32 @@ export function PayrollClient({
   const [showNew, setShowNew] = React.useState(false);
   const [showSetup, setShowSetup] = React.useState(false);
   const [openRun, setOpenRun] = React.useState<Run | null>(null);
+  const [tsPreset, setTsPreset] = React.useState<TsPreset | null>(null);
+
+  function editTimesheet(run: Run, it: Item) {
+    const subjectKey = it.user_id ? `m:${it.user_id}` : it.person_id ? `p:${it.person_id}` : "other";
+    const days = (Array.isArray(it.breakdown) ? it.breakdown : [])
+      .filter((b) => (b as { date?: string }).date)
+      .map((b) => ({
+        date: String((b as { date?: string }).date ?? ""),
+        start: String((b as { start?: string }).start ?? ""),
+        end: String((b as { end?: string }).end ?? ""),
+        break1h: Boolean((b as { break1h?: boolean }).break1h),
+        rate: b.rate != null ? String(b.rate) : "",
+        amount: b.amount != null ? String(b.amount) : "",
+      }));
+    setOpenRun(null);
+    setTsPreset({
+      subjectKey,
+      adhocName: subjectKey === "other" ? it.name : "",
+      start: run.period_start,
+      end: run.period_end,
+      targetRunId: run.id,
+      account: it.account_code ?? "",
+      days,
+    });
+    setTab("timesheet");
+  }
 
   const itemsByRun = React.useMemo(() => {
     const map = new Map<string, Item[]>();
@@ -146,7 +172,7 @@ export function PayrollClient({
           <button
             key={t}
             type="button"
-            onClick={() => setTab(t)}
+            onClick={() => { setTab(t); setTsPreset(null); }}
             className={cn(
               "px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition capitalize",
               tab === t ? "text-berry border-berry" : "text-inkSoft border-transparent hover:text-ink",
@@ -159,12 +185,13 @@ export function PayrollClient({
 
       {tab === "timesheet" ? (
         <TimesheetTab
+          key={tsPreset ? `${tsPreset.subjectKey}:${tsPreset.targetRunId}` : "fresh"}
           members={members}
           people={people}
           accounts={accounts}
           draftRuns={runs.filter((r) => r.status === "draft")}
-          itemsByRun={itemsByRun}
-          onSaved={() => { router.refresh(); setTab("runs"); }}
+          preset={tsPreset}
+          onSaved={() => { router.refresh(); setTsPreset(null); setTab("runs"); }}
         />
       ) : (
       <>
@@ -231,6 +258,7 @@ export function PayrollClient({
           accounts={accounts}
           onClose={() => setOpenRun(null)}
           onChanged={() => { setOpenRun(null); router.refresh(); }}
+          onEditTimesheet={(it) => editTimesheet(openRun, it)}
         />
       ) : null}
     </div>
@@ -253,20 +281,21 @@ function datesBetween(start: string, end: string): string[] {
 }
 
 type TDay = { date: string; start: string; end: string; break1h: boolean; rate: string; amount: string };
+export type TsPreset = { subjectKey: string; adhocName: string; start: string; end: string; targetRunId: string; account: string; days: TDay[] };
 
 function TimesheetTab({
   members,
   people,
   accounts,
   draftRuns,
-  itemsByRun,
+  preset,
   onSaved,
 }: {
   members: PayMember[];
   people: PayPerson[];
   accounts: Array<{ code: string; name: string }>;
   draftRuns: Run[];
-  itemsByRun: Map<string, Item[]>;
+  preset?: TsPreset | null;
   onSaved: () => void;
 }) {
   const toast = useToast();
@@ -276,28 +305,61 @@ function TimesheetTab({
   const defStart = firstHalf ? `${ty}-${pad(tmn)}-01` : `${ty}-${pad(tmn)}-16`;
   const defEnd = firstHalf ? `${ty}-${pad(tmn)}-15` : `${ty}-${pad(tmn)}-${pad(lastDayOfMonth(ty, tmn))}`;
 
-  const [subject, setSubject] = React.useState("");
-  const [adhoc, setAdhoc] = React.useState("");
-  const [start, setStart] = React.useState(defStart);
-  const [end, setEnd] = React.useState(defEnd);
+  const [subject, setSubject] = React.useState(preset?.subjectKey ?? "");
+  const [adhoc, setAdhoc] = React.useState(preset?.adhocName ?? "");
+  const [start, setStart] = React.useState(preset?.start ?? defStart);
+  const [end, setEnd] = React.useState(preset?.end ?? defEnd);
   const [days, setDays] = React.useState<TDay[] | null>(null);
-  const [target, setTarget] = React.useState("");
-  const [account, setAccount] = React.useState("");
+  const [target, setTarget] = React.useState(preset?.targetRunId ?? "");
+  const [account, setAccount] = React.useState(preset?.account ?? "");
   const [busy, setBusy] = React.useState(false);
 
   const activeMembers = members.filter((m) => (m.status ?? "active") === "active");
-  void itemsByRun;
 
   function netHrs(x: TDay): number {
     return Math.max(0, round2(hoursBetween(x.start, x.end) - (x.break1h ? 1 : 0)));
   }
-  function build() {
+  const recalc = (x: TDay): TDay => (x.rate.trim() !== "" ? { ...x, amount: String(round2(netHrs(x) * (Number(x.rate) || 0))) } : x);
+
+  async function build(prefill?: TDay[]) {
     const ds = datesBetween(start, end);
     if (ds.length === 0) return toast.push("Pick a valid start and end date.", "error");
-    setDays(ds.map((date) => ({ date, start: "", end: "", break1h: false, rate: "", amount: "" })));
-    const match = draftRuns.find((r) => r.period_start === start && r.period_end === end);
-    setTarget(match ? match.id : "");
+    let out: TDay[] = ds.map((date) => ({ date, start: "", end: "", break1h: false, rate: "", amount: "" }));
+    // 1) prefill from an existing timesheet (editing a line)
+    if (prefill && prefill.length) {
+      const byDate = new Map(prefill.filter((d) => d.date).map((d) => [d.date, d]));
+      out = out.map((r) => (byDate.has(r.date) ? { ...r, ...byDate.get(r.date)! } : r));
+    }
+    // 2) auto-fill clock in/out for system-timed staff (empty rows only)
+    if (subject.startsWith("m:")) {
+      const supabase = createClient();
+      const { data } = await supabase.rpc("get_attendance_days", { p_user_id: subject.slice(2), p_start: start, p_end: end });
+      const att = new Map<string, { start_time: string; end_time: string }>(
+        ((data ?? []) as Array<{ work_date: string; start_time: string; end_time: string }>).map((r) => [r.work_date, { start_time: r.start_time, end_time: r.end_time }]),
+      );
+      out = out.map((r) => {
+        const a = att.get(r.date);
+        if (a && !r.start && !r.end) return recalc({ ...r, start: a.start_time || "", end: a.end_time || "" });
+        return r;
+      });
+    }
+    setDays(out);
+    if (!preset) {
+      const match = draftRuns.find((r) => r.period_start === start && r.period_end === end);
+      setTarget(match ? match.id : "");
+    }
   }
+
+  // When opened from a run line, build immediately with its existing days.
+  const inited = React.useRef(false);
+  React.useEffect(() => {
+    if (preset && !inited.current) {
+      inited.current = true;
+      void build(preset.days);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset]);
+
   function setDay<K extends keyof TDay>(i: number, k: K, v: TDay[K]) {
     setDays((prev) => {
       if (!prev) return prev;
@@ -389,8 +451,8 @@ function TimesheetTab({
             <DateInput value={end} onChange={(e) => { setEnd(e.target.value); setDays(null); }} disabled={busy} />
           </div>
         </div>
-        <Button onClick={build} disabled={busy || !subject || (subject === "other" && !adhoc.trim())}>
-          Build timesheet
+        <Button onClick={() => build()} disabled={busy || !subject || (subject === "other" && !adhoc.trim())}>
+          {days ? "Rebuild" : "Build timesheet"}
         </Button>
       </div>
 
@@ -707,55 +769,6 @@ function isWeekend(date: string): boolean {
   const w = weekdayOf(date);
   return w === "Sat" || w === "Sun";
 }
-// Recorded hours after an optional 1h unpaid break (never below 0).
-function netDayHours(b: BreakdownRow): number {
-  return Math.max(0, round2((Number(b.hours) || 0) - (b.break1h ? 1 : 0)));
-}
-
-type Draft = {
-  hours: string;
-  rate: string;
-  base: string;
-  adj: string;
-  note: string;
-  account: string;
-  breakdown: BreakdownRow[];
-};
-
-function initDraft(items: Item[]): Record<string, Draft> {
-  return Object.fromEntries(
-    items.map((it) => [
-      it.id,
-      {
-        hours: it.hours != null ? String(it.hours) : "",
-        rate: it.rate != null ? String(it.rate) : "",
-        base: String(it.base_amount ?? 0),
-        adj: String(it.adjustment ?? 0),
-        note: it.adjust_note ?? "",
-        account: it.account_code ?? "",
-        breakdown: (Array.isArray(it.breakdown) ? it.breakdown : []).map((b) => ({
-          label: String(b.label ?? ""),
-          date: String((b as BreakdownRow).date ?? ""),
-          start: String((b as BreakdownRow).start ?? ""),
-          end: String((b as BreakdownRow).end ?? ""),
-          hours: b.hours != null ? String(b.hours) : "",
-          rate: b.rate != null ? String(b.rate) : "",
-          amount: b.amount != null ? String(b.amount) : "",
-          break1h: Boolean((b as BreakdownRow).break1h),
-        })),
-      },
-    ]),
-  );
-}
-
-function baseFromDraft(d: Draft): number {
-  if (d.breakdown.length > 0) return round2(d.breakdown.reduce((s, b) => s + (Number(b.amount) || 0), 0));
-  return Number(d.base) || 0;
-}
-function hoursFromDraft(d: Draft): number {
-  if (d.breakdown.length > 0) return round2(d.breakdown.reduce((s, b) => s + netDayHours(b), 0));
-  return Number(d.hours) || 0;
-}
 
 function RunModal({
   run,
@@ -763,113 +776,39 @@ function RunModal({
   accounts,
   onClose,
   onChanged,
+  onEditTimesheet,
 }: {
   run: Run;
   items: Item[];
   accounts: Array<{ code: string; name: string }>;
   onClose: () => void;
   onChanged: () => void;
+  onEditTimesheet: (it: Item) => void;
 }) {
   const toast = useToast();
   const editable = run.status === "draft";
   const [rows, setRows] = React.useState<Item[]>(items);
-  const [draft, setDraft] = React.useState<Record<string, Draft>>(() => initDraft(items));
-  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
   const [busy, setBusy] = React.useState(false);
 
-  const netOf = (it: Item) => {
-    const d = draft[it.id];
-    if (!d) return Number(it.net_amount);
-    return baseFromDraft(d) + (Number(d.adj) || 0);
-  };
-  const total = rows.reduce((s, it) => s + netOf(it), 0);
+  const net = (it: Item) => Number(it.base_amount || 0) + Number(it.adjustment || 0);
+  const total = rows.reduce((s, it) => s + net(it), 0);
+  const acctName = (code: string | null) => accounts.find((a) => a.code === code)?.name ?? code ?? "—";
+  const dayCount = (it: Item) => (Array.isArray(it.breakdown) ? it.breakdown.length : 0);
 
-  function setField(id: string, k: keyof Draft, v: string) {
-    setDraft((prev) => {
-      const d = { ...prev[id], [k]: v } as Draft;
-      if ((k === "rate" || k === "hours") && d.breakdown.length === 0) {
-        if (d.rate.trim() !== "" && d.hours.trim() !== "") {
-          d.base = String(round2((Number(d.rate) || 0) * (Number(d.hours) || 0)));
-        }
-      }
-      return { ...prev, [id]: d };
-    });
-  }
-  function setAllAccounts(code: string) {
-    setDraft((prev) => Object.fromEntries(Object.entries(prev).map(([id, d]) => [id, { ...d, account: code }])));
-  }
-  function addDay(id: string) {
-    setExpanded((e) => ({ ...e, [id]: true }));
-    setDraft((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], breakdown: [...prev[id].breakdown, { label: "", date: "", start: "", end: "", hours: "", rate: "", amount: "", break1h: false }] },
-    }));
-  }
-  function setDay(id: string, idx: number, k: keyof BreakdownRow, v: string) {
-    setDraft((prev) => {
-      const bd = prev[id].breakdown.map((b, i) => (i === idx ? { ...b, [k]: v } : b));
-      const b = bd[idx];
-      // Times just tally the hours for the record — the amount is always yours
-      // to type (pay varies per day/person), never auto-overwritten.
-      if (k === "start" || k === "end") {
-        if (b.start.trim() !== "" && b.end.trim() !== "") b.hours = String(hoursBetween(b.start, b.end));
-      }
-      return { ...prev, [id]: { ...prev[id], breakdown: bd } };
-    });
-  }
-  function toggleDayBreak(id: string, idx: number) {
-    setDraft((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], breakdown: prev[id].breakdown.map((b, i) => (i === idx ? { ...b, break1h: !b.break1h } : b)) },
-    }));
-  }
-  function removeDay(id: string, idx: number) {
-    setDraft((prev) => ({ ...prev, [id]: { ...prev[id], breakdown: prev[id].breakdown.filter((_, i) => i !== idx) } }));
-  }
-
-  async function saveChanges(): Promise<boolean> {
-    setBusy(true);
+  async function saveAccount(it: Item, code: string) {
+    setRows((prev) => prev.map((x) => (x.id === it.id ? { ...x, account_code: code || null } : x)));
     const supabase = createClient();
-    for (const it of rows) {
-      const d = draft[it.id];
-      if (!d) continue;
-      const breakdown = d.breakdown
-        .filter((b) => b.label.trim() !== "" || b.date.trim() !== "" || b.amount.trim() !== "" || b.hours.trim() !== "")
-        .map((b) => ({
-          label: b.label.trim() || (b.date ? `${b.date} · ${weekdayOf(b.date)}` : ""),
-          date: b.date.trim(),
-          start: b.start.trim(),
-          end: b.end.trim(),
-          hours: Number(b.hours) || 0,
-          break1h: !!b.break1h,
-          rate: Number(b.rate) || 0,
-          amount: Number(b.amount) || round2((Number(b.hours) || 0) * (Number(b.rate) || 0)),
-        }));
-      const { error } = await supabase.rpc("update_payroll_item", {
-        p_item_id: it.id,
-        p_hours: hoursFromDraft(d),
-        p_rate: d.rate.trim() !== "" ? Number(d.rate) : null,
-        p_base_amount: baseFromDraft(d),
-        p_adjustment: Number(d.adj) || 0,
-        p_adjust_note: d.note.trim() || null,
-        p_account_code: d.account || null,
-        p_breakdown: breakdown,
-      });
-      if (error) { setBusy(false); toast.push(error.message, "error"); return false; }
-    }
-    setBusy(false);
-    return true;
+    const { error } = await supabase.rpc("update_payroll_item", {
+      p_item_id: it.id, p_hours: it.hours, p_rate: it.rate, p_base_amount: it.base_amount,
+      p_adjustment: it.adjustment, p_adjust_note: it.adjust_note, p_account_code: code || null,
+      p_breakdown: it.breakdown ?? [],
+    });
+    if (error) toast.push(error.message, "error");
   }
-
-  async function addLine() {
-    const name = prompt("Name for the extra line?");
-    if (!name || !name.trim()) return;
-    setBusy(true);
-    const supabase = createClient();
-    const { error } = await supabase.rpc("add_payroll_item", { p_run_id: run.id, p_name: name.trim(), p_base_amount: 0, p_account_code: null });
-    setBusy(false);
-    if (error) return toast.push(error.message, "error");
-    onChanged();
+  async function setAllAccounts(code: string) {
+    if (!code) return;
+    for (const it of rows) await saveAccount(it, code);
+    toast.push("Pay-from set for all", "success");
   }
   async function removeLine(it: Item) {
     if (!confirm(`Remove ${it.name} from this run?`)) return;
@@ -880,12 +819,9 @@ function RunModal({
     if (error) return toast.push(error.message, "error");
     setRows((prev) => prev.filter((x) => x.id !== it.id));
   }
-
   async function approve() {
-    const missing = rows.filter((it) => netOf(it) !== 0 && !draft[it.id]?.account);
+    const missing = rows.filter((it) => net(it) !== 0 && !it.account_code);
     if (missing.length > 0) return toast.push(`Set a Pay-from account for: ${missing.map((m) => m.name).join(", ")}`, "error");
-    const ok = await saveChanges();
-    if (!ok) return;
     if (!confirm(`Approve payroll of ${peso.format(total)}? This posts one expense per pay-from account and can't be edited after.`)) return;
     setBusy(true);
     const supabase = createClient();
@@ -916,7 +852,6 @@ function RunModal({
     toast.push("Draft deleted", "success");
     onChanged();
   }
-
   function payslipUrl(it: Item) {
     return `${typeof window !== "undefined" ? window.location.origin : ""}/payslip/${it.share_token}`;
   }
@@ -935,14 +870,13 @@ function RunModal({
       onClose={busy ? () => {} : onClose}
       title={run.label}
       description={`${fmtDate(run.period_start)} – ${fmtDate(run.period_end)} · pay ${fmtDate(run.pay_date)} · ${run.status}`}
-      size="xl"
+      size="lg"
       footer={
         editable ? (
           <div className="flex flex-wrap items-center gap-2 w-full">
             <Button variant="dangerGhost" onClick={deleteDraft} disabled={busy}>Delete draft</Button>
-            <Button variant="ghost" onClick={addLine} disabled={busy}><Plus className="w-4 h-4" /> Add line</Button>
-            <div className="ml-auto flex items-center gap-2">
-              <Button variant="ghost" onClick={() => saveChanges().then((ok) => ok && (toast.push("Saved", "success"), onChanged()))} disabled={busy}>Save</Button>
+            <span className="text-xs text-inkSoft">Add people from the Timesheet tab.</span>
+            <div className="ml-auto">
               <Button onClick={approve} disabled={busy || total <= 0}><CheckCircle2 className="w-4 h-4" /> Approve · {peso.format(total)}</Button>
             </div>
           </div>
@@ -962,7 +896,7 @@ function RunModal({
       {editable ? (
         <div className="flex items-center justify-end gap-2 mb-2 text-xs">
           <span className="text-inkSoft">Set Pay-from for all:</span>
-          <Select value="" onChange={(e) => e.target.value && setAllAccounts(e.target.value)} className="w-40" disabled={busy}>
+          <Select value="" onChange={(e) => setAllAccounts(e.target.value)} className="w-40" disabled={busy}>
             <option value="">— choose —</option>
             {accounts.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
           </Select>
@@ -974,82 +908,45 @@ function RunModal({
           <thead className="text-inkSoft">
             <tr className="border-b border-border">
               <th className="text-left font-semibold px-2 py-1.5">Name</th>
-              <th className="text-right font-semibold px-2 py-1.5">Hours</th>
-              <th className="text-right font-semibold px-2 py-1.5">Rate ₱</th>
-              <th className="text-right font-semibold px-2 py-1.5">Base ₱</th>
-              <th className="text-right font-semibold px-2 py-1.5">Adjust ₱</th>
-              <th className="text-left font-semibold px-2 py-1.5">Note</th>
               <th className="text-left font-semibold px-2 py-1.5">Pay from</th>
-              <th className="text-right font-semibold px-2 py-1.5">Net</th>
+              <th className="text-right font-semibold px-2 py-1.5">Amount</th>
               <th className="px-2 py-1.5"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {rows.length === 0 ? (
-              <tr><td colSpan={9} className="px-2 py-6 text-center text-inkSoft">No lines.</td></tr>
+              <tr><td colSpan={4} className="px-2 py-6 text-center text-inkSoft">No lines. Add people from the Timesheet tab.</td></tr>
             ) : rows.map((it) => {
-              const d = draft[it.id];
-              const hasBd = (d?.breakdown.length ?? 0) > 0;
-              const isOpen = !!expanded[it.id];
+              const isFixed = it.pay_type === "fixed";
+              const days = dayCount(it);
               return (
-                <React.Fragment key={it.id}>
-                <tr>
-                  <td className="px-2 py-1.5 font-medium text-ink">
-                    <button type="button" onClick={() => setExpanded((e) => ({ ...e, [it.id]: !e[it.id] }))} className="inline-flex items-center gap-1 hover:text-berry" title="Day breakdown">
-                      <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", isOpen && "rotate-90")} />
-                      {it.name}
-                    </button>
-                    {hasBd ? <span className="ml-1 text-[10px] text-inkSoft">({d!.breakdown.length}d)</span> : null}
+                <tr key={it.id}>
+                  <td className="px-2 py-2 font-medium text-ink">
+                    {it.name}
+                    {days > 0 ? <span className="ml-1 text-[10px] text-inkSoft">· {days} day{days > 1 ? "s" : ""}</span> : null}
+                    {isFixed ? <span className="ml-1 text-[10px] text-inkSoft">· fixed salary</span> : null}
                   </td>
-                  <td className="px-2 py-1.5 text-right">
-                    {editable && !hasBd ? (
-                      <NumberInput min="0" step="0.01" value={d?.hours ?? ""} onChange={(e) => setField(it.id, "hours", e.target.value)} className="w-16 text-right" />
-                    ) : (
-                      <span className="tabular-nums text-inkSoft">{hasBd ? hoursFromDraft(d!).toFixed(2) : (d?.hours || "—")}</span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5 text-right">
-                    {editable && !hasBd ? (
-                      <NumberInput min="0" step="0.01" value={d?.rate ?? ""} onChange={(e) => setField(it.id, "rate", e.target.value)} className="w-20 text-right" />
-                    ) : (
-                      <span className="tabular-nums text-inkSoft">{d?.rate || "—"}</span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5 text-right">
-                    {editable && !hasBd ? (
-                      <NumberInput min="0" step="0.01" value={d?.base ?? ""} onChange={(e) => setField(it.id, "base", e.target.value)} className="w-24 text-right" />
-                    ) : (
-                      <span className="tabular-nums">{peso.format(d ? baseFromDraft(d) : Number(it.base_amount))}</span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5 text-right">
+                  <td className="px-2 py-2">
                     {editable ? (
-                      <NumberInput step="0.01" value={d?.adj ?? ""} onChange={(e) => setField(it.id, "adj", e.target.value)} className="w-20 text-right" />
-                    ) : (
-                      <span className="tabular-nums text-inkSoft">{Number(it.adjustment) ? peso.format(Number(it.adjustment)) : "—"}</span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    {editable ? (
-                      <Input value={d?.note ?? ""} onChange={(e) => setField(it.id, "note", e.target.value)} placeholder="bonus / advance…" className="w-36" />
-                    ) : (
-                      <span className="text-inkSoft text-xs">{it.adjust_note ?? ""}</span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    {editable ? (
-                      <Select value={d?.account ?? ""} onChange={(e) => setField(it.id, "account", e.target.value)} className="w-32">
+                      <Select value={it.account_code ?? ""} onChange={(e) => saveAccount(it, e.target.value)} className="w-36" disabled={busy}>
                         <option value="">— account —</option>
                         {accounts.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
                       </Select>
                     ) : (
-                      <span className="text-inkSoft text-xs">{accounts.find((a) => a.code === it.account_code)?.name ?? it.account_code ?? "—"}</span>
+                      <span className="text-inkSoft text-xs">{acctName(it.account_code)}</span>
                     )}
                   </td>
-                  <td className="px-2 py-1.5 text-right font-mono tabular-nums font-semibold text-ink">{peso.format(netOf(it))}</td>
-                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                  <td className="px-2 py-2 text-right font-mono tabular-nums font-semibold text-ink">{peso.format(net(it))}</td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap">
                     {editable ? (
-                      <button onClick={() => removeLine(it)} className="text-inkSoft hover:text-coral" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
+                      <span className="inline-flex items-center gap-2">
+                        {!isFixed ? (
+                          <button onClick={() => onEditTimesheet(it)} className="text-berry hover:underline inline-flex items-center gap-1" title="Open timesheet">
+                            <FileText className="w-3.5 h-3.5" /> {days > 0 ? "Timesheet" : "Add timesheet"}
+                          </button>
+                        ) : null}
+                        <button onClick={() => removeLine(it)} className="text-inkSoft hover:text-coral" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
+                      </span>
                     ) : run.status === "approved" ? (
                       <span className="inline-flex items-center gap-1.5">
                         <a href={payslipUrl(it)} target="_blank" rel="noopener noreferrer" className="text-berry hover:underline inline-flex items-center gap-1" title="Open payslip"><FileText className="w-3.5 h-3.5" /> Payslip</a>
@@ -1058,70 +955,12 @@ function RunModal({
                     ) : null}
                   </td>
                 </tr>
-                {isOpen ? (
-                  <tr className="bg-cream/30">
-                    <td colSpan={9} className="px-3 py-2">
-                      <div className="text-[11px] uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">Timesheet — enter each day from the sheet</div>
-                      <p className="text-[11px] text-inkSoft mb-2">
-                        Pick the <b>date</b> and the <b>start</b> &amp; <b>end</b> time (hours tally for the record), then type that day&rsquo;s <b>pay</b>.
-                        Pay is yours to set per day — it&rsquo;s never auto-calculated.
-                      </p>
-                      {(d?.breakdown ?? []).length > 0 ? (
-                        <div className="mb-2 overflow-x-auto">
-                          <div className="min-w-[560px] space-y-1">
-                            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-smallcaps text-inkSoft">
-                              <span className="w-32">Date</span>
-                              <span className="w-10"></span>
-                              <span className="w-20">Start</span>
-                              <span className="w-20">End</span>
-                              <span className="w-16 text-center">−1h break</span>
-                              <span className="w-14 text-right">Hours</span>
-                              <span className="w-28 text-right">Pay ₱</span>
-                            </div>
-                            {d!.breakdown.map((b, idx) => (
-                              <div key={idx} className="flex items-center gap-1.5">
-                                <DateInput value={b.date} onChange={(e) => setDay(it.id, idx, "date", e.target.value)} className="w-32" disabled={!editable} />
-                                <span className={cn("w-10 text-[10px] font-semibold", isWeekend(b.date) ? "text-coral" : "text-inkSoft")}>{weekdayOf(b.date) || ""}</span>
-                                <Input type="time" value={b.start} onChange={(e) => setDay(it.id, idx, "start", e.target.value)} className="w-20" disabled={!editable} />
-                                <Input type="time" value={b.end} onChange={(e) => setDay(it.id, idx, "end", e.target.value)} className="w-20" disabled={!editable} />
-                                <span className="w-16 flex justify-center">
-                                  <input type="checkbox" checked={b.break1h} onChange={() => toggleDayBreak(it.id, idx)} disabled={!editable} title="Deduct 1h unpaid break" />
-                                </span>
-                                <span className={cn("w-14 text-right text-xs tabular-nums", b.break1h ? "text-coral" : "text-inkSoft")}>{netDayHours(b).toFixed(2)}</span>
-                                <NumberInput prefix="₱" min="0" step="0.01" value={b.amount} onChange={(e) => setDay(it.id, idx, "amount", e.target.value)} placeholder="0" className="w-28 text-right" disabled={!editable} />
-                                {editable ? <button onClick={() => removeDay(it.id, idx)} className="text-inkSoft hover:text-coral" aria-label="Remove day"><Trash2 className="w-3.5 h-3.5" /></button> : null}
-                              </div>
-                            ))}
-                            <div className="flex items-center gap-1.5 pt-1 border-t border-border text-xs font-semibold text-ink">
-                              <span className="w-32">Total</span>
-                              <span className="w-10"></span>
-                              <span className="w-20"></span>
-                              <span className="w-20"></span>
-                              <span className="w-16"></span>
-                              <span className="w-14 text-right tabular-nums">{hoursFromDraft(d!).toFixed(2)}</span>
-                              <span className="w-28 text-right tabular-nums">{peso.format(baseFromDraft(d!))}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-inkSoft mb-2">No days yet. Add a day for each entry on their sheet.</p>
-                      )}
-                      {editable ? (
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" onClick={() => addDay(it.id)} disabled={busy}><Plus className="w-3.5 h-3.5" /> Add day</Button>
-                          {(d?.breakdown.length ?? 0) > 0 ? <span className="text-[11px] text-inkSoft">Base becomes the total above.</span> : null}
-                        </div>
-                      ) : null}
-                    </td>
-                  </tr>
-                ) : null}
-                </React.Fragment>
               );
             })}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border">
-              <td colSpan={7} className="px-2 py-2 text-right font-semibold text-ink">Total</td>
+              <td colSpan={2} className="px-2 py-2 text-right font-semibold text-ink">Total</td>
               <td className="px-2 py-2 text-right font-mono tabular-nums font-bold text-ink">{peso.format(total)}</td>
               <td></td>
             </tr>
