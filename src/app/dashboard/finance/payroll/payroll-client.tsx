@@ -191,7 +191,13 @@ export function PayrollClient({
           accounts={accounts}
           draftRuns={runs.filter((r) => r.status === "draft")}
           preset={tsPreset}
-          onSaved={() => { router.refresh(); setTsPreset(null); setTab("runs"); }}
+          onSaved={(runId) => {
+            router.refresh();
+            setTsPreset(null);
+            setTab("runs");
+            const r = runs.find((x) => x.id === runId);
+            if (r) setOpenRun(r);
+          }}
         />
       ) : (
       <>
@@ -296,7 +302,7 @@ function TimesheetTab({
   accounts: Array<{ code: string; name: string }>;
   draftRuns: Run[];
   preset?: TsPreset | null;
-  onSaved: () => void;
+  onSaved: (runId: string) => void;
 }) {
   const toast = useToast();
   const today = phToday();
@@ -415,7 +421,7 @@ function TimesheetTab({
     setBusy(false);
     if (upErr) return toast.push(upErr.message, "error");
     toast.push(`Timesheet added to payroll · ${peso.format(base)}`, "success");
-    onSaved();
+    onSaved(runId);
   }
 
   return (
@@ -789,6 +795,10 @@ function RunModal({
   const editable = run.status === "draft";
   const [rows, setRows] = React.useState<Item[]>(items);
   const [busy, setBusy] = React.useState(false);
+
+  // Re-sync when the page data refreshes (e.g. after editing a timesheet), so
+  // the amounts here don't show a stale snapshot from when the modal opened.
+  React.useEffect(() => { setRows(items); }, [items]);
 
   const net = (it: Item) => Number(it.base_amount || 0) + Number(it.adjustment || 0);
   const total = rows.reduce((s, it) => s + net(it), 0);
