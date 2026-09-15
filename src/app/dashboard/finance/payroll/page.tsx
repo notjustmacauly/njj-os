@@ -30,7 +30,7 @@ export default async function PayrollPage() {
       .limit(50),
     supabase
       .from("team_members")
-      .select("user_id, display_name, title, pay_type, pay_rate, status")
+      .select("user_id, display_name, title, pay_type, pay_rate, unpaid_break_min, status")
       .is("deleted_at", null)
       .order("display_name"),
     supabase

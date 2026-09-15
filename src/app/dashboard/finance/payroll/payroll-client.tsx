@@ -51,6 +51,7 @@ export type PayMember = {
   title: string | null;
   pay_type: string | null;
   pay_rate: number | null;
+  unpaid_break_min: number | null;
   status: string | null;
 };
 export type PayPerson = {
@@ -314,8 +315,12 @@ function MemberPayRow({ member, onChanged }: { member: PayMember; onChanged: () 
   const toast = useToast();
   const [payType, setPayType] = React.useState(member.pay_type ?? "");
   const [rate, setRate] = React.useState(member.pay_rate != null ? String(member.pay_rate) : "");
+  const [brk, setBrk] = React.useState(member.unpaid_break_min != null ? String(member.unpaid_break_min) : "");
   const [saving, setSaving] = React.useState(false);
-  const dirty = (member.pay_type ?? "") !== payType || String(member.pay_rate ?? "") !== rate;
+  const dirty =
+    (member.pay_type ?? "") !== payType ||
+    String(member.pay_rate ?? "") !== rate ||
+    String(member.unpaid_break_min ?? "") !== brk;
 
   async function save() {
     setSaving(true);
@@ -324,6 +329,7 @@ function MemberPayRow({ member, onChanged }: { member: PayMember; onChanged: () 
       p_user_id: member.user_id,
       p_pay_type: payType || null,
       p_pay_rate: payType && payType !== "manual" && rate ? Number(rate) : null,
+      p_break_min: payType === "hourly" && brk ? Math.round(Number(brk)) : 0,
     });
     setSaving(false);
     if (error) return toast.push(error.message, "error");
@@ -351,6 +357,13 @@ function MemberPayRow({ member, onChanged }: { member: PayMember; onChanged: () 
         <NumberInput prefix="₱" min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)}
           disabled={saving || !payType || payType === "manual"} className="w-28" />
       </div>
+      {payType === "hourly" ? (
+        <div className="space-y-1">
+          <Label className="text-[10px]">Unpaid break (min/day)</Label>
+          <NumberInput min="0" step="15" value={brk} onChange={(e) => setBrk(e.target.value)}
+            placeholder="60" disabled={saving} className="w-24" />
+        </div>
+      ) : null}
       <Button variant="ghost" onClick={save} disabled={saving || !dirty}>{saving ? "…" : "Save"}</Button>
     </div>
   );
