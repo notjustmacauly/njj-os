@@ -34,6 +34,7 @@ function formatStamp(iso: string): string {
  */
 export function NotificationsBell({ role }: { role: Role }) {
   const router = useRouter();
+  const uid = React.useId();
   const [items, setItems] = React.useState<Notification[]>([]);
   const [open, setOpen] = React.useState(false);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
@@ -58,18 +59,25 @@ export function NotificationsBell({ role }: { role: Role }) {
   React.useEffect(() => {
     refetch();
     const supabase = createClient();
-    const channel = supabase
-      .channel(`notifications-${role}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
-        () => refetch(),
-      )
-      .subscribe();
+    // Unique per mount — the bell renders in both the desktop bar and the
+    // mobile header, so a shared channel topic would collide.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`notifications-${role}-${uid}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "notifications" },
+          () => refetch(),
+        )
+        .subscribe();
+    } catch {
+      // Realtime is a nice-to-have; the bell still works via refetch().
+    }
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
-  }, [refetch, role]);
+  }, [refetch, role, uid]);
 
   // Close the panel on outside click + Escape.
   React.useEffect(() => {
