@@ -52,6 +52,8 @@ export async function updateSession(request: NextRequest) {
     // Served by anon, token-only RPCs — no login required.
     path.startsWith("/i/") ||
     path.startsWith("/receipt/") ||
+    // Shareable per-employee payslip (/payslip/<token>) — anon token RPC.
+    path.startsWith("/payslip/") ||
     // Public customer storefront (Wix replacement) — open to anyone.
     path.startsWith("/shop");
 

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Settings2, Trash2, CheckCircle2, XCircle, ChevronRight } from "lucide-react";
+import { Plus, Settings2, Trash2, CheckCircle2, XCircle, ChevronRight, FileText, Copy } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -27,6 +27,7 @@ export type Run = {
   approved_at: string | null;
   void_reason: string | null;
 };
+export type BreakdownRow = { label: string; hours: string; rate: string; amount: string };
 export type Item = {
   id: string;
   run_id: string;
@@ -40,6 +41,9 @@ export type Item = {
   adjustment: number;
   adjust_note: string | null;
   net_amount: number;
+  account_code: string | null;
+  breakdown: BreakdownRow[] | null;
+  share_token: string;
 };
 export type PayMember = {
   user_id: string;
@@ -418,7 +422,48 @@ function PeopleEditor({ people, onChanged }: { people: PayPerson[]; onChanged: (
 }
 
 /* -------------------------------------------------------------- Run detail */
-type Draft = { hours: string; base: string; adj: string; note: string };
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+type Draft = {
+  hours: string;
+  rate: string;
+  base: string;
+  adj: string;
+  note: string;
+  account: string;
+  breakdown: BreakdownRow[];
+};
+
+function initDraft(items: Item[]): Record<string, Draft> {
+  return Object.fromEntries(
+    items.map((it) => [
+      it.id,
+      {
+        hours: it.hours != null ? String(it.hours) : "",
+        rate: it.rate != null ? String(it.rate) : "",
+        base: String(it.base_amount ?? 0),
+        adj: String(it.adjustment ?? 0),
+        note: it.adjust_note ?? "",
+        account: it.account_code ?? "",
+        breakdown: (Array.isArray(it.breakdown) ? it.breakdown : []).map((b) => ({
+          label: String(b.label ?? ""),
+          hours: b.hours != null ? String(b.hours) : "",
+          rate: b.rate != null ? String(b.rate) : "",
+          amount: b.amount != null ? String(b.amount) : "",
+        })),
+      },
+    ]),
+  );
+}
+
+function baseFromDraft(d: Draft): number {
+  if (d.breakdown.length > 0) return round2(d.breakdown.reduce((s, b) => s + (Number(b.amount) || 0), 0));
+  return Number(d.base) || 0;
+}
+function hoursFromDraft(d: Draft): number {
+  if (d.breakdown.length > 0) return round2(d.breakdown.reduce((s, b) => s + (Number(b.hours) || 0), 0));
+  return Number(d.hours) || 0;
+}
 
 function RunModal({
   run,
@@ -436,23 +481,47 @@ function RunModal({
   const toast = useToast();
   const editable = run.status === "draft";
   const [rows, setRows] = React.useState<Item[]>(items);
-  const [draft, setDraft] = React.useState<Record<string, Draft>>(() =>
-    Object.fromEntries(items.map((it) => [it.id, {
-      hours: String(it.hours), base: String(it.base_amount), adj: String(it.adjustment), note: it.adjust_note ?? "",
-    }])),
-  );
-  const [account, setAccount] = React.useState(accounts[0]?.code ?? "");
+  const [draft, setDraft] = React.useState<Record<string, Draft>>(() => initDraft(items));
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
   const [busy, setBusy] = React.useState(false);
 
   const netOf = (it: Item) => {
     const d = draft[it.id];
     if (!d) return Number(it.net_amount);
-    return (Number(d.base) || 0) + (Number(d.adj) || 0);
+    return baseFromDraft(d) + (Number(d.adj) || 0);
   };
   const total = rows.reduce((s, it) => s + netOf(it), 0);
 
   function setField(id: string, k: keyof Draft, v: string) {
-    setDraft((prev) => ({ ...prev, [id]: { ...prev[id], [k]: v } }));
+    setDraft((prev) => {
+      const d = { ...prev[id], [k]: v } as Draft;
+      if ((k === "rate" || k === "hours") && d.breakdown.length === 0) {
+        if (d.rate.trim() !== "" && d.hours.trim() !== "") {
+          d.base = String(round2((Number(d.rate) || 0) * (Number(d.hours) || 0)));
+        }
+      }
+      return { ...prev, [id]: d };
+    });
+  }
+  function setAllAccounts(code: string) {
+    setDraft((prev) => Object.fromEntries(Object.entries(prev).map(([id, d]) => [id, { ...d, account: code }])));
+  }
+  function addDay(id: string) {
+    setExpanded((e) => ({ ...e, [id]: true }));
+    setDraft((prev) => ({ ...prev, [id]: { ...prev[id], breakdown: [...prev[id].breakdown, { label: "", hours: "", rate: "", amount: "" }] } }));
+  }
+  function setDay(id: string, idx: number, k: keyof BreakdownRow, v: string) {
+    setDraft((prev) => {
+      const bd = prev[id].breakdown.map((b, i) => (i === idx ? { ...b, [k]: v } : b));
+      if (k === "hours" || k === "rate") {
+        const b = bd[idx];
+        if (b.hours.trim() !== "" && b.rate.trim() !== "") b.amount = String(round2((Number(b.hours) || 0) * (Number(b.rate) || 0)));
+      }
+      return { ...prev, [id]: { ...prev[id], breakdown: bd } };
+    });
+  }
+  function removeDay(id: string, idx: number) {
+    setDraft((prev) => ({ ...prev, [id]: { ...prev[id], breakdown: prev[id].breakdown.filter((_, i) => i !== idx) } }));
   }
 
   async function saveChanges(): Promise<boolean> {
@@ -461,15 +530,23 @@ function RunModal({
     for (const it of rows) {
       const d = draft[it.id];
       if (!d) continue;
-      const changed = String(it.hours) !== d.hours || String(it.base_amount) !== d.base ||
-        String(it.adjustment) !== d.adj || (it.adjust_note ?? "") !== d.note;
-      if (!changed) continue;
+      const breakdown = d.breakdown
+        .filter((b) => b.label.trim() !== "" || b.amount.trim() !== "" || b.hours.trim() !== "")
+        .map((b) => ({
+          label: b.label.trim(),
+          hours: Number(b.hours) || 0,
+          rate: Number(b.rate) || 0,
+          amount: Number(b.amount) || round2((Number(b.hours) || 0) * (Number(b.rate) || 0)),
+        }));
       const { error } = await supabase.rpc("update_payroll_item", {
         p_item_id: it.id,
-        p_hours: Number(d.hours) || 0,
-        p_base_amount: Number(d.base) || 0,
+        p_hours: hoursFromDraft(d),
+        p_rate: d.rate.trim() !== "" ? Number(d.rate) : null,
+        p_base_amount: baseFromDraft(d),
         p_adjustment: Number(d.adj) || 0,
         p_adjust_note: d.note.trim() || null,
+        p_account_code: d.account || null,
+        p_breakdown: breakdown,
       });
       if (error) { setBusy(false); toast.push(error.message, "error"); return false; }
     }
@@ -482,9 +559,7 @@ function RunModal({
     if (!name || !name.trim()) return;
     setBusy(true);
     const supabase = createClient();
-    const { error } = await supabase.rpc("add_payroll_item", {
-      p_run_id: run.id, p_name: name.trim(), p_base_amount: 0, p_adjustment: 0, p_adjust_note: null,
-    });
+    const { error } = await supabase.rpc("add_payroll_item", { p_run_id: run.id, p_name: name.trim(), p_base_amount: 0, p_account_code: null });
     setBusy(false);
     if (error) return toast.push(error.message, "error");
     onChanged();
@@ -500,27 +575,28 @@ function RunModal({
   }
 
   async function approve() {
-    if (!account) return toast.push("Pick the paying account.", "error");
+    const missing = rows.filter((it) => netOf(it) !== 0 && !draft[it.id]?.account);
+    if (missing.length > 0) return toast.push(`Set a Pay-from account for: ${missing.map((m) => m.name).join(", ")}`, "error");
     const ok = await saveChanges();
     if (!ok) return;
-    if (!confirm(`Approve payroll of ${peso.format(total)}? This posts one expense from ${accounts.find((a) => a.code === account)?.name ?? account} and cannot be edited after.`)) return;
+    if (!confirm(`Approve payroll of ${peso.format(total)}? This posts one expense per pay-from account and can't be edited after.`)) return;
     setBusy(true);
     const supabase = createClient();
-    const { error } = await supabase.rpc("approve_payroll_run", { p_run_id: run.id, p_account_code: account });
+    const { error } = await supabase.rpc("approve_payroll_run", { p_run_id: run.id });
     setBusy(false);
     if (error) return toast.push(error.message, "error");
-    toast.push("Payroll approved · expense posted", "success");
+    toast.push("Payroll approved · expenses posted", "success");
     onChanged();
   }
   async function voidRun() {
-    const reason = prompt("Reason for voiding this run? (the expense will be reversed)");
+    const reason = prompt("Reason for voiding this run? (all its expenses will be reversed)");
     if (reason === null) return;
     setBusy(true);
     const supabase = createClient();
     const { error } = await supabase.rpc("void_payroll_run", { p_run_id: run.id, p_reason: reason });
     setBusy(false);
     if (error) return toast.push(error.message, "error");
-    toast.push("Run voided · expense reversed", "success");
+    toast.push("Run voided · expenses reversed", "success");
     onChanged();
   }
   async function deleteDraft() {
@@ -532,6 +608,18 @@ function RunModal({
     if (error) return toast.push(error.message, "error");
     toast.push("Draft deleted", "success");
     onChanged();
+  }
+
+  function payslipUrl(it: Item) {
+    return `${typeof window !== "undefined" ? window.location.origin : ""}/payslip/${it.share_token}`;
+  }
+  async function copyPayslip(it: Item) {
+    try {
+      await navigator.clipboard.writeText(payslipUrl(it));
+      toast.push("Payslip link copied", "success");
+    } catch {
+      toast.push(payslipUrl(it), "success");
+    }
   }
 
   return (
@@ -548,15 +636,12 @@ function RunModal({
             <Button variant="ghost" onClick={addLine} disabled={busy}><Plus className="w-4 h-4" /> Add line</Button>
             <div className="ml-auto flex items-center gap-2">
               <Button variant="ghost" onClick={() => saveChanges().then((ok) => ok && (toast.push("Saved", "success"), onChanged()))} disabled={busy}>Save</Button>
-              <Select value={account} onChange={(e) => setAccount(e.target.value)} disabled={busy} className="w-40">
-                {accounts.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
-              </Select>
               <Button onClick={approve} disabled={busy || total <= 0}><CheckCircle2 className="w-4 h-4" /> Approve · {peso.format(total)}</Button>
             </div>
           </div>
         ) : run.status === "approved" ? (
           <div className="flex items-center gap-2 w-full">
-            <span className="text-sm text-inkSoft">Posted to {accounts.find((a) => a.code === run.account_code)?.name ?? run.account_code}</span>
+            <span className="text-sm text-inkSoft">Approved · {peso.format(run.total_amount ?? total)} posted to expenses</span>
             <div className="ml-auto flex gap-2">
               <Button variant="dangerGhost" onClick={voidRun} disabled={busy}><XCircle className="w-4 h-4" /> Void run</Button>
               <Button variant="ghost" onClick={onClose}>Close</Button>
@@ -567,72 +652,139 @@ function RunModal({
         )
       }
     >
+      {editable ? (
+        <div className="flex items-center justify-end gap-2 mb-2 text-xs">
+          <span className="text-inkSoft">Set Pay-from for all:</span>
+          <Select value="" onChange={(e) => e.target.value && setAllAccounts(e.target.value)} className="w-40" disabled={busy}>
+            <option value="">— choose —</option>
+            {accounts.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
+          </Select>
+        </div>
+      ) : null}
+
       <div className="overflow-x-auto -mx-1">
         <table className="w-full text-sm">
           <thead className="text-inkSoft">
             <tr className="border-b border-border">
               <th className="text-left font-semibold px-2 py-1.5">Name</th>
-              <th className="text-left font-semibold px-2 py-1.5">Type</th>
               <th className="text-right font-semibold px-2 py-1.5">Hours</th>
+              <th className="text-right font-semibold px-2 py-1.5">Rate ₱</th>
               <th className="text-right font-semibold px-2 py-1.5">Base ₱</th>
               <th className="text-right font-semibold px-2 py-1.5">Adjust ₱</th>
               <th className="text-left font-semibold px-2 py-1.5">Note</th>
+              <th className="text-left font-semibold px-2 py-1.5">Pay from</th>
               <th className="text-right font-semibold px-2 py-1.5">Net</th>
-              {editable ? <th className="px-2 py-1.5"></th> : null}
+              <th className="px-2 py-1.5"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {rows.length === 0 ? (
-              <tr><td colSpan={editable ? 8 : 7} className="px-2 py-6 text-center text-inkSoft">No lines.</td></tr>
+              <tr><td colSpan={9} className="px-2 py-6 text-center text-inkSoft">No lines.</td></tr>
             ) : rows.map((it) => {
               const d = draft[it.id];
+              const hasBd = (d?.breakdown.length ?? 0) > 0;
+              const isOpen = !!expanded[it.id];
               return (
-                <tr key={it.id}>
-                  <td className="px-2 py-1.5 font-medium text-ink">{it.name}</td>
-                  <td className="px-2 py-1.5 text-inkSoft">{PAY_TYPE_LABEL[it.pay_type] ?? it.pay_type}</td>
+                <React.Fragment key={it.id}>
+                <tr>
+                  <td className="px-2 py-1.5 font-medium text-ink">
+                    <button type="button" onClick={() => setExpanded((e) => ({ ...e, [it.id]: !e[it.id] }))} className="inline-flex items-center gap-1 hover:text-berry" title="Day breakdown">
+                      <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", isOpen && "rotate-90")} />
+                      {it.name}
+                    </button>
+                    {hasBd ? <span className="ml-1 text-[10px] text-inkSoft">({d!.breakdown.length}d)</span> : null}
+                  </td>
                   <td className="px-2 py-1.5 text-right">
-                    {editable && it.pay_type === "hourly" ? (
-                      <NumberInput min="0" step="0.01" value={d?.hours ?? ""} onChange={(e) => setField(it.id, "hours", e.target.value)} className="w-20 text-right" />
+                    {editable && !hasBd ? (
+                      <NumberInput min="0" step="0.01" value={d?.hours ?? ""} onChange={(e) => setField(it.id, "hours", e.target.value)} className="w-16 text-right" />
                     ) : (
-                      <span className="tabular-nums text-inkSoft">{it.pay_type === "hourly" ? Number(it.hours).toFixed(2) : "—"}</span>
+                      <span className="tabular-nums text-inkSoft">{hasBd ? hoursFromDraft(d!).toFixed(2) : (d?.hours || "—")}</span>
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-right">
-                    {editable ? (
+                    {editable && !hasBd ? (
+                      <NumberInput min="0" step="0.01" value={d?.rate ?? ""} onChange={(e) => setField(it.id, "rate", e.target.value)} className="w-20 text-right" />
+                    ) : (
+                      <span className="tabular-nums text-inkSoft">{d?.rate || "—"}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    {editable && !hasBd ? (
                       <NumberInput min="0" step="0.01" value={d?.base ?? ""} onChange={(e) => setField(it.id, "base", e.target.value)} className="w-24 text-right" />
                     ) : (
-                      <span className="tabular-nums">{peso.format(Number(it.base_amount))}</span>
+                      <span className="tabular-nums">{peso.format(d ? baseFromDraft(d) : Number(it.base_amount))}</span>
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-right">
                     {editable ? (
-                      <NumberInput step="0.01" value={d?.adj ?? ""} onChange={(e) => setField(it.id, "adj", e.target.value)} className="w-24 text-right" />
+                      <NumberInput step="0.01" value={d?.adj ?? ""} onChange={(e) => setField(it.id, "adj", e.target.value)} className="w-20 text-right" />
                     ) : (
                       <span className="tabular-nums text-inkSoft">{Number(it.adjustment) ? peso.format(Number(it.adjustment)) : "—"}</span>
                     )}
                   </td>
                   <td className="px-2 py-1.5">
                     {editable ? (
-                      <Input value={d?.note ?? ""} onChange={(e) => setField(it.id, "note", e.target.value)} placeholder="bonus / advance…" className="w-40" />
+                      <Input value={d?.note ?? ""} onChange={(e) => setField(it.id, "note", e.target.value)} placeholder="bonus / advance…" className="w-36" />
                     ) : (
                       <span className="text-inkSoft text-xs">{it.adjust_note ?? ""}</span>
                     )}
                   </td>
+                  <td className="px-2 py-1.5">
+                    {editable ? (
+                      <Select value={d?.account ?? ""} onChange={(e) => setField(it.id, "account", e.target.value)} className="w-32">
+                        <option value="">— account —</option>
+                        {accounts.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
+                      </Select>
+                    ) : (
+                      <span className="text-inkSoft text-xs">{accounts.find((a) => a.code === it.account_code)?.name ?? it.account_code ?? "—"}</span>
+                    )}
+                  </td>
                   <td className="px-2 py-1.5 text-right font-mono tabular-nums font-semibold text-ink">{peso.format(netOf(it))}</td>
-                  {editable ? (
-                    <td className="px-2 py-1.5 text-right">
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    {editable ? (
                       <button onClick={() => removeLine(it)} className="text-inkSoft hover:text-coral" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
-                    </td>
-                  ) : null}
+                    ) : run.status === "approved" ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <a href={payslipUrl(it)} target="_blank" rel="noopener noreferrer" className="text-berry hover:underline inline-flex items-center gap-1" title="Open payslip"><FileText className="w-3.5 h-3.5" /> Payslip</a>
+                        <button onClick={() => copyPayslip(it)} className="text-inkSoft hover:text-ink" aria-label="Copy payslip link"><Copy className="w-3.5 h-3.5" /></button>
+                      </span>
+                    ) : null}
+                  </td>
                 </tr>
+                {isOpen ? (
+                  <tr className="bg-cream/30">
+                    <td colSpan={9} className="px-3 py-2">
+                      <div className="text-[11px] uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">Day breakdown — for pay that varies by day/rate</div>
+                      {(d?.breakdown ?? []).length === 0 ? (
+                        <p className="text-xs text-inkSoft mb-2">No day rows. Add one to split this person&rsquo;s pay by day; the base becomes the sum.</p>
+                      ) : (
+                        <div className="space-y-1 mb-2">
+                          {d!.breakdown.map((b, idx) => (
+                            <div key={idx} className="flex flex-wrap items-center gap-1.5">
+                              <Input value={b.label} onChange={(e) => setDay(it.id, idx, "label", e.target.value)} placeholder="e.g. Mon / holiday" className="w-40" disabled={!editable} />
+                              <NumberInput min="0" step="0.01" value={b.hours} onChange={(e) => setDay(it.id, idx, "hours", e.target.value)} placeholder="hrs" className="w-16 text-right" disabled={!editable} />
+                              <span className="text-inkSoft text-xs">×</span>
+                              <NumberInput min="0" step="0.01" value={b.rate} onChange={(e) => setDay(it.id, idx, "rate", e.target.value)} placeholder="rate" className="w-20 text-right" disabled={!editable} />
+                              <span className="text-inkSoft text-xs">=</span>
+                              <NumberInput min="0" step="0.01" value={b.amount} onChange={(e) => setDay(it.id, idx, "amount", e.target.value)} placeholder="amount" className="w-24 text-right" disabled={!editable} />
+                              {editable ? <button onClick={() => removeDay(it.id, idx)} className="text-inkSoft hover:text-coral" aria-label="Remove day"><Trash2 className="w-3.5 h-3.5" /></button> : null}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {editable ? <Button variant="ghost" onClick={() => addDay(it.id)} disabled={busy}><Plus className="w-3.5 h-3.5" /> Add day</Button> : null}
+                    </td>
+                  </tr>
+                ) : null}
+                </React.Fragment>
               );
             })}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border">
-              <td colSpan={editable ? 6 : 6} className="px-2 py-2 text-right font-semibold text-ink">Total</td>
+              <td colSpan={7} className="px-2 py-2 text-right font-semibold text-ink">Total</td>
               <td className="px-2 py-2 text-right font-mono tabular-nums font-bold text-ink">{peso.format(total)}</td>
-              {editable ? <td></td> : null}
+              <td></td>
             </tr>
           </tfoot>
         </table>
