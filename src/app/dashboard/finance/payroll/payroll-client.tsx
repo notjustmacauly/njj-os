@@ -27,7 +27,7 @@ export type Run = {
   approved_at: string | null;
   void_reason: string | null;
 };
-export type BreakdownRow = { label: string; hours: string; rate: string; amount: string };
+export type BreakdownRow = { label: string; date: string; start: string; end: string; hours: string; rate: string; amount: string };
 export type Item = {
   id: string;
   run_id: string;
@@ -436,6 +436,25 @@ function PeopleEditor({ people, onChanged }: { people: PayPerson[]; onChanged: (
 
 /* -------------------------------------------------------------- Run detail */
 const round2 = (n: number) => Math.round(n * 100) / 100;
+function minutesOf(t: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec((t || "").trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+function hoursBetween(start: string, end: string): number {
+  const s = minutesOf(start), e = minutesOf(end);
+  if (s == null || e == null) return 0;
+  let d = e - s;
+  if (d < 0) d += 1440; // crossed midnight
+  return round2(d / 60);
+}
+function weekdayOf(date: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) return "";
+  return new Date(date + "T00:00:00+08:00").toLocaleDateString("en-US", { timeZone: "Asia/Manila", weekday: "short" });
+}
+function isWeekend(date: string): boolean {
+  const w = weekdayOf(date);
+  return w === "Sat" || w === "Sun";
+}
 
 type Draft = {
   hours: string;
@@ -460,6 +479,9 @@ function initDraft(items: Item[]): Record<string, Draft> {
         account: it.account_code ?? "",
         breakdown: (Array.isArray(it.breakdown) ? it.breakdown : []).map((b) => ({
           label: String(b.label ?? ""),
+          date: String((b as BreakdownRow).date ?? ""),
+          start: String((b as BreakdownRow).start ?? ""),
+          end: String((b as BreakdownRow).end ?? ""),
           hours: b.hours != null ? String(b.hours) : "",
           rate: b.rate != null ? String(b.rate) : "",
           amount: b.amount != null ? String(b.amount) : "",
@@ -519,16 +541,23 @@ function RunModal({
   function setAllAccounts(code: string) {
     setDraft((prev) => Object.fromEntries(Object.entries(prev).map(([id, d]) => [id, { ...d, account: code }])));
   }
-  function addDay(id: string) {
+  function addDay(id: string, seedRate?: string) {
     setExpanded((e) => ({ ...e, [id]: true }));
-    setDraft((prev) => ({ ...prev, [id]: { ...prev[id], breakdown: [...prev[id].breakdown, { label: "", hours: "", rate: "", amount: "" }] } }));
+    setDraft((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], breakdown: [...prev[id].breakdown, { label: "", date: "", start: "", end: "", hours: "", rate: seedRate ?? prev[id].rate ?? "", amount: "" }] },
+    }));
   }
   function setDay(id: string, idx: number, k: keyof BreakdownRow, v: string) {
     setDraft((prev) => {
       const bd = prev[id].breakdown.map((b, i) => (i === idx ? { ...b, [k]: v } : b));
-      if (k === "hours" || k === "rate") {
-        const b = bd[idx];
-        if (b.hours.trim() !== "" && b.rate.trim() !== "") b.amount = String(round2((Number(b.hours) || 0) * (Number(b.rate) || 0)));
+      const b = bd[idx];
+      // Times → hours; hours × rate → amount (rate blank = flat/weekend pay you type).
+      if (k === "start" || k === "end") {
+        if (b.start.trim() !== "" && b.end.trim() !== "") b.hours = String(hoursBetween(b.start, b.end));
+      }
+      if (k === "start" || k === "end" || k === "hours" || k === "rate") {
+        if (b.rate.trim() !== "") b.amount = String(round2((Number(b.hours) || 0) * (Number(b.rate) || 0)));
       }
       return { ...prev, [id]: { ...prev[id], breakdown: bd } };
     });
@@ -544,9 +573,12 @@ function RunModal({
       const d = draft[it.id];
       if (!d) continue;
       const breakdown = d.breakdown
-        .filter((b) => b.label.trim() !== "" || b.amount.trim() !== "" || b.hours.trim() !== "")
+        .filter((b) => b.label.trim() !== "" || b.date.trim() !== "" || b.amount.trim() !== "" || b.hours.trim() !== "")
         .map((b) => ({
-          label: b.label.trim(),
+          label: b.label.trim() || (b.date ? `${b.date} · ${weekdayOf(b.date)}` : ""),
+          date: b.date.trim(),
+          start: b.start.trim(),
+          end: b.end.trim(),
           hours: Number(b.hours) || 0,
           rate: Number(b.rate) || 0,
           amount: Number(b.amount) || round2((Number(b.hours) || 0) * (Number(b.rate) || 0)),
@@ -767,25 +799,55 @@ function RunModal({
                 {isOpen ? (
                   <tr className="bg-cream/30">
                     <td colSpan={9} className="px-3 py-2">
-                      <div className="text-[11px] uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">Day breakdown — for pay that varies by day/rate</div>
-                      {(d?.breakdown ?? []).length === 0 ? (
-                        <p className="text-xs text-inkSoft mb-2">No day rows. Add one to split this person&rsquo;s pay by day; the base becomes the sum.</p>
-                      ) : (
-                        <div className="space-y-1 mb-2">
-                          {d!.breakdown.map((b, idx) => (
-                            <div key={idx} className="flex flex-wrap items-center gap-1.5">
-                              <Input value={b.label} onChange={(e) => setDay(it.id, idx, "label", e.target.value)} placeholder="e.g. Mon / holiday" className="w-40" disabled={!editable} />
-                              <NumberInput min="0" step="0.01" value={b.hours} onChange={(e) => setDay(it.id, idx, "hours", e.target.value)} placeholder="hrs" className="w-16 text-right" disabled={!editable} />
-                              <span className="text-inkSoft text-xs">×</span>
-                              <NumberInput min="0" step="0.01" value={b.rate} onChange={(e) => setDay(it.id, idx, "rate", e.target.value)} placeholder="rate" className="w-20 text-right" disabled={!editable} />
-                              <span className="text-inkSoft text-xs">=</span>
-                              <NumberInput min="0" step="0.01" value={b.amount} onChange={(e) => setDay(it.id, idx, "amount", e.target.value)} placeholder="amount" className="w-24 text-right" disabled={!editable} />
-                              {editable ? <button onClick={() => removeDay(it.id, idx)} className="text-inkSoft hover:text-coral" aria-label="Remove day"><Trash2 className="w-3.5 h-3.5" /></button> : null}
+                      <div className="text-[11px] uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">Timesheet — enter each day from the sheet</div>
+                      <p className="text-[11px] text-inkSoft mb-2">
+                        Weekday: pick the date, type <b>start</b> &amp; <b>end</b> time and the hourly <b>rate</b> — hours &amp; amount tally automatically.
+                        Weekend / special day: leave rate blank and just type the flat <b>amount</b>.
+                      </p>
+                      {(d?.breakdown ?? []).length > 0 ? (
+                        <div className="mb-2 overflow-x-auto">
+                          <div className="min-w-[640px] space-y-1">
+                            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-smallcaps text-inkSoft">
+                              <span className="w-32">Date</span>
+                              <span className="w-10"></span>
+                              <span className="w-20">Start</span>
+                              <span className="w-20">End</span>
+                              <span className="w-14 text-right">Hours</span>
+                              <span className="w-20 text-right">Rate ₱</span>
+                              <span className="w-24 text-right">Amount ₱</span>
                             </div>
-                          ))}
+                            {d!.breakdown.map((b, idx) => (
+                              <div key={idx} className="flex items-center gap-1.5">
+                                <DateInput value={b.date} onChange={(e) => setDay(it.id, idx, "date", e.target.value)} className="w-32" disabled={!editable} />
+                                <span className={cn("w-10 text-[10px] font-semibold", isWeekend(b.date) ? "text-coral" : "text-inkSoft")}>{weekdayOf(b.date) || ""}</span>
+                                <Input type="time" value={b.start} onChange={(e) => setDay(it.id, idx, "start", e.target.value)} className="w-20" disabled={!editable} />
+                                <Input type="time" value={b.end} onChange={(e) => setDay(it.id, idx, "end", e.target.value)} className="w-20" disabled={!editable} />
+                                <span className="w-14 text-right text-xs tabular-nums text-inkSoft">{b.hours || "0"}</span>
+                                <NumberInput min="0" step="0.01" value={b.rate} onChange={(e) => setDay(it.id, idx, "rate", e.target.value)} placeholder="—" className="w-20 text-right" disabled={!editable} />
+                                <NumberInput min="0" step="0.01" value={b.amount} onChange={(e) => setDay(it.id, idx, "amount", e.target.value)} placeholder="0" className="w-24 text-right" disabled={!editable} />
+                                {editable ? <button onClick={() => removeDay(it.id, idx)} className="text-inkSoft hover:text-coral" aria-label="Remove day"><Trash2 className="w-3.5 h-3.5" /></button> : null}
+                              </div>
+                            ))}
+                            <div className="flex items-center gap-1.5 pt-1 border-t border-border text-xs font-semibold text-ink">
+                              <span className="w-32">Total</span>
+                              <span className="w-10"></span>
+                              <span className="w-20"></span>
+                              <span className="w-20"></span>
+                              <span className="w-14 text-right tabular-nums">{hoursFromDraft(d!).toFixed(2)}</span>
+                              <span className="w-20"></span>
+                              <span className="w-24 text-right tabular-nums">{peso.format(baseFromDraft(d!))}</span>
+                            </div>
+                          </div>
                         </div>
+                      ) : (
+                        <p className="text-xs text-inkSoft mb-2">No days yet. Add a day for each entry on their sheet.</p>
                       )}
-                      {editable ? <Button variant="ghost" onClick={() => addDay(it.id)} disabled={busy}><Plus className="w-3.5 h-3.5" /> Add day</Button> : null}
+                      {editable ? (
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" onClick={() => addDay(it.id)} disabled={busy}><Plus className="w-3.5 h-3.5" /> Add day</Button>
+                          {(d?.breakdown.length ?? 0) > 0 ? <span className="text-[11px] text-inkSoft">Base becomes the total above.</span> : null}
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                 ) : null}
