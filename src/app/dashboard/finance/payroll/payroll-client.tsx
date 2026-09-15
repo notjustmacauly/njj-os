@@ -27,7 +27,7 @@ export type Run = {
   approved_at: string | null;
   void_reason: string | null;
 };
-export type BreakdownRow = { label: string; date: string; start: string; end: string; hours: string; rate: string; amount: string };
+export type BreakdownRow = { label: string; date: string; start: string; end: string; hours: string; rate: string; amount: string; break1h: boolean };
 export type Item = {
   id: string;
   run_id: string;
@@ -455,6 +455,10 @@ function isWeekend(date: string): boolean {
   const w = weekdayOf(date);
   return w === "Sat" || w === "Sun";
 }
+// Recorded hours after an optional 1h unpaid break (never below 0).
+function netDayHours(b: BreakdownRow): number {
+  return Math.max(0, round2((Number(b.hours) || 0) - (b.break1h ? 1 : 0)));
+}
 
 type Draft = {
   hours: string;
@@ -485,6 +489,7 @@ function initDraft(items: Item[]): Record<string, Draft> {
           hours: b.hours != null ? String(b.hours) : "",
           rate: b.rate != null ? String(b.rate) : "",
           amount: b.amount != null ? String(b.amount) : "",
+          break1h: Boolean((b as BreakdownRow).break1h),
         })),
       },
     ]),
@@ -496,7 +501,7 @@ function baseFromDraft(d: Draft): number {
   return Number(d.base) || 0;
 }
 function hoursFromDraft(d: Draft): number {
-  if (d.breakdown.length > 0) return round2(d.breakdown.reduce((s, b) => s + (Number(b.hours) || 0), 0));
+  if (d.breakdown.length > 0) return round2(d.breakdown.reduce((s, b) => s + netDayHours(b), 0));
   return Number(d.hours) || 0;
 }
 
@@ -545,7 +550,7 @@ function RunModal({
     setExpanded((e) => ({ ...e, [id]: true }));
     setDraft((prev) => ({
       ...prev,
-      [id]: { ...prev[id], breakdown: [...prev[id].breakdown, { label: "", date: "", start: "", end: "", hours: "", rate: "", amount: "" }] },
+      [id]: { ...prev[id], breakdown: [...prev[id].breakdown, { label: "", date: "", start: "", end: "", hours: "", rate: "", amount: "", break1h: false }] },
     }));
   }
   function setDay(id: string, idx: number, k: keyof BreakdownRow, v: string) {
@@ -559,6 +564,12 @@ function RunModal({
       }
       return { ...prev, [id]: { ...prev[id], breakdown: bd } };
     });
+  }
+  function toggleDayBreak(id: string, idx: number) {
+    setDraft((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], breakdown: prev[id].breakdown.map((b, i) => (i === idx ? { ...b, break1h: !b.break1h } : b)) },
+    }));
   }
   function removeDay(id: string, idx: number) {
     setDraft((prev) => ({ ...prev, [id]: { ...prev[id], breakdown: prev[id].breakdown.filter((_, i) => i !== idx) } }));
@@ -578,6 +589,7 @@ function RunModal({
           start: b.start.trim(),
           end: b.end.trim(),
           hours: Number(b.hours) || 0,
+          break1h: !!b.break1h,
           rate: Number(b.rate) || 0,
           amount: Number(b.amount) || round2((Number(b.hours) || 0) * (Number(b.rate) || 0)),
         }));
@@ -810,6 +822,7 @@ function RunModal({
                               <span className="w-10"></span>
                               <span className="w-20">Start</span>
                               <span className="w-20">End</span>
+                              <span className="w-16 text-center">−1h break</span>
                               <span className="w-14 text-right">Hours</span>
                               <span className="w-28 text-right">Pay ₱</span>
                             </div>
@@ -819,7 +832,10 @@ function RunModal({
                                 <span className={cn("w-10 text-[10px] font-semibold", isWeekend(b.date) ? "text-coral" : "text-inkSoft")}>{weekdayOf(b.date) || ""}</span>
                                 <Input type="time" value={b.start} onChange={(e) => setDay(it.id, idx, "start", e.target.value)} className="w-20" disabled={!editable} />
                                 <Input type="time" value={b.end} onChange={(e) => setDay(it.id, idx, "end", e.target.value)} className="w-20" disabled={!editable} />
-                                <span className="w-14 text-right text-xs tabular-nums text-inkSoft">{b.hours || "0"}</span>
+                                <span className="w-16 flex justify-center">
+                                  <input type="checkbox" checked={b.break1h} onChange={() => toggleDayBreak(it.id, idx)} disabled={!editable} title="Deduct 1h unpaid break" />
+                                </span>
+                                <span className={cn("w-14 text-right text-xs tabular-nums", b.break1h ? "text-coral" : "text-inkSoft")}>{netDayHours(b).toFixed(2)}</span>
                                 <NumberInput prefix="₱" min="0" step="0.01" value={b.amount} onChange={(e) => setDay(it.id, idx, "amount", e.target.value)} placeholder="0" className="w-28 text-right" disabled={!editable} />
                                 {editable ? <button onClick={() => removeDay(it.id, idx)} className="text-inkSoft hover:text-coral" aria-label="Remove day"><Trash2 className="w-3.5 h-3.5" /></button> : null}
                               </div>
@@ -829,6 +845,7 @@ function RunModal({
                               <span className="w-10"></span>
                               <span className="w-20"></span>
                               <span className="w-20"></span>
+                              <span className="w-16"></span>
                               <span className="w-14 text-right tabular-nums">{hoursFromDraft(d!).toFixed(2)}</span>
                               <span className="w-28 text-right tabular-nums">{peso.format(baseFromDraft(d!))}</span>
                             </div>

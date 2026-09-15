@@ -6,7 +6,7 @@ import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";
 
-type BreakdownRow = { label?: string; date?: string; start?: string; end?: string; hours?: number | string; rate?: number | string; amount?: number | string };
+type BreakdownRow = { label?: string; date?: string; start?: string; end?: string; hours?: number | string; rate?: number | string; amount?: number | string; break1h?: boolean };
 type Payslip = {
   run: { label: string; period_start: string; period_end: string; pay_date: string; status: string };
   name: string;
@@ -112,13 +112,14 @@ export default async function PayslipPage({ params }: { params: { token: string 
                     {hasBreakdown ? (
                       breakdown.map((b, i) => {
                         const desc =
-                          [b.date ? fmtDate(String(b.date)) : b.label, b.start && b.end ? `${b.start}–${b.end}` : null]
+                          [b.date ? fmtDate(String(b.date)) : b.label, b.start && b.end ? `${b.start}–${b.end}` : null, b.break1h ? "−1h break" : null]
                             .filter(Boolean)
                             .join(" · ") || b.label || "Work";
+                        const netHours = Math.max(0, (Number(b.hours) || 0) - (b.break1h ? 1 : 0));
                         return (
                           <tr key={i}>
                             <td className="px-3 py-2 text-ink">{desc}</td>
-                            <td className="px-3 py-2 text-right text-inkSoft">{b.hours != null && b.hours !== "" ? Number(b.hours) : "—"}</td>
+                            <td className="px-3 py-2 text-right text-inkSoft">{b.hours != null && b.hours !== "" ? netHours : "—"}</td>
                             <td className="px-3 py-2 text-right text-inkSoft">{b.rate != null && b.rate !== "" && Number(b.rate) > 0 ? formatPHP(Number(b.rate)) : "—"}</td>
                             <td className="px-3 py-2 text-right tabular-nums text-ink">{formatPHP(Number(b.amount ?? 0))}</td>
                           </tr>
