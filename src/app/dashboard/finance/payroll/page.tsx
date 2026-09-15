@@ -35,7 +35,7 @@ export default async function PayrollPage() {
       .order("display_name"),
     supabase
       .from("payroll_people")
-      .select("id, name, pay_type, default_amount, active")
+      .select("id, name, pay_type, default_amount, default_rate, active")
       .eq("active", true)
       .is("deleted_at", null)
       .order("name"),

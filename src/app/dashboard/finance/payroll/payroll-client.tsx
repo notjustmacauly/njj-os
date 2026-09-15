@@ -59,6 +59,7 @@ export type PayPerson = {
   name: string;
   pay_type: "fixed" | "manual";
   default_amount: number;
+  default_rate: number | null;
   active: boolean;
 };
 
@@ -321,11 +322,24 @@ function TimesheetTab({
   const [busy, setBusy] = React.useState(false);
 
   const activeMembers = members.filter((m) => (m.status ?? "active") === "active");
+  function storedRate(key: string): string {
+    if (key.startsWith("m:")) { const m = activeMembers.find((x) => x.user_id === key.slice(2)); return m?.pay_rate != null ? String(m.pay_rate) : ""; }
+    if (key.startsWith("p:")) { const p = people.find((x) => x.id === key.slice(2)); return p?.default_rate != null ? String(p.default_rate) : ""; }
+    return "";
+  }
+  const [rate, setRate] = React.useState<string>(() => storedRate(preset?.subjectKey ?? ""));
 
   function netHrs(x: TDay): number {
     return Math.max(0, round2(hoursBetween(x.start, x.end) - (x.break1h ? 1 : 0)));
   }
-  const recalc = (x: TDay): TDay => (x.rate.trim() !== "" ? { ...x, amount: String(round2(netHrs(x) * (Number(x.rate) || 0))) } : x);
+  // Recompute a day's pay only when it has a rate AND worked times (leaves flat
+  // manual amounts and untouched days alone).
+  const recalc = (x: TDay): TDay => (x.rate.trim() !== "" && x.start && x.end ? { ...x, amount: String(round2(netHrs(x) * (Number(x.rate) || 0))) } : x);
+
+  function applyRate(v: string) {
+    setRate(v);
+    setDays((prev) => (prev ? prev.map((d) => recalc({ ...d, rate: v })) : prev));
+  }
 
   async function build(prefill?: TDay[]) {
     const ds = datesBetween(start, end);
@@ -336,7 +350,9 @@ function TimesheetTab({
       const byDate = new Map(prefill.filter((d) => d.date).map((d) => [d.date, d]));
       out = out.map((r) => (byDate.has(r.date) ? { ...r, ...byDate.get(r.date)! } : r));
     }
-    // 2) auto-fill clock in/out for system-timed staff (empty rows only)
+    // 2) seed the general hourly rate onto days that don't already have one
+    if (rate.trim() !== "") out = out.map((r) => (r.rate.trim() === "" ? { ...r, rate } : r));
+    // 3) auto-fill clock in/out for system-timed staff (empty rows only)
     if (subject.startsWith("m:")) {
       const supabase = createClient();
       const { data } = await supabase.rpc("get_attendance_days", { p_user_id: subject.slice(2), p_start: start, p_end: end });
@@ -345,10 +361,11 @@ function TimesheetTab({
       );
       out = out.map((r) => {
         const a = att.get(r.date);
-        if (a && !r.start && !r.end) return recalc({ ...r, start: a.start_time || "", end: a.end_time || "" });
+        if (a && !r.start && !r.end) return { ...r, start: a.start_time || "", end: a.end_time || "" };
         return r;
       });
     }
+    out = out.map(recalc);
     setDays(out);
     if (!preset) {
       const match = draftRuns.find((r) => r.period_start === start && r.period_end === end);
@@ -371,7 +388,7 @@ function TimesheetTab({
       if (!prev) return prev;
       const next = prev.map((x, idx) => (idx === i ? { ...x, [k]: v } : x));
       const x = next[i];
-      if (x.rate.trim() !== "") x.amount = String(round2(netHrs(x) * (Number(x.rate) || 0)));
+      if (x.rate.trim() !== "" && x.start && x.end) x.amount = String(round2(netHrs(x) * (Number(x.rate) || 0)));
       return next;
     });
   }
@@ -430,7 +447,7 @@ function TimesheetTab({
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="space-y-1 sm:col-span-2">
             <Label>Employee</Label>
-            <Select value={subject} onChange={(e) => { setSubject(e.target.value); setDays(null); }} disabled={busy}>
+            <Select value={subject} onChange={(e) => { setSubject(e.target.value); setRate(storedRate(e.target.value)); setDays(null); }} disabled={busy}>
               <option value="">— choose —</option>
               {people.length > 0 ? (
                 <optgroup label="Paper / off-system">
@@ -456,6 +473,15 @@ function TimesheetTab({
             <Label>End date</Label>
             <DateInput value={end} onChange={(e) => { setEnd(e.target.value); setDays(null); }} disabled={busy} />
           </div>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label>Hourly rate ₱/hr</Label>
+            <NumberInput prefix="₱" min="0" step="0.01" value={rate} onChange={(e) => applyRate(e.target.value)} className="w-32" disabled={busy} />
+          </div>
+          <p className="text-[11px] text-inkSoft pb-2 max-w-sm">
+            Fills every day&rsquo;s rate so pay auto-calculates from hours. Defaults from the person&rsquo;s saved rate; leave a day&rsquo;s rate blank and type a flat amount for special days.
+          </p>
         </div>
         <Button onClick={() => build()} disabled={busy || !subject || (subject === "other" && !adhoc.trim())}>
           {days ? "Rebuild" : "Build timesheet"}
@@ -695,6 +721,7 @@ function PeopleEditor({ people, onChanged }: { people: PayPerson[]; onChanged: (
   const [name, setName] = React.useState("");
   const [payType, setPayType] = React.useState<"fixed" | "manual">("manual");
   const [amount, setAmount] = React.useState("");
+  const [rate, setRate] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
   async function add() {
@@ -704,29 +731,17 @@ function PeopleEditor({ people, onChanged }: { people: PayPerson[]; onChanged: (
     const { error } = await supabase.rpc("upsert_payroll_person", {
       p_id: null, p_name: name.trim(), p_pay_type: payType,
       p_default_amount: payType === "fixed" && amount ? Number(amount) : 0, p_active: true,
+      p_default_rate: rate ? Number(rate) : null,
     });
     setBusy(false);
     if (error) return toast.push(error.message, "error");
-    setName(""); setAmount(""); setPayType("manual"); setAdding(false);
-    onChanged();
-  }
-  async function remove(p: PayPerson) {
-    if (!confirm(`Remove ${p.name} from payroll?`)) return;
-    const supabase = createClient();
-    const { error } = await supabase.rpc("delete_payroll_person", { p_id: p.id });
-    if (error) return toast.push(error.message, "error");
+    setName(""); setAmount(""); setRate(""); setPayType("manual"); setAdding(false);
     onChanged();
   }
 
   return (
     <div className="space-y-2">
-      {people.map((p) => (
-        <div key={p.id} className="flex items-center gap-2 border border-border rounded-md px-3 py-2 text-sm">
-          <span className="flex-1 font-medium text-ink">{p.name}</span>
-          <span className="text-xs text-inkSoft">{PAY_TYPE_LABEL[p.pay_type]}{p.pay_type === "fixed" ? ` · ${peso.format(p.default_amount)}` : ""}</span>
-          <button onClick={() => remove(p)} className="text-inkSoft hover:text-coral" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
-        </div>
-      ))}
+      {people.map((p) => <PersonRow key={p.id} person={p} onChanged={onChanged} />)}
       {adding ? (
         <div className="flex flex-wrap items-end gap-2 border border-berry/40 rounded-md px-3 py-2">
           <div className="space-y-1 flex-1 min-w-[140px]">
@@ -741,8 +756,12 @@ function PeopleEditor({ people, onChanged }: { people: PayPerson[]; onChanged: (
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-[10px]">Default ₱</Label>
+            <Label className="text-[10px]">Default ₱ (fixed)</Label>
             <NumberInput prefix="₱" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={busy || payType !== "fixed"} className="w-28" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">₱/hour</Label>
+            <NumberInput prefix="₱" min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} disabled={busy} className="w-28" />
           </div>
           <Button onClick={add} disabled={busy || !name.trim()}>{busy ? "…" : "Add"}</Button>
           <Button variant="ghost" onClick={() => setAdding(false)} disabled={busy}>Cancel</Button>
@@ -750,6 +769,49 @@ function PeopleEditor({ people, onChanged }: { people: PayPerson[]; onChanged: (
       ) : (
         <Button variant="ghost" onClick={() => setAdding(true)}><Plus className="w-4 h-4" /> Add person</Button>
       )}
+    </div>
+  );
+}
+
+function PersonRow({ person, onChanged }: { person: PayPerson; onChanged: () => void }) {
+  const toast = useToast();
+  const [rate, setRate] = React.useState(person.default_rate != null ? String(person.default_rate) : "");
+  const [saving, setSaving] = React.useState(false);
+  const dirty = String(person.default_rate ?? "") !== rate;
+
+  async function saveRate() {
+    setSaving(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("upsert_payroll_person", {
+      p_id: person.id, p_name: person.name, p_pay_type: person.pay_type,
+      p_default_amount: person.default_amount, p_active: person.active,
+      p_default_rate: rate ? Number(rate) : null,
+    });
+    setSaving(false);
+    if (error) return toast.push(error.message, "error");
+    toast.push(`Saved ${person.name}`, "success");
+    onChanged();
+  }
+  async function remove() {
+    if (!confirm(`Remove ${person.name} from payroll?`)) return;
+    const supabase = createClient();
+    const { error } = await supabase.rpc("delete_payroll_person", { p_id: person.id });
+    if (error) return toast.push(error.message, "error");
+    onChanged();
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 border border-border rounded-md px-3 py-2 text-sm">
+      <div className="flex-1 min-w-[120px]">
+        <div className="font-medium text-ink">{person.name}</div>
+        <div className="text-[11px] text-inkSoft">{PAY_TYPE_LABEL[person.pay_type]}{person.pay_type === "fixed" ? ` · ${peso.format(person.default_amount)}` : ""}</div>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-[10px]">₱/hour (default)</Label>
+        <NumberInput prefix="₱" min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} disabled={saving} className="w-28" />
+      </div>
+      <Button variant="ghost" onClick={saveRate} disabled={saving || !dirty}>{saving ? "…" : "Save"}</Button>
+      <button onClick={remove} className="text-inkSoft hover:text-coral pb-2" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
     </div>
   );
 }
