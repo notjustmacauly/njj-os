@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/ui/kpi-card";
 import { hasRole, OWNER_PARTNER, type Role } from "@/lib/roles";
 import { MyDayCard, type MyTask } from "./my-day-card";
 import type { ChecklistItem } from "./my-checklist";
+import { ActionCenter, type ActionItem } from "./action-center";
 
 // Always render fresh so the KPI counts reflect current data (avoid Next.js
 // serving a cached, stale snapshot).
@@ -93,6 +94,47 @@ export default async function DashboardPage() {
     myChecklist = (cl ?? []) as ChecklistItem[];
   }
 
+  // Action center — role-based "needs your attention" counts. Counts only
+  // (no amounts) so nothing leaks to amount-restricted roles. Managers/owner/
+  // partner only; staff + marketing get My Day alone.
+  const canBilling = role === "owner" || role === "partner" || role === "manager";
+  const actions: ActionItem[] = [];
+  if (canBilling) {
+    const q = (p: PromiseLike<{ count: number | null }>) => Promise.resolve(p).then((r) => r.count ?? 0);
+    const [payApprove, payUnpaid, reimbPending, billsIssued, recvToBill, recvOverdue, payrollDraft] = await Promise.all([
+      q(supabase.from("payments").select("*", { count: "exact", head: true }).eq("type", "general").eq("status", "pending")),
+      q(supabase.from("payments").select("*", { count: "exact", head: true }).eq("type", "general").eq("status", "approved")),
+      q(supabase.from("payments").select("*", { count: "exact", head: true }).eq("type", "reimbursement").eq("status", "pending")),
+      q(supabase.from("bills").select("*", { count: "exact", head: true }).eq("status", "issued")),
+      q(supabase.from("receivables").select("*", { count: "exact", head: true }).eq("status", "pending")),
+      q(supabase.from("receivables").select("*", { count: "exact", head: true }).in("status", ["pending", "billed"]).lt("due_date", today)),
+      role === "owner"
+        ? q(supabase.from("payroll_runs").select("*", { count: "exact", head: true }).eq("status", "draft"))
+        : Promise.resolve(0),
+    ]);
+    const ordersPending = pendingOrders ?? 0;
+
+    // Orders awaiting delivery — everyone operational (Hanneh moves these).
+    actions.push({ label: "Orders pending delivery", count: ordersPending, href: "/dashboard/orders", accent: "yellow", hint: "Mark delivered when out" });
+
+    if (role === "owner" || role === "partner") {
+      actions.push({ label: "Payments to approve", count: payApprove, href: "/dashboard/finance/payments", accent: "coral", hint: "Awaiting your approval" });
+      actions.push({ label: "Approved · to pay out", count: payUnpaid, href: "/dashboard/finance/payments", accent: "berry", hint: "Approved, not yet paid" });
+      actions.push({ label: "Reimbursements to pay", count: reimbPending, href: "/dashboard/finance/reimbursements", accent: "peri" });
+      actions.push({ label: "Bills to pay", count: billsIssued, href: "/dashboard/finance/bills", accent: "coral" });
+    }
+    if (role === "owner" || role === "manager") {
+      actions.push({ label: "Receivables to bill", count: recvToBill, href: "/dashboard/finance/receivables", accent: "yellow", hint: "Ready to invoice" });
+      actions.push({ label: "Overdue receivables", count: recvOverdue, href: "/dashboard/finance/receivables", accent: "coral", hint: "Past due date" });
+    }
+    if (role === "manager") {
+      actions.push({ label: "Bills to pay", count: billsIssued, href: "/dashboard/finance/bills", accent: "peri" });
+    }
+    if (role === "owner") {
+      actions.push({ label: "Draft payroll", count: payrollDraft, href: "/dashboard/finance/payroll", accent: "green", hint: "Review & approve" });
+    }
+  }
+
   const name = displayNameFromEmail(user?.email);
 
   return (
@@ -105,6 +147,8 @@ export default async function DashboardPage() {
           The new Supabase-backed system, live.
         </p>
       </header>
+
+      {canBilling ? <ActionCenter items={actions} /> : null}
 
       <MyDayCard openShift={myShift} tasks={myTasks} checklist={myChecklist} />
 

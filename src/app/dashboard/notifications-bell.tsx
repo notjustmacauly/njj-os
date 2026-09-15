@@ -111,30 +111,22 @@ export function NotificationsBell({ role }: { role: Role }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-inkSoft hover:bg-cream hover:text-ink transition"
+        className="relative inline-flex items-center justify-center w-9 h-9 rounded-md text-inkSoft hover:bg-cream hover:text-ink transition"
         aria-label={`Notifications${count > 0 ? ` (${count} unread)` : ""}`}
       >
-        <span className="relative inline-flex">
-          <Bell className="w-4 h-4" />
-          {count > 0 ? (
-            <span
-              aria-hidden
-              className="absolute -top-1 -right-1 bg-coral text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] px-1 flex items-center justify-center"
-            >
-              {count > 9 ? "9+" : count}
-            </span>
-          ) : null}
-        </span>
-        Notifications
+        <Bell className="w-5 h-5" />
         {count > 0 ? (
-          <span className="text-[10px] uppercase tracking-smallcaps text-coral font-semibold ml-auto">
-            new
+          <span
+            aria-hidden
+            className="absolute top-0.5 right-0.5 bg-coral text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] px-1 flex items-center justify-center"
+          >
+            {count > 9 ? "9+" : count}
           </span>
         ) : null}
       </button>
 
       {open ? (
-        <div className="absolute bottom-full left-0 mb-2 w-80 bg-white border border-border rounded-lg shadow-xl z-30 max-h-[60vh] flex flex-col">
+        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)] bg-white border border-border rounded-lg shadow-xl z-50 max-h-[70vh] flex flex-col">
           <div className="px-4 py-2 border-b border-border flex items-center justify-between">
             <span className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
               Notifications

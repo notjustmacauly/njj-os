@@ -7,6 +7,7 @@ import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/roles";
 import { Sidebar } from "./sidebar";
+import { NotificationsBell } from "./notifications-bell";
 import { RegisterSW } from "./register-sw";
 
 function displayNameFromEmail(email: string): string {
@@ -87,14 +88,17 @@ export function AppShell({
         >
           NJJ OS
         </Link>
-        <div className="ml-auto flex items-center gap-2 px-2 py-1 rounded-md bg-cream">
-          <span aria-hidden>🐝</span>
-          <span className="text-sm font-semibold text-ink truncate max-w-[120px]">
-            {displayName}
-          </span>
-          <span className="text-[10px] uppercase tracking-smallcaps text-inkSoft">
-            {role}
-          </span>
+        <div className="ml-auto flex items-center gap-1">
+          <NotificationsBell role={role} />
+          <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-cream">
+            <span aria-hidden>🐝</span>
+            <span className="text-sm font-semibold text-ink truncate max-w-[90px]">
+              {displayName}
+            </span>
+            <span className="text-[10px] uppercase tracking-smallcaps text-inkSoft">
+              {role}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -127,9 +131,15 @@ export function AppShell({
         <Sidebar role={role} email={email} />
       </div>
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 pt-20 pb-8 lg:px-6 lg:py-8">
-        {children}
-      </main>
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Desktop top bar — persistent notifications bell, top-right. */}
+        <div className="hidden lg:flex sticky top-0 z-20 items-center justify-end px-6 h-12 bg-cream/85 backdrop-blur border-b border-border/60">
+          <NotificationsBell role={role} />
+        </div>
+        <main className="w-full max-w-6xl mx-auto px-4 pt-20 pb-8 lg:px-6 lg:py-8 lg:pt-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
