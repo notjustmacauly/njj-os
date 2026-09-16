@@ -426,7 +426,11 @@ function TaskDetailModal({
 
   const canChangeStatus =
     canAssign || task.assigned_to_user_id === currentUserId || task.assigned_by_user_id === currentUserId;
-  const canEdit = canAssign || task.assigned_by_user_id === currentUserId;
+  // The assignee can edit the task's contents too (links, caption, dates), so
+  // they update it in place rather than making a new one. (Reassigning is still
+  // gated to managers/assigner, server-side.)
+  const canEdit =
+    canAssign || task.assigned_by_user_id === currentUserId || task.assigned_to_user_id === currentUserId;
 
   React.useEffect(() => {
     let active = true;
