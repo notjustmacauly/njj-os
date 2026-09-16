@@ -1,11 +1,16 @@
 -- Let the assignee edit a task's contents (links, caption, dates, description)
--- — not just the assigner/managers — so they can update the task in place
--- instead of creating a new one. A non-privileged assignee cannot reassign it.
--- Applied to prod 2026-09-16 via MCP.
+-- — not just the assigner/managers — so they update it in place instead of
+-- creating a new one. A non-privileged assignee cannot reassign it.
+--
+-- NOTE: the client always passes p_brand, so the 10-arg (with p_brand) overload
+-- is the one actually called. We fix THAT one and drop any 9-arg variant so
+-- there's no ambiguity. Applied to prod 2026-09-16 via MCP.
+drop function if exists public.update_task(uuid, text, uuid, text, text, date, text, text, date);
+
 create or replace function public.update_task(
   p_task_id uuid, p_title text, p_assigned_to uuid default null, p_description text default null,
   p_priority text default null, p_due_date date default null, p_work_link text default null,
-  p_proposed_caption text default null, p_post_date date default null
+  p_proposed_caption text default null, p_post_date date default null, p_brand text default null
 ) returns void language plpgsql security definer set search_path to 'public' as $function$
 declare v record; v_actor uuid := auth.uid(); v_priv boolean; v_assign uuid;
 begin
@@ -20,7 +25,7 @@ begin
   update public.tasks set title=trim(p_title), description=nullif(trim(coalesce(p_description,'')),''),
          assigned_to_user_id=v_assign, priority=p_priority, due_date=p_due_date,
          work_link=nullif(trim(coalesce(p_work_link,'')),''), proposed_caption=nullif(trim(coalesce(p_proposed_caption,'')),''),
-         post_date=p_post_date, updated_at=now()
+         post_date=p_post_date, brand=case when v.board='marketing' then p_brand else v.brand end, updated_at=now()
    where id = p_task_id;
 
   if v_priv and v_assign is not null
@@ -31,5 +36,5 @@ begin
       '/dashboard/tasks', v_assign, null);
   end if;
 end; $function$;
-revoke all on function public.update_task(uuid,text,uuid,text,text,date,text,text,date) from public, anon;
-grant execute on function public.update_task(uuid,text,uuid,text,text,date,text,text,date) to authenticated, service_role;
+revoke all on function public.update_task(uuid,text,uuid,text,text,date,text,text,date,text) from public, anon;
+grant execute on function public.update_task(uuid,text,uuid,text,text,date,text,text,date,text) to authenticated, service_role;
