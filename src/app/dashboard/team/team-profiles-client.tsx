@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Shield, Wallet, User as UserIcon, Clock, IdCard, ClipboardList, Trash2, Plus } from "lucide-react";
+import { FileText, Shield, Wallet, User as UserIcon, Clock, IdCard, ClipboardList, Trash2, Plus, ListChecks } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -18,6 +18,7 @@ import type { Role } from "@/lib/roles";
 
 export type Payslip = { token: string; amount: number; label: string; pay_date: string };
 export type Hours = { month_minutes: number; total_minutes: number; shifts: number; last_shift: string | null };
+export type TaskStats = { open: number; completed: number; completed_dated: number; ontime: number; overdue_open: number };
 export type Incident = {
   id: string;
   user_id: string;
@@ -53,6 +54,7 @@ export type Profile = {
   payslips: Payslip[];
   hours: Hours | null;
   incidents: Incident[];
+  taskStats: TaskStats | null;
 };
 
 const ROLE_OPTIONS: Role[] = ["owner", "partner", "manager", "staff", "marketing"];
@@ -268,6 +270,47 @@ function ProfileModal({ p, onClose }: { p: Profile; onClose: () => void }) {
             </div>
           ) : (
             <p className="text-sm text-inkSoft">No completed shifts recorded yet.</p>
+          )}
+        </section>
+
+        {/* Tasks & performance */}
+        <section>
+          <h3 className="flex items-center gap-1.5 font-serif font-bold text-base text-ink mb-2"><ListChecks className="w-4 h-4" /> Tasks &amp; performance</h3>
+          {p.taskStats && (p.taskStats.open + p.taskStats.completed) > 0 ? (
+            (() => {
+              const s = p.taskStats!;
+              const rate = s.completed_dated > 0 ? Math.round((s.ontime / s.completed_dated) * 100) : null;
+              const barTone = rate == null ? "bg-inkSoft/30" : rate >= 80 ? "bg-green" : rate >= 50 ? "bg-yellow" : "bg-coral";
+              return (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-cream/60 rounded-lg p-3">
+                      <div className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">Open</div>
+                      <div className="text-lg font-bold text-ink tabular-nums">{s.open}{s.overdue_open > 0 ? <span className="text-coral text-xs font-semibold"> · {s.overdue_open} overdue</span> : null}</div>
+                    </div>
+                    <div className="bg-cream/60 rounded-lg p-3">
+                      <div className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">Completed</div>
+                      <div className="text-lg font-bold text-ink tabular-nums">{s.completed}</div>
+                    </div>
+                    <div className="bg-cream/60 rounded-lg p-3">
+                      <div className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">On-time rate</div>
+                      <div className="text-lg font-bold text-ink tabular-nums">{rate == null ? "—" : `${rate}%`}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] text-inkSoft mb-1">
+                      <span>Performance (on-time completion)</span>
+                      <span>{rate == null ? "no dated tasks yet" : `${s.ontime}/${s.completed_dated} on time`}</span>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-cream overflow-hidden">
+                      <div className={cn("h-full rounded-full transition-all", barTone)} style={{ width: `${rate ?? 0}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <p className="text-sm text-inkSoft">No tasks assigned yet.</p>
           )}
         </section>
 

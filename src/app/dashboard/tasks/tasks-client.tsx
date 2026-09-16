@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, MessageSquare, Plus, Repeat } from "lucide-react";
+import { ExternalLink, MessageSquare, Plus, Repeat, Check, Trash2, RotateCcw, ChevronRight, Lock } from "lucide-react";
 import { RecurringModal } from "./recurring-modal";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,10 @@ export type TaskRow = {
   proposed_caption: string | null;
   post_date: string | null;
   brand: string | null;
+  is_private: boolean;
+  acknowledged_at: string | null;
+  completed_at: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -49,32 +53,28 @@ export type TaskTemplate = {
   active: boolean;
 };
 type Board = "admin" | "marketing";
+type Tab = "portfolio" | "operations" | "marketing";
 
 const STATUSES: Record<Board, string[]> = {
   admin: ["pending", "in_progress", "blocked", "done"],
   marketing: ["pending", "approved", "revise", "scheduled", "posted"],
 };
 const STATUS_LABEL: Record<string, string> = {
-  pending: "Pending",
-  in_progress: "In progress",
-  blocked: "Blocked",
-  done: "Done",
-  approved: "Approved",
-  revise: "Revise",
-  scheduled: "Scheduled",
-  posted: "Posted",
+  pending: "Pending", in_progress: "In progress", blocked: "Blocked", done: "Done",
+  approved: "Approved", revise: "Revise", scheduled: "Scheduled", posted: "Posted",
 };
 const STATUS_TONE: Record<string, string> = {
-  pending: "bg-creamDk text-inkSoft",
-  in_progress: "bg-periBg text-peri",
-  blocked: "bg-salmonBg text-coral",
-  done: "bg-greenBg text-green",
-  approved: "bg-greenBg text-green",
-  revise: "bg-salmonBg text-coral",
-  scheduled: "bg-periBg text-peri",
-  posted: "bg-berryBg text-berry",
+  pending: "bg-creamDk text-inkSoft", in_progress: "bg-periBg text-peri", blocked: "bg-salmonBg text-coral",
+  done: "bg-greenBg text-green", approved: "bg-greenBg text-green", revise: "bg-salmonBg text-coral",
+  scheduled: "bg-periBg text-peri", posted: "bg-berryBg text-berry",
 };
 const PRIORITIES = ["low", "normal", "high", "urgent"];
+
+const isDone = (t: TaskRow) => t.status === "done" || t.status === "posted";
+const dateOf = (t: TaskRow) => (t.board === "marketing" ? t.post_date : t.due_date);
+function phToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
 
 export function TasksClient({
   currentUserId,
@@ -89,150 +89,92 @@ export function TasksClient({
   members: Member[];
   templates: TaskTemplate[];
 }) {
-  const [board, setBoard] = React.useState<Board>("admin");
-  const [showNew, setShowNew] = React.useState(false);
+  const [tab, setTab] = React.useState<Tab>("portfolio");
+  const [newTask, setNewTask] = React.useState<{ board: Board; isPrivate: boolean } | null>(null);
   const [showRecurring, setShowRecurring] = React.useState(false);
   const [openTask, setOpenTask] = React.useState<TaskRow | null>(null);
 
   const nameOf = (id: string | null) =>
     id ? members.find((m) => m.user_id === id)?.display_name ?? "—" : "Unassigned";
-  const boardTasks = tasks.filter((t) => t.board === board);
+
+  const live = tasks.filter((t) => !t.deleted_at);
+  const deleted = tasks.filter((t) => t.deleted_at);
+
+  // Portfolio scopes (mine)
+  const myPrivate = live.filter((t) => t.is_private && t.assigned_to_user_id === currentUserId);
+  const assignedToMe = live.filter((t) => !t.is_private && t.assigned_to_user_id === currentUserId);
+  const opsTasks = live.filter((t) => t.board === "admin" && !t.is_private);
+  const mktTasks = live.filter((t) => t.board === "marketing" && !t.is_private);
+
+  const newLabel = tab === "portfolio" ? "New private task" : tab === "operations" ? "New task" : "New post";
+
+  function startNew() {
+    if (tab === "portfolio") setNewTask({ board: "admin", isPrivate: true });
+    else if (tab === "operations") setNewTask({ board: "admin", isPrivate: false });
+    else setNewTask({ board: "marketing", isPrivate: false });
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-serif font-bold text-3xl text-ink">Tasks</h1>
-          <p className="text-sm text-inkSoft mt-1">Assign work, track status, and comment.</p>
+          <p className="text-sm text-inkSoft mt-1">Your portfolio, the team&rsquo;s operations, and marketing — all in one place.</p>
         </div>
         <div className="flex gap-2">
           {canAssign ? (
-            <Button variant="ghost" onClick={() => setShowRecurring(true)}>
-              <Repeat className="w-4 h-4 mr-1.5" />
-              Recurring
-            </Button>
+            <Button variant="ghost" onClick={() => setShowRecurring(true)}><Repeat className="w-4 h-4 mr-1.5" /> Recurring</Button>
           ) : null}
-          <Button onClick={() => setShowNew(true)}>
-            <Plus className="w-4 h-4" />
-            New task
-          </Button>
+          <Button onClick={startNew}><Plus className="w-4 h-4" /> {newLabel}</Button>
         </div>
       </div>
 
-      {/* Board tabs */}
-      <div className="flex gap-2">
-        {(["admin", "marketing"] as Board[]).map((b) => (
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        {([["portfolio", "Portfolio"], ["operations", "Operations"], ["marketing", "Marketing"]] as [Tab, string][]).map(([t, label]) => (
           <button
-            key={b}
+            key={t}
             type="button"
-            onClick={() => setBoard(b)}
+            onClick={() => setTab(t)}
             className={cn(
-              "px-4 py-2 rounded-lg text-sm font-semibold border transition capitalize",
-              board === b
-                ? "bg-berry text-white border-berry"
-                : "bg-white text-ink border-border hover:bg-cream",
+              "px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition",
+              tab === t ? "text-berry border-berry" : "text-inkSoft border-transparent hover:text-ink",
             )}
           >
-            {b === "admin" ? "Admin" : "Marketing"}
+            {label}
           </button>
         ))}
       </div>
 
-      {boardTasks.length === 0 ? (
-        <div className="bg-white border border-border rounded-lg shadow-card p-8 text-center text-sm text-inkSoft">
-          No {board} tasks yet.
+      {tab === "portfolio" ? (
+        <div className="space-y-6">
+          <BoardSection title="My private tasks" hint="Only you can see these." rows={myPrivate} mode="admin" showAssignee={false} nameOf={nameOf} onOpen={setOpenTask} defaultOpen />
+          <BoardSection title="Assigned to me" hint="Tasks others gave you." rows={assignedToMe} mode="mixed" showAssignee={false} nameOf={nameOf} onOpen={setOpenTask} defaultOpen currentUserId={currentUserId} />
+          <DeletedSection rows={deleted.filter((t) => (t.is_private && t.assigned_to_user_id === currentUserId) || (!t.is_private && t.assigned_to_user_id === currentUserId))} mode="mixed" nameOf={nameOf} onOpen={setOpenTask} />
+        </div>
+      ) : tab === "operations" ? (
+        <div className="space-y-6">
+          <BoardSection title="Open" rows={opsTasks} mode="admin" showAssignee nameOf={nameOf} onOpen={setOpenTask} defaultOpen />
+          <DeletedSection rows={deleted.filter((t) => t.board === "admin" && !t.is_private)} mode="admin" nameOf={nameOf} onOpen={setOpenTask} />
         </div>
       ) : (
-        <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-cream text-inkSoft">
-              <tr>
-                <th className="text-left font-semibold px-4 py-2">{board === "marketing" ? "Content" : "Task"}</th>
-                <th className="text-left font-semibold px-4 py-2">Assignee</th>
-                {board === "admin" ? (
-                  <>
-                    <th className="text-left font-semibold px-4 py-2">Priority</th>
-                    <th className="text-left font-semibold px-4 py-2">Due</th>
-                  </>
-                ) : (
-                  <>
-                    <th className="text-left font-semibold px-4 py-2">Brand</th>
-                    <th className="text-left font-semibold px-4 py-2">Post date</th>
-                    <th className="text-left font-semibold px-4 py-2">Link</th>
-                  </>
-                )}
-                <th className="text-left font-semibold px-4 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {boardTasks.map((t) => (
-                <tr
-                  key={t.id}
-                  onClick={() => setOpenTask(t)}
-                  className="cursor-pointer hover:bg-cream/40 transition"
-                >
-                  <td className="px-4 py-2.5 font-medium text-ink max-w-[280px] truncate" title={t.title}>{t.title}</td>
-                  <td className="px-4 py-2.5 text-inkSoft whitespace-nowrap">{nameOf(t.assigned_to_user_id)}</td>
-                  {board === "admin" ? (
-                    <>
-                      <td className="px-4 py-2.5">
-                        {t.priority ? (
-                          <span className={cn("capitalize", t.priority === "urgent" || t.priority === "high" ? "text-coral font-semibold" : "text-inkSoft")}>
-                            {t.priority}
-                          </span>
-                        ) : <span className="text-inkSoft/50">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-inkSoft whitespace-nowrap">{t.due_date ? formatDate(t.due_date) : "—"}</td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="px-4 py-2.5">
-                        {t.brand ? (
-                          <span className="inline-flex items-center rounded-full bg-periBg text-peri px-2 py-0.5 text-xs font-semibold">{t.brand}</span>
-                        ) : <span className="text-inkSoft/50">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-inkSoft whitespace-nowrap">{t.post_date ? formatDate(t.post_date) : "—"}</td>
-                      <td className="px-4 py-2.5">
-                        {t.work_link ? (
-                          <a
-                            href={t.work_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-berry hover:underline inline-flex items-center gap-1"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" /> Open
-                          </a>
-                        ) : <span className="text-inkSoft/50">—</span>}
-                      </td>
-                    </>
-                  )}
-                  <td className="px-4 py-2.5">
-                    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", STATUS_TONE[t.status] ?? "bg-creamDk text-inkSoft")}>
-                      {STATUS_LABEL[t.status] ?? t.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-6">
+          <BoardSection title="Open" rows={mktTasks} mode="marketing" showAssignee nameOf={nameOf} onOpen={setOpenTask} defaultOpen />
+          <DeletedSection rows={deleted.filter((t) => t.board === "marketing" && !t.is_private)} mode="marketing" nameOf={nameOf} onOpen={setOpenTask} />
         </div>
       )}
 
-      {showNew ? (
+      {newTask ? (
         <TaskFormModal
-          board={board}
+          board={newTask.board}
+          isPrivate={newTask.isPrivate}
           canAssign={canAssign}
           currentUserId={currentUserId}
           members={members}
-          onClose={() => setShowNew(false)}
+          onClose={() => setNewTask(null)}
         />
       ) : null}
-
-      {showRecurring ? (
-        <RecurringModal templates={templates} members={members} onClose={() => setShowRecurring(false)} />
-      ) : null}
-
+      {showRecurring ? <RecurringModal templates={templates} members={members} onClose={() => setShowRecurring(false)} /> : null}
       {openTask ? (
         <TaskDetailModal
           task={openTask}
@@ -247,28 +189,131 @@ export function TasksClient({
   );
 }
 
-function TaskFormModal({
-  board,
-  canAssign,
-  currentUserId,
-  members,
-  onClose,
-  editing,
+/* ---- Board section: open list + collapsible Completed ---- */
+type Mode = "admin" | "marketing" | "mixed";
+
+function BoardSection({
+  title, hint, rows, mode, showAssignee, nameOf, onOpen, defaultOpen, currentUserId,
 }: {
-  board: Board;
-  canAssign: boolean;
-  currentUserId: string;
-  members: Member[];
-  onClose: () => void;
-  editing?: TaskRow;
+  title: string; hint?: string; rows: TaskRow[]; mode: Mode; showAssignee: boolean;
+  nameOf: (id: string | null) => string; onOpen: (t: TaskRow) => void; defaultOpen?: boolean; currentUserId?: string;
+}) {
+  const open = rows.filter((t) => !isDone(t));
+  const completed = rows.filter((t) => isDone(t));
+  const [showDone, setShowDone] = React.useState(false);
+
+  return (
+    <div>
+      <div className="flex items-baseline gap-2 mb-2">
+        <h2 className="font-serif font-bold text-lg text-ink">{title}</h2>
+        {hint ? <span className="text-xs text-inkSoft">{hint}</span> : null}
+      </div>
+      {open.length === 0 ? (
+        <div className="bg-white border border-border rounded-lg shadow-card p-6 text-center text-sm text-inkSoft">Nothing open here. 🎉</div>
+      ) : (
+        <TaskTable rows={open} mode={mode} showAssignee={showAssignee} nameOf={nameOf} onOpen={onOpen} currentUserId={currentUserId} />
+      )}
+      {completed.length > 0 ? (
+        <div className="mt-2">
+          <button type="button" onClick={() => setShowDone((v) => !v)} className="flex items-center gap-1.5 text-xs font-semibold text-inkSoft hover:text-ink">
+            <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", showDone && "rotate-90")} />
+            Completed · {completed.length}
+          </button>
+          {showDone ? <div className="mt-1"><TaskTable rows={completed} mode={mode} showAssignee={showAssignee} nameOf={nameOf} onOpen={onOpen} dim /></div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DeletedSection({ rows, mode, nameOf, onOpen }: { rows: TaskRow[]; mode: Mode; nameOf: (id: string | null) => string; onOpen: (t: TaskRow) => void }) {
+  const [show, setShow] = React.useState(false);
+  if (rows.length === 0) return null;
+  return (
+    <div>
+      <button type="button" onClick={() => setShow((v) => !v)} className="flex items-center gap-1.5 text-xs font-semibold text-inkSoft hover:text-ink">
+        <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", show && "rotate-90")} />
+        <Trash2 className="w-3.5 h-3.5" /> Deleted · {rows.length}
+      </button>
+      {show ? <div className="mt-1"><TaskTable rows={rows} mode={mode} showAssignee nameOf={nameOf} onOpen={onOpen} dim /></div> : null}
+    </div>
+  );
+}
+
+function TaskTable({
+  rows, mode, showAssignee, nameOf, onOpen, dim, currentUserId,
+}: {
+  rows: TaskRow[]; mode: Mode; showAssignee: boolean; nameOf: (id: string | null) => string;
+  onOpen: (t: TaskRow) => void; dim?: boolean; currentUserId?: string;
+}) {
+  const today = phToday();
+  return (
+    <div className={cn("bg-white border border-border rounded-lg shadow-card overflow-x-auto", dim && "opacity-70")}>
+      <table className="w-full text-sm">
+        <thead className="bg-cream text-inkSoft">
+          <tr>
+            <th className="text-left font-semibold px-4 py-2">{mode === "marketing" ? "Content" : "Task"}</th>
+            {mode === "mixed" ? <th className="text-left font-semibold px-4 py-2">Board</th> : null}
+            {showAssignee ? <th className="text-left font-semibold px-4 py-2">Assignee</th> : null}
+            {mode === "admin" ? <th className="text-left font-semibold px-4 py-2">Priority</th> : null}
+            {mode === "marketing" ? <th className="text-left font-semibold px-4 py-2">Brand</th> : null}
+            <th className="text-left font-semibold px-4 py-2">{mode === "marketing" ? "Post" : "Due"}</th>
+            {mode === "marketing" ? <th className="text-left font-semibold px-4 py-2">Link</th> : null}
+            <th className="text-left font-semibold px-4 py-2">Status</th>
+            <th className="text-left font-semibold px-4 py-2">Ack</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {rows.map((t) => {
+            const d = dateOf(t);
+            const overdue = !!d && !isDone(t) && d < today;
+            return (
+              <tr key={t.id} onClick={() => onOpen(t)} className="cursor-pointer hover:bg-cream/40 transition">
+                <td className="px-4 py-2.5 font-medium text-ink max-w-[280px] truncate" title={t.title}>
+                  {t.is_private ? <Lock className="w-3 h-3 inline mr-1 text-inkSoft" /> : null}{t.title}
+                </td>
+                {mode === "mixed" ? (
+                  <td className="px-4 py-2.5"><span className="text-xs text-inkSoft capitalize">{t.board === "admin" ? "Ops" : "Marketing"}</span></td>
+                ) : null}
+                {showAssignee ? <td className="px-4 py-2.5 text-inkSoft whitespace-nowrap">{nameOf(t.assigned_to_user_id)}</td> : null}
+                {mode === "admin" ? (
+                  <td className="px-4 py-2.5">
+                    {t.priority ? <span className={cn("capitalize", t.priority === "urgent" || t.priority === "high" ? "text-coral font-semibold" : "text-inkSoft")}>{t.priority}</span> : <span className="text-inkSoft/50">—</span>}
+                  </td>
+                ) : null}
+                {mode === "marketing" ? (
+                  <td className="px-4 py-2.5">{t.brand ? <span className="inline-flex items-center rounded-full bg-periBg text-peri px-2 py-0.5 text-xs font-semibold">{t.brand}</span> : <span className="text-inkSoft/50">—</span>}</td>
+                ) : null}
+                <td className={cn("px-4 py-2.5 whitespace-nowrap", overdue ? "text-coral font-semibold" : "text-inkSoft")}>{d ? (overdue ? `${formatDate(d)} · overdue` : formatDate(d)) : "—"}</td>
+                {mode === "marketing" ? (
+                  <td className="px-4 py-2.5">{t.work_link ? <a href={t.work_link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-berry hover:underline inline-flex items-center gap-1"><ExternalLink className="w-3.5 h-3.5" /> Open</a> : <span className="text-inkSoft/50">—</span>}</td>
+                ) : null}
+                <td className="px-4 py-2.5"><span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", STATUS_TONE[t.status] ?? "bg-creamDk text-inkSoft")}>{STATUS_LABEL[t.status] ?? t.status}</span></td>
+                <td className="px-4 py-2.5">
+                  {t.is_private ? <span className="text-inkSoft/40 text-xs">—</span>
+                    : t.acknowledged_at ? <span className="text-green inline-flex items-center gap-0.5 text-xs font-semibold"><Check className="w-3.5 h-3.5" /></span>
+                    : <span className="inline-block w-2 h-2 rounded-full bg-yellow" title="Not acknowledged yet" />}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TaskFormModal({
+  board, isPrivate, canAssign, currentUserId, members, onClose, editing,
+}: {
+  board: Board; isPrivate: boolean; canAssign: boolean; currentUserId: string;
+  members: Member[]; onClose: () => void; editing?: TaskRow;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [title, setTitle] = React.useState(editing?.title ?? "");
   const [description, setDescription] = React.useState(editing?.description ?? "");
-  const [assignedTo, setAssignedTo] = React.useState(
-    editing?.assigned_to_user_id ?? (canAssign ? "" : currentUserId),
-  );
+  const [assignedTo, setAssignedTo] = React.useState(editing?.assigned_to_user_id ?? (canAssign && !isPrivate ? "" : currentUserId));
   const [priority, setPriority] = React.useState(editing?.priority ?? "normal");
   const [dueDate, setDueDate] = React.useState(editing?.due_date ?? "");
   const [workLink, setWorkLink] = React.useState(editing?.work_link ?? "");
@@ -277,6 +322,7 @@ function TaskFormModal({
   const [brand, setBrand] = React.useState(editing?.brand ?? "NJJ");
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const priv = editing ? editing.is_private : isPrivate;
 
   async function handleSave() {
     if (saving) return;
@@ -297,50 +343,32 @@ function TaskFormModal({
     };
     const { error: err } = editing
       ? await supabase.rpc("update_task", { p_task_id: editing.id, ...args })
-      : await supabase.rpc("create_task", { p_board: board, ...args });
+      : await supabase.rpc("create_task", { p_board: board, ...args, p_is_private: priv });
     setSaving(false);
-    if (err) {
-      setError(err.message);
-      return;
-    }
+    if (err) return setError(err.message);
     toast.push(editing ? "Task updated" : "Task created", "success");
     onClose();
     router.refresh();
   }
 
+  const heading = editing ? "Edit task" : priv ? "New private task" : board === "marketing" ? "New marketing post" : "New task";
+
   return (
-    <Modal
-      open
-      onClose={saving ? () => {} : onClose}
-      title={editing ? "Edit task" : `New ${board} task`}
-      size="md"
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving…" : editing ? "Save" : "Create"}
-          </Button>
-        </>
-      }
-    >
+    <Modal open onClose={saving ? () => {} : onClose} title={heading} size="md"
+      footer={<><Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : editing ? "Save" : "Create"}</Button></>}>
       <div className="space-y-4">
+        {priv ? <p className="text-xs text-inkSoft bg-cream/60 rounded-md px-3 py-2 inline-flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> Private — only you will see this.</p> : null}
         <div className="space-y-1">
-          <Label htmlFor="t_title" required>
-            {board === "marketing" ? "Content / task" : "Task"}
-          </Label>
+          <Label htmlFor="t_title" required>{board === "marketing" ? "Content / task" : "Task"}</Label>
           <Input id="t_title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={saving} />
         </div>
 
-        {canAssign ? (
+        {canAssign && !priv ? (
           <div className="space-y-1">
             <Label htmlFor="t_assignee">Assign to</Label>
             <Select id="t_assignee" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} disabled={saving}>
               <option value="">Unassigned</option>
-              {members.map((m) => (
-                <option key={m.user_id} value={m.user_id}>{m.display_name}</option>
-              ))}
+              {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.display_name}</option>)}
             </Select>
           </div>
         ) : null}
@@ -350,9 +378,7 @@ function TaskFormModal({
             <div className="space-y-1">
               <Label htmlFor="t_priority">Priority</Label>
               <Select id="t_priority" value={priority} onChange={(e) => setPriority(e.target.value)} disabled={saving}>
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p} className="capitalize">{p}</option>
-                ))}
+                {PRIORITIES.map((p) => <option key={p} value={p} className="capitalize">{p}</option>)}
               </Select>
             </div>
             <div className="space-y-1">
@@ -365,9 +391,7 @@ function TaskFormModal({
             <div className="space-y-1">
               <Label htmlFor="t_brand">Brand</Label>
               <Select id="t_brand" value={brand} onChange={(e) => setBrand(e.target.value)} disabled={saving}>
-                {BRANDS.map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
+                {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
               </Select>
             </div>
             <div className="space-y-1">
@@ -390,9 +414,7 @@ function TaskFormModal({
           <Textarea id="t_desc" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} disabled={saving} />
         </div>
 
-        {error ? (
-          <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">{error}</p>
-        ) : null}
+        {error ? <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">{error}</p> : null}
       </div>
     </Modal>
   );
@@ -401,19 +423,10 @@ function TaskFormModal({
 type Comment = { id: string; author_user_id: string; body: string; created_at: string };
 
 function TaskDetailModal({
-  task,
-  members,
-  currentUserId,
-  canAssign,
-  nameOf,
-  onClose,
+  task, members, currentUserId, canAssign, nameOf, onClose,
 }: {
-  task: TaskRow;
-  members: Member[];
-  currentUserId: string;
-  canAssign: boolean;
-  nameOf: (id: string | null) => string;
-  onClose: () => void;
+  task: TaskRow; members: Member[]; currentUserId: string; canAssign: boolean;
+  nameOf: (id: string | null) => string; onClose: () => void;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -423,30 +436,23 @@ function TaskDetailModal({
   const [newComment, setNewComment] = React.useState("");
   const [postingComment, setPostingComment] = React.useState(false);
   const [editing, setEditing] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [acked, setAcked] = React.useState<string | null>(task.acknowledged_at);
 
-  const canChangeStatus =
-    canAssign || task.assigned_to_user_id === currentUserId || task.assigned_by_user_id === currentUserId;
-  // The assignee can edit the task's contents too (links, caption, dates), so
-  // they update it in place rather than making a new one. (Reassigning is still
-  // gated to managers/assigner, server-side.)
-  const canEdit =
-    canAssign || task.assigned_by_user_id === currentUserId || task.assigned_to_user_id === currentUserId;
+  const deleted = !!task.deleted_at;
+  const canChangeStatus = !deleted && (canAssign || task.assigned_to_user_id === currentUserId || task.assigned_by_user_id === currentUserId);
+  const canEdit = !deleted && (canAssign || task.assigned_by_user_id === currentUserId || task.assigned_to_user_id === currentUserId);
+  const canDelete = canAssign || task.assigned_by_user_id === currentUserId || task.assigned_to_user_id === currentUserId;
+  const canAck = !deleted && !task.is_private && task.assigned_to_user_id === currentUserId && !acked;
 
   React.useEffect(() => {
+    if (task.is_private) return;
     let active = true;
     const supabase = createClient();
-    supabase
-      .from("task_comments")
-      .select("id, author_user_id, body, created_at")
-      .eq("task_id", task.id)
-      .order("created_at", { ascending: true })
-      .then(({ data }) => {
-        if (active) setComments((data ?? []) as Comment[]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [task.id]);
+    supabase.from("task_comments").select("id, author_user_id, body, created_at").eq("task_id", task.id).order("created_at", { ascending: true })
+      .then(({ data }) => { if (active) setComments((data ?? []) as Comment[]); });
+    return () => { active = false; };
+  }, [task.id, task.is_private]);
 
   async function changeStatus(next: string) {
     setStatus(next);
@@ -454,85 +460,97 @@ function TaskDetailModal({
     const supabase = createClient();
     const { error } = await supabase.rpc("update_task_status", { p_task_id: task.id, p_status: next });
     setSavingStatus(false);
-    if (error) {
-      toast.push(error.message, "error");
-      setStatus(task.status);
-      return;
-    }
+    if (error) { toast.push(error.message, "error"); setStatus(task.status); return; }
     toast.push("Status updated", "success");
     router.refresh();
   }
-
+  async function acknowledge() {
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("acknowledge_task", { p_task_id: task.id });
+    setBusy(false);
+    if (error) return toast.push(error.message, "error");
+    setAcked(new Date().toISOString());
+    toast.push("Acknowledged", "success");
+    router.refresh();
+  }
+  async function removeTask() {
+    if (!confirm("Move this task to Deleted?")) return;
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("delete_task", { p_task_id: task.id });
+    setBusy(false);
+    if (error) return toast.push(error.message, "error");
+    toast.push("Task deleted", "success");
+    onClose();
+    router.refresh();
+  }
+  async function restore() {
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("restore_task", { p_task_id: task.id });
+    setBusy(false);
+    if (error) return toast.push(error.message, "error");
+    toast.push("Task restored", "success");
+    onClose();
+    router.refresh();
+  }
   async function postComment() {
     if (postingComment || !newComment.trim()) return;
     setPostingComment(true);
     const supabase = createClient();
     const { error } = await supabase.rpc("add_task_comment", { p_task_id: task.id, p_body: newComment.trim() });
     setPostingComment(false);
-    if (error) {
-      toast.push(error.message, "error");
-      return;
-    }
-    // optimistic append
-    setComments((c) => [
-      ...c,
-      { id: crypto.randomUUID(), author_user_id: currentUserId, body: newComment.trim(), created_at: new Date().toISOString() },
-    ]);
+    if (error) return toast.push(error.message, "error");
+    setComments((c) => [...c, { id: crypto.randomUUID(), author_user_id: currentUserId, body: newComment.trim(), created_at: new Date().toISOString() }]);
     setNewComment("");
   }
 
   if (editing) {
     return (
-      <TaskFormModal
-        board={task.board}
-        canAssign={canAssign}
-        currentUserId={currentUserId}
-        members={members}
-        editing={task}
-        onClose={() => {
-          setEditing(false);
-          onClose();
-        }}
-      />
+      <TaskFormModal board={task.board} isPrivate={task.is_private} canAssign={canAssign} currentUserId={currentUserId} members={members} editing={task}
+        onClose={() => { setEditing(false); onClose(); }} />
     );
   }
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title={task.title}
-      description={`${task.board === "marketing" ? "Marketing" : "Admin"} · assigned by ${nameOf(task.assigned_by_user_id)} · to ${nameOf(task.assigned_to_user_id)}`}
+    <Modal open onClose={onClose} title={task.title}
+      description={`${task.is_private ? "Private · " : ""}${task.board === "marketing" ? "Marketing" : "Ops"} · by ${nameOf(task.assigned_by_user_id)}${task.is_private ? "" : ` · to ${nameOf(task.assigned_to_user_id)}`}`}
       size="md"
       footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>Close</Button>
-          {canEdit ? (
-            <Button variant="ghost" onClick={() => setEditing(true)}>Edit</Button>
-          ) : null}
-        </>
+        deleted ? (
+          <><Button variant="ghost" onClick={onClose}>Close</Button>{canDelete ? <Button onClick={restore} disabled={busy}><RotateCcw className="w-4 h-4 mr-1" /> Restore</Button> : null}</>
+        ) : (
+          <>
+            {canDelete ? <Button variant="dangerGhost" onClick={removeTask} disabled={busy}><Trash2 className="w-4 h-4 mr-1" /> Delete</Button> : null}
+            <span className="ml-auto" />
+            {canEdit ? <Button variant="ghost" onClick={() => setEditing(true)}>Edit</Button> : null}
+            <Button variant="ghost" onClick={onClose}>Close</Button>
+          </>
+        )
       }
     >
       <div className="space-y-4 text-sm">
-        <div className="flex items-center gap-3">
+        {deleted ? <p className="text-xs text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">This task is deleted. Restore it to bring it back.</p> : null}
+
+        <div className="flex items-center gap-3 flex-wrap">
           <Label htmlFor="d_status" className="mb-0">Status</Label>
           {canChangeStatus ? (
-            <Select
-              id="d_status"
-              value={status}
-              onChange={(e) => changeStatus(e.target.value)}
-              disabled={savingStatus}
-              className="max-w-[200px]"
-            >
-              {STATUSES[task.board].map((s) => (
-                <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-              ))}
+            <Select id="d_status" value={status} onChange={(e) => changeStatus(e.target.value)} disabled={savingStatus} className="max-w-[200px]">
+              {STATUSES[task.board].map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
             </Select>
           ) : (
-            <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", STATUS_TONE[status])}>
-              {STATUS_LABEL[status] ?? status}
-            </span>
+            <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", STATUS_TONE[status])}>{STATUS_LABEL[status] ?? status}</span>
           )}
+          {!task.is_private ? (
+            canAck ? (
+              <Button onClick={acknowledge} disabled={busy} className="ml-auto"><Check className="w-4 h-4 mr-1" /> Acknowledge</Button>
+            ) : acked ? (
+              <span className="ml-auto inline-flex items-center gap-1 text-green text-xs font-semibold"><Check className="w-4 h-4" /> Acknowledged {formatDate(acked)}</span>
+            ) : task.assigned_to_user_id ? (
+              <span className="ml-auto text-xs text-yellow font-semibold">Awaiting acknowledgement</span>
+            ) : null
+          ) : null}
         </div>
 
         {task.board === "admin" ? (
@@ -542,65 +560,32 @@ function TaskDetailModal({
           </div>
         ) : (
           <div className="space-y-2">
-            {task.brand ? (
-              <div className="text-inkSoft"><span className="text-xs uppercase tracking-smallcaps">Brand</span><div className="text-ink font-semibold">{task.brand}</div></div>
-            ) : null}
-            {task.work_link ? (
-              <a href={task.work_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-berry hover:underline">
-                <ExternalLink className="w-4 h-4" /> Open work link
-              </a>
-            ) : null}
-            {task.post_date ? (
-              <div className="text-inkSoft"><span className="text-xs uppercase tracking-smallcaps">Post date</span><div className="text-ink">{formatDate(task.post_date)}</div></div>
-            ) : null}
-            {task.proposed_caption ? (
-              <div>
-                <span className="text-xs uppercase tracking-smallcaps text-inkSoft">Proposed caption</span>
-                <p className="text-ink whitespace-pre-wrap mt-0.5 rounded-md bg-cream/50 border border-border p-2">{task.proposed_caption}</p>
-              </div>
-            ) : null}
+            {task.brand ? <div className="text-inkSoft"><span className="text-xs uppercase tracking-smallcaps">Brand</span><div className="text-ink font-semibold">{task.brand}</div></div> : null}
+            {task.work_link ? <a href={task.work_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-berry hover:underline"><ExternalLink className="w-4 h-4" /> Open work link</a> : null}
+            {task.post_date ? <div className="text-inkSoft"><span className="text-xs uppercase tracking-smallcaps">Post date</span><div className="text-ink">{formatDate(task.post_date)}</div></div> : null}
+            {task.proposed_caption ? <div><span className="text-xs uppercase tracking-smallcaps text-inkSoft">Proposed caption</span><p className="text-ink whitespace-pre-wrap mt-0.5 rounded-md bg-cream/50 border border-border p-2">{task.proposed_caption}</p></div> : null}
           </div>
         )}
 
-        {task.description ? (
-          <div>
-            <span className="text-xs uppercase tracking-smallcaps text-inkSoft">{task.board === "marketing" ? "Notes" : "Description"}</span>
-            <p className="text-ink whitespace-pre-wrap mt-0.5">{task.description}</p>
-          </div>
-        ) : null}
+        {task.description ? <div><span className="text-xs uppercase tracking-smallcaps text-inkSoft">{task.board === "marketing" ? "Notes" : "Description"}</span><p className="text-ink whitespace-pre-wrap mt-0.5">{task.description}</p></div> : null}
 
-        {/* Comments */}
-        <div className="border-t border-border pt-3">
-          <div className="flex items-center gap-1.5 text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-2">
-            <MessageSquare className="w-3.5 h-3.5" /> Comments / queries
-          </div>
-          <div className="space-y-2 max-h-52 overflow-y-auto">
-            {comments.length === 0 ? (
-              <p className="text-inkSoft text-xs">No comments yet.</p>
-            ) : (
-              comments.map((c) => (
+        {!task.is_private ? (
+          <div className="border-t border-border pt-3">
+            <div className="flex items-center gap-1.5 text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-2"><MessageSquare className="w-3.5 h-3.5" /> Comments / queries</div>
+            <div className="space-y-2 max-h-52 overflow-y-auto">
+              {comments.length === 0 ? <p className="text-inkSoft text-xs">No comments yet.</p> : comments.map((c) => (
                 <div key={c.id} className="rounded-md bg-cream/50 border border-border px-3 py-2">
-                  <div className="text-[11px] text-inkSoft">
-                    {nameOf(c.author_user_id)} · {formatDate(c.created_at)}
-                  </div>
+                  <div className="text-[11px] text-inkSoft">{nameOf(c.author_user_id)} · {formatDate(c.created_at)}</div>
                   <div className="text-ink whitespace-pre-wrap">{c.body}</div>
                 </div>
-              ))
-            )}
+              ))}
+            </div>
+            <div className="flex items-end gap-2 mt-2">
+              <Textarea rows={1} value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Add a comment or query…" disabled={postingComment} />
+              <Button onClick={postComment} disabled={postingComment || !newComment.trim()}>Send</Button>
+            </div>
           </div>
-          <div className="flex items-end gap-2 mt-2">
-            <Textarea
-              rows={1}
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Add a comment or query…"
-              disabled={postingComment}
-            />
-            <Button onClick={postComment} disabled={postingComment || !newComment.trim()}>
-              Send
-            </Button>
-          </div>
-        </div>
+        ) : null}
       </div>
     </Modal>
   );

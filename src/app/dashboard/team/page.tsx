@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Role } from "@/lib/roles";
-import { TeamProfilesClient, type Profile, type Payslip, type Incident, type Hours } from "./team-profiles-client";
+import { TeamProfilesClient, type Profile, type Payslip, type Incident, type Hours, type TaskStats } from "./team-profiles-client";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +68,16 @@ export default async function TeamPage() {
     hoursByUser.set(h.user_id, { month_minutes: h.month_minutes, total_minutes: h.total_minutes, shifts: h.shifts, last_shift: h.last_shift });
   }
 
+  // Task stats per person (owner-only RPC).
+  const { data: statRows } = await supabase.rpc("team_task_stats");
+  const statsByUser = new Map<string, TaskStats>();
+  for (const s of (statRows ?? []) as Array<{ user_id: string; open_count: number; completed_count: number; completed_dated: number; ontime_count: number; overdue_open: number }>) {
+    statsByUser.set(s.user_id, {
+      open: s.open_count, completed: s.completed_count, completed_dated: s.completed_dated,
+      ontime: s.ontime_count, overdue_open: s.overdue_open,
+    });
+  }
+
   // HR / incident log.
   const { data: incRows } = await supabase
     .from("hr_incidents")
@@ -109,6 +119,7 @@ export default async function TeamPage() {
       payslips: slips,
       hours: hoursByUser.get(m.user_id) ?? null,
       incidents: incByUser.get(m.user_id) ?? [],
+      taskStats: statsByUser.get(m.user_id) ?? null,
     };
   });
 
