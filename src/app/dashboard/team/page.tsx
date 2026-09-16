@@ -18,13 +18,19 @@ export default async function TeamPage() {
   const { data: members } = await supabase
     .from("team_members")
     .select(
-      "user_id, display_name, title, phone, photo_url, hire_date, status, notes, bank_name, account_number, account_name, sss_no, philhealth_no, tin_no, pagibig_no, pay_type, pay_rate, unpaid_break_min, hide_expense_amounts, attendance_supervisor, user_roles!inner(role)",
+      "user_id, display_name, title, phone, photo_url, hire_date, status, notes, bank_name, account_number, account_name, sss_no, philhealth_no, tin_no, pagibig_no, pay_type, pay_rate, unpaid_break_min, hide_expense_amounts, attendance_supervisor",
     )
     .is("deleted_at", null)
     .order("display_name");
 
-  type Row = Omit<Profile, "email" | "role" | "payslips" | "hours" | "incidents"> & { user_roles: { role: string } | { role: string }[] | null };
+  type Row = Omit<Profile, "email" | "role" | "payslips" | "hours" | "incidents">;
   const rows = (members ?? []) as unknown as Row[];
+
+  // Roles as a separate query — team_members has no direct FK to user_roles,
+  // so an embed is brittle. Map by user_id instead.
+  const { data: roleRows } = await supabase.from("user_roles").select("user_id, role");
+  const roleMap = new Map<string, Role>();
+  for (const r of (roleRows ?? []) as Array<{ user_id: string; role: string }>) roleMap.set(r.user_id, r.role as Role);
 
   // Emails via service role (server only).
   const admin = createAdminClient();
@@ -76,7 +82,6 @@ export default async function TeamPage() {
   }
 
   const profiles: Profile[] = rows.map((m) => {
-    const rel = Array.isArray(m.user_roles) ? m.user_roles[0] : m.user_roles;
     const slips = (slipsByUser.get(m.user_id) ?? []).sort((a, b) => (a.pay_date < b.pay_date ? 1 : -1));
     return {
       user_id: m.user_id,
@@ -100,7 +105,7 @@ export default async function TeamPage() {
       hide_expense_amounts: m.hide_expense_amounts,
       attendance_supervisor: m.attendance_supervisor,
       email: emailMap.get(m.user_id) ?? null,
-      role: (rel?.role as Role) ?? "staff",
+      role: roleMap.get(m.user_id) ?? "staff",
       payslips: slips,
       hours: hoursByUser.get(m.user_id) ?? null,
       incidents: incByUser.get(m.user_id) ?? [],
