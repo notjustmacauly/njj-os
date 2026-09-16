@@ -256,9 +256,8 @@ function TaskTable({
             {mode === "mixed" ? <th className="text-left font-semibold px-4 py-2">Board</th> : null}
             {showAssignee ? <th className="text-left font-semibold px-4 py-2">Assignee</th> : null}
             {mode === "admin" ? <th className="text-left font-semibold px-4 py-2">Priority</th> : null}
-            {mode === "marketing" ? <th className="text-left font-semibold px-4 py-2">Brand</th> : null}
             <th className="text-left font-semibold px-4 py-2">{mode === "marketing" ? "Post" : "Due"}</th>
-            {mode === "marketing" ? <th className="text-left font-semibold px-4 py-2">Link</th> : null}
+            <th className="text-left font-semibold px-4 py-2">Link</th>
             <th className="text-left font-semibold px-4 py-2">Status</th>
             <th className="text-left font-semibold px-4 py-2">Ack</th>
           </tr>
@@ -269,8 +268,12 @@ function TaskTable({
             const overdue = !!d && !isDone(t) && d < today;
             return (
               <tr key={t.id} onClick={() => onOpen(t)} className="cursor-pointer hover:bg-cream/40 transition">
-                <td className="px-4 py-2.5 font-medium text-ink max-w-[280px] truncate" title={t.title}>
-                  {t.is_private ? <Lock className="w-3 h-3 inline mr-1 text-inkSoft" /> : null}{t.title}
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-1.5 max-w-[280px]">
+                    {t.is_private ? <Lock className="w-3 h-3 text-inkSoft shrink-0" /> : null}
+                    <span className="font-medium text-ink truncate" title={t.title}>{t.title}</span>
+                    {t.brand ? <span className="shrink-0 inline-flex items-center rounded-full bg-periBg text-peri px-1.5 py-0.5 text-[10px] font-semibold">{t.brand}</span> : null}
+                  </div>
                 </td>
                 {mode === "mixed" ? (
                   <td className="px-4 py-2.5"><span className="text-xs text-inkSoft capitalize">{t.board === "admin" ? "Ops" : "Marketing"}</span></td>
@@ -281,13 +284,8 @@ function TaskTable({
                     {t.priority ? <span className={cn("capitalize", t.priority === "urgent" || t.priority === "high" ? "text-coral font-semibold" : "text-inkSoft")}>{t.priority}</span> : <span className="text-inkSoft/50">—</span>}
                   </td>
                 ) : null}
-                {mode === "marketing" ? (
-                  <td className="px-4 py-2.5">{t.brand ? <span className="inline-flex items-center rounded-full bg-periBg text-peri px-2 py-0.5 text-xs font-semibold">{t.brand}</span> : <span className="text-inkSoft/50">—</span>}</td>
-                ) : null}
                 <td className={cn("px-4 py-2.5 whitespace-nowrap", overdue ? "text-coral font-semibold" : "text-inkSoft")}>{d ? (overdue ? `${formatDate(d)} · overdue` : formatDate(d)) : "—"}</td>
-                {mode === "marketing" ? (
-                  <td className="px-4 py-2.5">{t.work_link ? <a href={t.work_link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-berry hover:underline inline-flex items-center gap-1"><ExternalLink className="w-3.5 h-3.5" /> Open</a> : <span className="text-inkSoft/50">—</span>}</td>
-                ) : null}
+                <td className="px-4 py-2.5">{t.work_link ? <a href={t.work_link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-berry hover:underline inline-flex items-center gap-1"><ExternalLink className="w-3.5 h-3.5" /> Open</a> : <span className="text-inkSoft/50">—</span>}</td>
                 <td className="px-4 py-2.5"><span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", STATUS_TONE[t.status] ?? "bg-creamDk text-inkSoft")}>{STATUS_LABEL[t.status] ?? t.status}</span></td>
                 <td className="px-4 py-2.5">
                   {t.is_private ? <span className="text-inkSoft/40 text-xs">—</span>
@@ -336,10 +334,10 @@ function TaskFormModal({
       p_description: description.trim() || null,
       p_priority: board === "admin" ? priority : null,
       p_due_date: board === "admin" ? dueDate || null : null,
-      p_work_link: board === "marketing" ? workLink.trim() || null : null,
+      p_work_link: workLink.trim() || null,
       p_proposed_caption: board === "marketing" ? caption.trim() || null : null,
       p_post_date: board === "marketing" ? postDate || null : null,
-      p_brand: board === "marketing" ? brand : null,
+      p_brand: brand,
     };
     const { error: err } = editing
       ? await supabase.rpc("update_task", { p_task_id: editing.id, ...args })
@@ -373,6 +371,19 @@ function TaskFormModal({
           </div>
         ) : null}
 
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="t_brand">Project / brand</Label>
+            <Select id="t_brand" value={brand} onChange={(e) => setBrand(e.target.value)} disabled={saving}>
+              {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="t_link">Link (optional)</Label>
+            <Input id="t_link" type="url" placeholder="https://…" value={workLink} onChange={(e) => setWorkLink(e.target.value)} disabled={saving} />
+          </div>
+        </div>
+
         {board === "admin" ? (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -388,16 +399,6 @@ function TaskFormModal({
           </div>
         ) : (
           <>
-            <div className="space-y-1">
-              <Label htmlFor="t_brand">Brand</Label>
-              <Select id="t_brand" value={brand} onChange={(e) => setBrand(e.target.value)} disabled={saving}>
-                {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="t_link">Work link (GDrive)</Label>
-              <Input id="t_link" type="url" placeholder="https://drive.google.com/…" value={workLink} onChange={(e) => setWorkLink(e.target.value)} disabled={saving} />
-            </div>
             <div className="space-y-1">
               <Label htmlFor="t_caption">Proposed caption</Label>
               <Textarea id="t_caption" rows={3} value={caption} onChange={(e) => setCaption(e.target.value)} disabled={saving} />
@@ -554,9 +555,13 @@ function TaskDetailModal({
         </div>
 
         {task.board === "admin" ? (
-          <div className="grid grid-cols-2 gap-3 text-inkSoft">
-            <div><span className="text-xs uppercase tracking-smallcaps">Priority</span><div className="text-ink capitalize">{task.priority ?? "—"}</div></div>
-            <div><span className="text-xs uppercase tracking-smallcaps">Due</span><div className="text-ink">{task.due_date ? formatDate(task.due_date) : "—"}</div></div>
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-3 text-inkSoft">
+              <div><span className="text-xs uppercase tracking-smallcaps">Priority</span><div className="text-ink capitalize">{task.priority ?? "—"}</div></div>
+              <div><span className="text-xs uppercase tracking-smallcaps">Due</span><div className="text-ink">{task.due_date ? formatDate(task.due_date) : "—"}</div></div>
+            </div>
+            {task.brand ? <div className="text-inkSoft"><span className="text-xs uppercase tracking-smallcaps">Project / brand</span><div className="text-ink font-semibold">{task.brand}</div></div> : null}
+            {task.work_link ? <a href={task.work_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-berry hover:underline"><ExternalLink className="w-4 h-4" /> Open link</a> : null}
           </div>
         ) : (
           <div className="space-y-2">
