@@ -113,6 +113,8 @@ const SECTIONS: Section[] = [
       // Catalog view is all-roles, so everyone can hit /dashboard/settings;
       // the page redirects to /dashboard/settings/catalog.
       { href: "/dashboard/settings", label: "Settings", icon: Settings, roles: TRACKER_ROLES },
+      // Owner-only team hub: profiles, access, pay, payslips.
+      { href: "/dashboard/team", label: "Team", icon: Users, roles: ["owner"] },
       // Owner-only oversight: who changed what across the whole system.
       { href: "/dashboard/settings/activity", label: "Activity Log", icon: ScrollText, roles: ["owner"] },
       // Owner-only: manage who can use the Telegram expense bot.
