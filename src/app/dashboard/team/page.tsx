@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Role } from "@/lib/roles";
-import { TeamProfilesClient, type Profile, type Payslip } from "./team-profiles-client";
+import { TeamProfilesClient, type Profile, type Payslip, type Incident, type Hours } from "./team-profiles-client";
 
 export const dynamic = "force-dynamic";
 
@@ -18,12 +18,12 @@ export default async function TeamPage() {
   const { data: members } = await supabase
     .from("team_members")
     .select(
-      "user_id, display_name, title, phone, photo_url, hire_date, status, notes, bank_name, account_number, account_name, pay_type, pay_rate, unpaid_break_min, hide_expense_amounts, attendance_supervisor, user_roles!inner(role)",
+      "user_id, display_name, title, phone, photo_url, hire_date, status, notes, bank_name, account_number, account_name, sss_no, philhealth_no, tin_no, pagibig_no, pay_type, pay_rate, unpaid_break_min, hide_expense_amounts, attendance_supervisor, user_roles!inner(role)",
     )
     .is("deleted_at", null)
     .order("display_name");
 
-  type Row = Omit<Profile, "email" | "role" | "payslips"> & { user_roles: { role: string } | { role: string }[] | null };
+  type Row = Omit<Profile, "email" | "role" | "payslips" | "hours" | "incidents"> & { user_roles: { role: string } | { role: string }[] | null };
   const rows = (members ?? []) as unknown as Row[];
 
   // Emails via service role (server only).
@@ -55,6 +55,26 @@ export default async function TeamPage() {
     slipsByUser.set(s.user_id, list);
   }
 
+  // Hours worked summary (owner-only RPC).
+  const { data: hoursRows } = await supabase.rpc("team_hours_summary");
+  const hoursByUser = new Map<string, Hours>();
+  for (const h of (hoursRows ?? []) as Array<{ user_id: string; month_minutes: number; total_minutes: number; shifts: number; last_shift: string | null }>) {
+    hoursByUser.set(h.user_id, { month_minutes: h.month_minutes, total_minutes: h.total_minutes, shifts: h.shifts, last_shift: h.last_shift });
+  }
+
+  // HR / incident log.
+  const { data: incRows } = await supabase
+    .from("hr_incidents")
+    .select("id, user_id, kind, title, details, occurred_on, severity")
+    .is("deleted_at", null)
+    .order("occurred_on", { ascending: false });
+  const incByUser = new Map<string, Incident[]>();
+  for (const i of (incRows ?? []) as Incident[]) {
+    const list = incByUser.get(i.user_id) ?? [];
+    list.push(i);
+    incByUser.set(i.user_id, list);
+  }
+
   const profiles: Profile[] = rows.map((m) => {
     const rel = Array.isArray(m.user_roles) ? m.user_roles[0] : m.user_roles;
     const slips = (slipsByUser.get(m.user_id) ?? []).sort((a, b) => (a.pay_date < b.pay_date ? 1 : -1));
@@ -70,6 +90,10 @@ export default async function TeamPage() {
       bank_name: m.bank_name,
       account_number: m.account_number,
       account_name: m.account_name,
+      sss_no: m.sss_no,
+      philhealth_no: m.philhealth_no,
+      tin_no: m.tin_no,
+      pagibig_no: m.pagibig_no,
       pay_type: m.pay_type,
       pay_rate: m.pay_rate,
       unpaid_break_min: m.unpaid_break_min,
@@ -78,6 +102,8 @@ export default async function TeamPage() {
       email: emailMap.get(m.user_id) ?? null,
       role: (rel?.role as Role) ?? "staff",
       payslips: slips,
+      hours: hoursByUser.get(m.user_id) ?? null,
+      incidents: incByUser.get(m.user_id) ?? [],
     };
   });
 

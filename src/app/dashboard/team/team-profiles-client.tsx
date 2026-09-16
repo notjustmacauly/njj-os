@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Shield, Wallet, User as UserIcon } from "lucide-react";
+import { FileText, Shield, Wallet, User as UserIcon, Clock, IdCard, ClipboardList, Trash2, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -17,6 +17,16 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/roles";
 
 export type Payslip = { token: string; amount: number; label: string; pay_date: string };
+export type Hours = { month_minutes: number; total_minutes: number; shifts: number; last_shift: string | null };
+export type Incident = {
+  id: string;
+  user_id: string;
+  kind: "incident" | "concern" | "performance" | "commendation" | "note";
+  title: string;
+  details: string | null;
+  occurred_on: string;
+  severity: "low" | "medium" | "high" | null;
+};
 export type Profile = {
   user_id: string;
   display_name: string;
@@ -29,6 +39,10 @@ export type Profile = {
   bank_name: string | null;
   account_number: string | null;
   account_name: string | null;
+  sss_no: string | null;
+  philhealth_no: string | null;
+  tin_no: string | null;
+  pagibig_no: string | null;
   pay_type: string | null;
   pay_rate: number | null;
   unpaid_break_min: number | null;
@@ -37,6 +51,8 @@ export type Profile = {
   email: string | null;
   role: Role;
   payslips: Payslip[];
+  hours: Hours | null;
+  incidents: Incident[];
 };
 
 const ROLE_OPTIONS: Role[] = ["owner", "partner", "manager", "staff", "marketing"];
@@ -56,6 +72,17 @@ function fmtDate(iso: string | null): string {
 function initials(name: string): string {
   return name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 }
+function hoursFmt(min: number): string {
+  return `${Math.floor(min / 60)}h ${Math.round(min % 60)}m`;
+}
+const KIND_TONE: Record<string, string> = {
+  incident: "bg-salmonBg text-coral",
+  concern: "bg-yellowBg text-yellow",
+  performance: "bg-periBg text-peri",
+  commendation: "bg-greenBg text-green",
+  note: "bg-creamDk text-inkSoft",
+};
+const KIND_OPTIONS = ["note", "concern", "incident", "performance", "commendation"] as const;
 
 export function TeamProfilesClient({ profiles, adminAvailable }: { profiles: Profile[]; adminAvailable: boolean }) {
   const [open, setOpen] = React.useState<Profile | null>(null);
@@ -135,6 +162,10 @@ function ProfileModal({ p, onClose }: { p: Profile; onClose: () => void }) {
   const [bankName, setBankName] = React.useState(p.bank_name ?? "");
   const [accountNumber, setAccountNumber] = React.useState(p.account_number ?? "");
   const [accountName, setAccountName] = React.useState(p.account_name ?? "");
+  const [sss, setSss] = React.useState(p.sss_no ?? "");
+  const [philhealth, setPhilhealth] = React.useState(p.philhealth_no ?? "");
+  const [tin, setTin] = React.useState(p.tin_no ?? "");
+  const [pagibig, setPagibig] = React.useState(p.pagibig_no ?? "");
   const [busy, setBusy] = React.useState(false);
 
   async function save() {
@@ -154,6 +185,10 @@ function ProfileModal({ p, onClose }: { p: Profile; onClose: () => void }) {
         bank_name: bankName.trim() || null,
         account_number: accountNumber.trim() || null,
         account_name: accountName.trim() || null,
+        sss_no: sss.trim() || null,
+        philhealth_no: philhealth.trim() || null,
+        tin_no: tin.trim() || null,
+        pagibig_no: pagibig.trim() || null,
         hide_expense_amounts: hideAmounts,
         attendance_supervisor: attnSup,
       })
@@ -209,6 +244,41 @@ function ProfileModal({ p, onClose }: { p: Profile; onClose: () => void }) {
             </div>
             <div className="space-y-1"><Label>Photo URL</Label><Input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="optional link" disabled={busy} /></div>
             <div className="space-y-1 sm:col-span-2"><Label>Bio / notes</Label><Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} disabled={busy} /></div>
+          </div>
+        </section>
+
+        {/* Hours worked */}
+        <section>
+          <h3 className="flex items-center gap-1.5 font-serif font-bold text-base text-ink mb-2"><Clock className="w-4 h-4" /> Hours worked</h3>
+          {p.hours && p.hours.shifts > 0 ? (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-cream/60 rounded-lg p-3">
+                <div className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">This month</div>
+                <div className="text-lg font-bold text-ink tabular-nums">{hoursFmt(p.hours.month_minutes)}</div>
+              </div>
+              <div className="bg-cream/60 rounded-lg p-3">
+                <div className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">All time</div>
+                <div className="text-lg font-bold text-ink tabular-nums">{hoursFmt(p.hours.total_minutes)}</div>
+                <div className="text-[10px] text-inkSoft">{p.hours.shifts} shift{p.hours.shifts > 1 ? "s" : ""}</div>
+              </div>
+              <div className="bg-cream/60 rounded-lg p-3">
+                <div className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">Last shift</div>
+                <div className="text-sm font-semibold text-ink">{p.hours.last_shift ? fmtDate(p.hours.last_shift.slice(0, 10)) : "—"}</div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-inkSoft">No completed shifts recorded yet.</p>
+          )}
+        </section>
+
+        {/* Government IDs */}
+        <section>
+          <h3 className="flex items-center gap-1.5 font-serif font-bold text-base text-ink mb-2"><IdCard className="w-4 h-4" /> Government IDs</h3>
+          <div className="grid sm:grid-cols-4 gap-3">
+            <div className="space-y-1"><Label>SSS</Label><Input value={sss} onChange={(e) => setSss(e.target.value)} disabled={busy} /></div>
+            <div className="space-y-1"><Label>PhilHealth</Label><Input value={philhealth} onChange={(e) => setPhilhealth(e.target.value)} disabled={busy} /></div>
+            <div className="space-y-1"><Label>TIN</Label><Input value={tin} onChange={(e) => setTin(e.target.value)} disabled={busy} /></div>
+            <div className="space-y-1"><Label>Pag-IBIG</Label><Input value={pagibig} onChange={(e) => setPagibig(e.target.value)} disabled={busy} /></div>
           </div>
         </section>
 
@@ -287,7 +357,108 @@ function ProfileModal({ p, onClose }: { p: Profile; onClose: () => void }) {
             </div>
           )}
         </section>
+
+        {/* HR & incidents */}
+        <IncidentsSection userId={p.user_id} incidents={p.incidents} />
       </div>
     </Modal>
+  );
+}
+
+function IncidentsSection({ userId, incidents }: { userId: string; incidents: Incident[] }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [adding, setAdding] = React.useState(false);
+  const [kind, setKind] = React.useState<Incident["kind"]>("note");
+  const [title, setTitle] = React.useState("");
+  const [details, setDetails] = React.useState("");
+  const [when, setWhen] = React.useState(() => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()));
+  const [severity, setSeverity] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+
+  async function add() {
+    if (!title.trim()) return toast.push("Add a short title.", "error");
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("add_hr_incident", {
+      p_user_id: userId, p_kind: kind, p_title: title.trim(),
+      p_details: details.trim() || null, p_occurred_on: when || null, p_severity: severity || null,
+    });
+    setBusy(false);
+    if (error) return toast.push(error.message, "error");
+    setKind("note"); setTitle(""); setDetails(""); setSeverity(""); setAdding(false);
+    toast.push("Logged", "success");
+    router.refresh();
+  }
+  async function remove(id: string) {
+    if (!confirm("Delete this entry?")) return;
+    const supabase = createClient();
+    const { error } = await supabase.rpc("delete_hr_incident", { p_id: id });
+    if (error) return toast.push(error.message, "error");
+    router.refresh();
+  }
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="flex items-center gap-1.5 font-serif font-bold text-base text-ink"><ClipboardList className="w-4 h-4" /> HR &amp; incidents</h3>
+        {!adding ? <Button variant="ghost" onClick={() => setAdding(true)}><Plus className="w-4 h-4" /> Log entry</Button> : null}
+      </div>
+
+      {adding ? (
+        <div className="border border-berry/40 rounded-lg p-3 mb-3 space-y-2">
+          <div className="grid sm:grid-cols-4 gap-2">
+            <div className="space-y-1"><Label className="text-[10px]">Type</Label>
+              <Select value={kind} onChange={(e) => setKind(e.target.value as Incident["kind"])} disabled={busy}>
+                {KIND_OPTIONS.map((k) => <option key={k} value={k} className="capitalize">{k}</option>)}
+              </Select>
+            </div>
+            <div className="space-y-1 sm:col-span-2"><Label className="text-[10px]">Title</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Late 3x this week" disabled={busy} />
+            </div>
+            <div className="space-y-1"><Label className="text-[10px]">Date</Label>
+              <DateInput value={when} onChange={(e) => setWhen(e.target.value)} disabled={busy} />
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-4 gap-2">
+            <div className="space-y-1"><Label className="text-[10px]">Severity</Label>
+              <Select value={severity} onChange={(e) => setSeverity(e.target.value)} disabled={busy}>
+                <option value="">—</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </Select>
+            </div>
+            <div className="space-y-1 sm:col-span-3"><Label className="text-[10px]">Details</Label>
+              <Input value={details} onChange={(e) => setDetails(e.target.value)} placeholder="what happened / context" disabled={busy} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={add} disabled={busy || !title.trim()}>{busy ? "…" : "Save entry"}</Button>
+            <Button variant="ghost" onClick={() => setAdding(false)} disabled={busy}>Cancel</Button>
+          </div>
+        </div>
+      ) : null}
+
+      {incidents.length === 0 ? (
+        <p className="text-sm text-inkSoft">No entries. Log incidents, concerns, performance notes or commendations here.</p>
+      ) : (
+        <div className="space-y-2">
+          {incidents.map((i) => (
+            <div key={i.id} className="flex items-start gap-2 border border-border rounded-lg px-3 py-2 group">
+              <span className={cn("mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize", KIND_TONE[i.kind])}>{i.kind}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-ink">{i.title}
+                  {i.severity ? <span className={cn("ml-2 text-[10px] font-semibold uppercase", i.severity === "high" ? "text-coral" : i.severity === "medium" ? "text-yellow" : "text-inkSoft")}>{i.severity}</span> : null}
+                </div>
+                {i.details ? <div className="text-xs text-inkSoft mt-0.5">{i.details}</div> : null}
+                <div className="text-[10px] text-inkSoft mt-0.5">{fmtDate(i.occurred_on)}</div>
+              </div>
+              <button onClick={() => remove(i.id)} className="opacity-0 group-hover:opacity-100 text-inkSoft hover:text-coral transition" aria-label="Delete"><Trash2 className="w-4 h-4" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
