@@ -256,6 +256,7 @@ function TaskTable({
             {mode === "mixed" ? <th className="text-left font-semibold px-4 py-2">Board</th> : null}
             {showAssignee ? <th className="text-left font-semibold px-4 py-2">Assignee</th> : null}
             {mode === "admin" ? <th className="text-left font-semibold px-4 py-2">Priority</th> : null}
+            <th className="text-left font-semibold px-4 py-2">Brand</th>
             <th className="text-left font-semibold px-4 py-2">{mode === "marketing" ? "Post" : "Due"}</th>
             <th className="text-left font-semibold px-4 py-2">Link</th>
             <th className="text-left font-semibold px-4 py-2">Status</th>
@@ -272,7 +273,6 @@ function TaskTable({
                   <div className="flex items-center gap-1.5 max-w-[280px]">
                     {t.is_private ? <Lock className="w-3 h-3 text-inkSoft shrink-0" /> : null}
                     <span className="font-medium text-ink truncate" title={t.title}>{t.title}</span>
-                    {t.brand ? <span className="shrink-0 inline-flex items-center rounded-full bg-periBg text-peri px-1.5 py-0.5 text-[10px] font-semibold">{t.brand}</span> : null}
                   </div>
                 </td>
                 {mode === "mixed" ? (
@@ -284,6 +284,7 @@ function TaskTable({
                     {t.priority ? <span className={cn("capitalize", t.priority === "urgent" || t.priority === "high" ? "text-coral font-semibold" : "text-inkSoft")}>{t.priority}</span> : <span className="text-inkSoft/50">—</span>}
                   </td>
                 ) : null}
+                <td className="px-4 py-2.5">{t.brand ? <span className="inline-flex items-center rounded-full bg-periBg text-peri px-2 py-0.5 text-xs font-semibold">{t.brand}</span> : <span className="text-inkSoft/50">—</span>}</td>
                 <td className={cn("px-4 py-2.5 whitespace-nowrap", overdue ? "text-coral font-semibold" : "text-inkSoft")}>{d ? (overdue ? `${formatDate(d)} · overdue` : formatDate(d)) : "—"}</td>
                 <td className="px-4 py-2.5">{t.work_link ? <a href={t.work_link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-berry hover:underline inline-flex items-center gap-1"><ExternalLink className="w-3.5 h-3.5" /> Open</a> : <span className="text-inkSoft/50">—</span>}</td>
                 <td className="px-4 py-2.5"><span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", STATUS_TONE[t.status] ?? "bg-creamDk text-inkSoft")}>{STATUS_LABEL[t.status] ?? t.status}</span></td>
