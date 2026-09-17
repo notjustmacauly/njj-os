@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, MessageSquare, Plus, Repeat, Check, Trash2, RotateCcw, ChevronRight, Lock } from "lucide-react";
+import { ExternalLink, MessageSquare, Plus, Repeat, Check, Trash2, RotateCcw, ChevronRight, Lock, Search as SearchIcon } from "lucide-react";
 import { RecurringModal } from "./recurring-modal";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -106,6 +106,27 @@ export function TasksClient({
   const opsTasks = live.filter((t) => t.board === "admin" && !t.is_private);
   const mktTasks = live.filter((t) => t.board === "marketing" && !t.is_private);
 
+  // Search / brand filter / sort — applied across all boards.
+  const [query, setQuery] = React.useState("");
+  const [brandF, setBrandF] = React.useState("");
+  const [sortBy, setSortBy] = React.useState<"date" | "priority" | "created" | "title">("date");
+  const view = React.useCallback(
+    (rows: TaskRow[]): TaskRow[] => {
+      const q = query.trim().toLowerCase();
+      let r = rows;
+      if (brandF) r = r.filter((t) => t.brand === brandF);
+      if (q) r = r.filter((t) => t.title.toLowerCase().includes(q) || (t.description ?? "").toLowerCase().includes(q) || (t.brand ?? "").toLowerCase().includes(q));
+      const rank: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+      return [...r].sort((a, b) => {
+        if (sortBy === "date") return (dateOf(a) ?? "9999-12-31").localeCompare(dateOf(b) ?? "9999-12-31");
+        if (sortBy === "priority") return (rank[a.priority ?? ""] ?? 5) - (rank[b.priority ?? ""] ?? 5);
+        if (sortBy === "title") return a.title.localeCompare(b.title);
+        return b.created_at.localeCompare(a.created_at);
+      });
+    },
+    [query, brandF, sortBy],
+  );
+
   const newLabel = tab === "portfolio" ? "New private task" : tab === "operations" ? "New task" : "New post";
 
   function startNew() {
@@ -146,21 +167,39 @@ export function TasksClient({
         ))}
       </div>
 
+      {/* Search / filter / sort */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[180px]">
+          <SearchIcon className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-inkSoft" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks…" className="pl-8" />
+        </div>
+        <Select value={brandF} onChange={(e) => setBrandF(e.target.value)} className="w-36" aria-label="Filter by brand">
+          <option value="">All brands</option>
+          {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+        </Select>
+        <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="w-40" aria-label="Sort by">
+          <option value="date">Sort: Due / post date</option>
+          <option value="priority">Sort: Priority</option>
+          <option value="title">Sort: Title</option>
+          <option value="created">Sort: Newest</option>
+        </Select>
+      </div>
+
       {tab === "portfolio" ? (
         <div className="space-y-6">
-          <BoardSection title="My private tasks" hint="Only you can see these." rows={myPrivate} mode="admin" showAssignee={false} nameOf={nameOf} onOpen={setOpenTask} defaultOpen />
-          <BoardSection title="Assigned to me" hint="Tasks others gave you." rows={assignedToMe} mode="mixed" showAssignee={false} nameOf={nameOf} onOpen={setOpenTask} defaultOpen currentUserId={currentUserId} />
-          <DeletedSection rows={deleted.filter((t) => (t.is_private && t.assigned_to_user_id === currentUserId) || (!t.is_private && t.assigned_to_user_id === currentUserId))} mode="mixed" nameOf={nameOf} onOpen={setOpenTask} />
+          <BoardSection title="My private tasks" hint="Only you can see these." rows={view(myPrivate)} mode="admin" showAssignee={false} nameOf={nameOf} onOpen={setOpenTask} defaultOpen />
+          <BoardSection title="Assigned to me" hint="Tasks others gave you." rows={view(assignedToMe)} mode="mixed" showAssignee={false} nameOf={nameOf} onOpen={setOpenTask} defaultOpen />
+          <DeletedSection rows={view(deleted.filter((t) => t.assigned_to_user_id === currentUserId))} mode="mixed" nameOf={nameOf} onOpen={setOpenTask} />
         </div>
       ) : tab === "operations" ? (
         <div className="space-y-6">
-          <BoardSection title="Open" rows={opsTasks} mode="admin" showAssignee nameOf={nameOf} onOpen={setOpenTask} defaultOpen />
-          <DeletedSection rows={deleted.filter((t) => t.board === "admin" && !t.is_private)} mode="admin" nameOf={nameOf} onOpen={setOpenTask} />
+          <BoardSection title="Open" rows={view(opsTasks)} mode="admin" showAssignee nameOf={nameOf} onOpen={setOpenTask} defaultOpen />
+          <DeletedSection rows={view(deleted.filter((t) => t.board === "admin" && !t.is_private))} mode="admin" nameOf={nameOf} onOpen={setOpenTask} />
         </div>
       ) : (
         <div className="space-y-6">
-          <BoardSection title="Open" rows={mktTasks} mode="marketing" showAssignee nameOf={nameOf} onOpen={setOpenTask} defaultOpen />
-          <DeletedSection rows={deleted.filter((t) => t.board === "marketing" && !t.is_private)} mode="marketing" nameOf={nameOf} onOpen={setOpenTask} />
+          <BoardSection title="Open" rows={view(mktTasks)} mode="marketing" showAssignee nameOf={nameOf} onOpen={setOpenTask} defaultOpen />
+          <DeletedSection rows={view(deleted.filter((t) => t.board === "marketing" && !t.is_private))} mode="marketing" nameOf={nameOf} onOpen={setOpenTask} />
         </div>
       )}
 
