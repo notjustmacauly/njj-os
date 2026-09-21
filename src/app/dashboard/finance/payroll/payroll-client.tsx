@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Settings2, Trash2, CheckCircle2, XCircle, ChevronRight, FileText, Copy, Coins, Mail } from "lucide-react";
+import { Plus, Settings2, Trash2, CheckCircle2, XCircle, ChevronRight, FileText, Copy, Coins, Mail, Check, CalendarDays } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -50,6 +50,9 @@ export type Item = {
   account_code: string | null;
   breakdown: BreakdownRow[] | null;
   share_token: string;
+  payslip_emailed_at: string | null;
+  payslip_period_start: string | null;
+  payslip_period_end: string | null;
 };
 export type PayMember = {
   user_id: string;
@@ -880,6 +883,7 @@ function RunModal({
   React.useEffect(() => { setRows(items); }, [items]);
 
   const [payItem, setPayItem] = React.useState<Item | null>(null);
+  const [periodItem, setPeriodItem] = React.useState<Item | null>(null);
   const net = (it: Item) => Number(it.net_amount || 0);
   const total = rows.reduce((s, it) => s + net(it), 0);
   const acctName = (code: string | null) => accounts.find((a) => a.code === code)?.name ?? code ?? "—";
@@ -964,11 +968,15 @@ function RunModal({
     if (!res.ok) { toast.push(data?.error ?? "Couldn't send.", "error"); return false; }
     return true;
   }
+  function markSent(id: string) {
+    const at = new Date().toISOString();
+    setRows((prev) => prev.map((x) => (x.id === id ? { ...x, payslip_emailed_at: at } : x)));
+  }
   async function emailOne(it: Item) {
     setBusy(true);
     const ok = await emailPayslip(it);
     setBusy(false);
-    if (ok) toast.push(`Payslip emailed to ${it.name}`, "success");
+    if (ok) { toast.push(`Payslip emailed to ${it.name}`, "success"); markSent(it.id); }
   }
   async function emailAll() {
     setBusy(true);
@@ -976,7 +984,7 @@ function RunModal({
     for (const it of rows) {
       if (Number(it.net_amount || 0) === 0) continue;
       const ok = await emailPayslip(it);
-      if (ok) sent++; else failed.push(it.name);
+      if (ok) { sent++; markSent(it.id); } else failed.push(it.name);
     }
     setBusy(false);
     toast.push(`Emailed ${sent} payslip${sent === 1 ? "" : "s"}${failed.length ? ` · ${failed.length} skipped (no email): ${failed.join(", ")}` : ""}`, failed.length ? "error" : "success");
@@ -1067,12 +1075,18 @@ function RunModal({
                         <button onClick={() => setPayItem(it)} className="text-berry hover:underline inline-flex items-center gap-1" title="Overtime, bonuses & deductions">
                           <Coins className="w-3.5 h-3.5" /> Pay details{extrasOf(it) || deductionsOf(it) ? " •" : ""}
                         </button>
+                        <button onClick={() => setPeriodItem(it)} className="text-inkSoft hover:text-ink inline-flex items-center gap-1" title="Payslip dates"><CalendarDays className="w-3.5 h-3.5" /></button>
                         <button onClick={() => removeLine(it)} className="text-inkSoft hover:text-coral" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
                       </span>
                     ) : run.status === "approved" ? (
                       <span className="inline-flex items-center gap-2">
                         <a href={payslipUrl(it)} target="_blank" rel="noopener noreferrer" className="text-berry hover:underline inline-flex items-center gap-1" title="Open payslip"><FileText className="w-3.5 h-3.5" /> Payslip</a>
-                        <button onClick={() => emailOne(it)} disabled={busy} className="text-berry hover:underline inline-flex items-center gap-1" title="Email payslip"><Mail className="w-3.5 h-3.5" /> Email</button>
+                        {it.payslip_emailed_at ? (
+                          <span className="text-green inline-flex items-center gap-1 text-xs font-semibold" title={`Emailed ${fmtDate(it.payslip_emailed_at.slice(0,10))}`}><Check className="w-3.5 h-3.5" /> Sent</span>
+                        ) : (
+                          <button onClick={() => emailOne(it)} disabled={busy} className="text-berry hover:underline inline-flex items-center gap-1" title="Email payslip"><Mail className="w-3.5 h-3.5" /> Email</button>
+                        )}
+                        <button onClick={() => setPeriodItem(it)} className="text-inkSoft hover:text-ink" title="Payslip dates"><CalendarDays className="w-3.5 h-3.5" /></button>
                         <button onClick={() => copyPayslip(it)} className="text-inkSoft hover:text-ink" aria-label="Copy payslip link"><Copy className="w-3.5 h-3.5" /></button>
                       </span>
                     ) : null}
@@ -1094,6 +1108,43 @@ function RunModal({
         <p className="mt-3 text-xs text-inkSoft">Voided: {run.void_reason}</p>
       ) : null}
       {payItem ? <PayDetailsModal item={payItem} onClose={() => setPayItem(null)} /> : null}
+      {periodItem ? <PeriodModal item={periodItem} runStart={run.period_start} runEnd={run.period_end} onClose={() => setPeriodItem(null)} /> : null}
+    </Modal>
+  );
+}
+
+function PeriodModal({ item, runStart, runEnd, onClose }: { item: Item; runStart: string; runEnd: string; onClose: () => void }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [start, setStart] = React.useState(item.payslip_period_start ?? runStart);
+  const [end, setEnd] = React.useState(item.payslip_period_end ?? runEnd);
+  const [busy, setBusy] = React.useState(false);
+
+  async function save(useOverride: boolean) {
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("set_payslip_period", {
+      p_item_id: item.id,
+      p_start: useOverride ? start : null,
+      p_end: useOverride ? end : null,
+    });
+    setBusy(false);
+    if (error) return toast.push(error.message, "error");
+    toast.push("Payslip dates updated", "success");
+    router.refresh();
+    onClose();
+  }
+
+  return (
+    <Modal open onClose={busy ? () => {} : onClose} title={`Payslip dates — ${item.name}`} size="sm"
+      footer={<><Button variant="ghost" onClick={() => save(false)} disabled={busy}>Reset to run dates</Button><Button onClick={() => save(true)} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}>
+      <div className="space-y-3">
+        <p className="text-xs text-inkSoft">Overrides the pay period shown on this person&rsquo;s payslip only. Doesn&rsquo;t change the amount.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1"><Label>Period start</Label><DateInput value={start} onChange={(e) => setStart(e.target.value)} disabled={busy} /></div>
+          <div className="space-y-1"><Label>Period end</Label><DateInput value={end} onChange={(e) => setEnd(e.target.value)} disabled={busy} /></div>
+        </div>
+      </div>
     </Modal>
   );
 }

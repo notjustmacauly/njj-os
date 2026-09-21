@@ -28,10 +28,11 @@ export async function POST(req: Request) {
   const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", user.id).single();
   if (roleRow?.role !== "owner") return NextResponse.json({ error: "Only the owner can email payslips." }, { status: 403 });
 
-  const gmailUser = process.env.GMAIL_USER;
-  const gmailPass = process.env.GMAIL_APP_PASSWORD;
+  // Prefer the payslip-specific vars; fall back to the shared billing ones.
+  const gmailUser = process.env.GMAIL_USER_MAC ?? process.env.GMAIL_USER;
+  const gmailPass = process.env.GMAIL_APP_PASSWORD_MAC ?? process.env.GMAIL_APP_PASSWORD;
   if (!gmailUser || !gmailPass) {
-    return NextResponse.json({ error: "Email isn't set up yet. Add GMAIL_USER and GMAIL_APP_PASSWORD in Netlify." }, { status: 400 });
+    return NextResponse.json({ error: "Email isn't set up yet. Add GMAIL_USER_MAC and GMAIL_APP_PASSWORD_MAC in Netlify." }, { status: 400 });
   }
 
   const body = (await req.json().catch(() => ({}))) as { itemId?: string };
@@ -103,5 +104,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Couldn't send: ${(e as Error).message}` }, { status: 502 });
   }
 
+  await supabase.from("payroll_items").update({ payslip_emailed_at: new Date().toISOString() }).eq("id", item.id);
   return NextResponse.json({ ok: true, sentTo: recipient });
 }
