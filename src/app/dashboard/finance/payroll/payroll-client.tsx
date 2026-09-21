@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Settings2, Trash2, CheckCircle2, XCircle, ChevronRight, FileText, Copy, Coins } from "lucide-react";
+import { Plus, Settings2, Trash2, CheckCircle2, XCircle, ChevronRight, FileText, Copy, Coins, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -66,6 +66,7 @@ export type PayPerson = {
   pay_type: "fixed" | "manual";
   default_amount: number;
   default_rate: number | null;
+  email: string | null;
   active: boolean;
 };
 
@@ -728,6 +729,7 @@ function PeopleEditor({ people, onChanged }: { people: PayPerson[]; onChanged: (
   const [payType, setPayType] = React.useState<"fixed" | "manual">("manual");
   const [amount, setAmount] = React.useState("");
   const [rate, setRate] = React.useState("");
+  const [email, setEmail] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
   async function add() {
@@ -737,11 +739,11 @@ function PeopleEditor({ people, onChanged }: { people: PayPerson[]; onChanged: (
     const { error } = await supabase.rpc("upsert_payroll_person", {
       p_id: null, p_name: name.trim(), p_pay_type: payType,
       p_default_amount: payType === "fixed" && amount ? Number(amount) : 0, p_active: true,
-      p_default_rate: rate ? Number(rate) : null,
+      p_default_rate: rate ? Number(rate) : null, p_email: email.trim() || null,
     });
     setBusy(false);
     if (error) return toast.push(error.message, "error");
-    setName(""); setAmount(""); setRate(""); setPayType("manual"); setAdding(false);
+    setName(""); setAmount(""); setRate(""); setEmail(""); setPayType("manual"); setAdding(false);
     onChanged();
   }
 
@@ -769,6 +771,10 @@ function PeopleEditor({ people, onChanged }: { people: PayPerson[]; onChanged: (
             <Label className="text-[10px]">₱/hour</Label>
             <NumberInput prefix="₱" min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} disabled={busy} className="w-28" />
           </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Payslip email</Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="for payslips" disabled={busy} className="w-44" />
+          </div>
           <Button onClick={add} disabled={busy || !name.trim()}>{busy ? "…" : "Add"}</Button>
           <Button variant="ghost" onClick={() => setAdding(false)} disabled={busy}>Cancel</Button>
         </div>
@@ -782,8 +788,9 @@ function PeopleEditor({ people, onChanged }: { people: PayPerson[]; onChanged: (
 function PersonRow({ person, onChanged }: { person: PayPerson; onChanged: () => void }) {
   const toast = useToast();
   const [rate, setRate] = React.useState(person.default_rate != null ? String(person.default_rate) : "");
+  const [email, setEmail] = React.useState(person.email ?? "");
   const [saving, setSaving] = React.useState(false);
-  const dirty = String(person.default_rate ?? "") !== rate;
+  const dirty = String(person.default_rate ?? "") !== rate || (person.email ?? "") !== email;
 
   async function saveRate() {
     setSaving(true);
@@ -791,7 +798,7 @@ function PersonRow({ person, onChanged }: { person: PayPerson; onChanged: () => 
     const { error } = await supabase.rpc("upsert_payroll_person", {
       p_id: person.id, p_name: person.name, p_pay_type: person.pay_type,
       p_default_amount: person.default_amount, p_active: person.active,
-      p_default_rate: rate ? Number(rate) : null,
+      p_default_rate: rate ? Number(rate) : null, p_email: email.trim() || null,
     });
     setSaving(false);
     if (error) return toast.push(error.message, "error");
@@ -815,6 +822,10 @@ function PersonRow({ person, onChanged }: { person: PayPerson; onChanged: () => 
       <div className="space-y-1">
         <Label className="text-[10px]">₱/hour (default)</Label>
         <NumberInput prefix="₱" min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} disabled={saving} className="w-28" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-[10px]">Payslip email</Label>
+        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="for payslips" disabled={saving} className="w-44" />
       </div>
       <Button variant="ghost" onClick={saveRate} disabled={saving || !dirty}>{saving ? "…" : "Save"}</Button>
       <button onClick={remove} className="text-inkSoft hover:text-coral pb-2" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
@@ -945,6 +956,31 @@ function RunModal({
       toast.push(payslipUrl(it), "success");
     }
   }
+  async function emailPayslip(it: Item): Promise<boolean> {
+    const res = await fetch("/api/payroll/email-payslip", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemId: it.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { toast.push(data?.error ?? "Couldn't send.", "error"); return false; }
+    return true;
+  }
+  async function emailOne(it: Item) {
+    setBusy(true);
+    const ok = await emailPayslip(it);
+    setBusy(false);
+    if (ok) toast.push(`Payslip emailed to ${it.name}`, "success");
+  }
+  async function emailAll() {
+    setBusy(true);
+    let sent = 0; const failed: string[] = [];
+    for (const it of rows) {
+      if (Number(it.net_amount || 0) === 0) continue;
+      const ok = await emailPayslip(it);
+      if (ok) sent++; else failed.push(it.name);
+    }
+    setBusy(false);
+    toast.push(`Emailed ${sent} payslip${sent === 1 ? "" : "s"}${failed.length ? ` · ${failed.length} skipped (no email): ${failed.join(", ")}` : ""}`, failed.length ? "error" : "success");
+  }
 
   return (
     <Modal
@@ -966,6 +1002,7 @@ function RunModal({
           <div className="flex items-center gap-2 w-full">
             <span className="text-sm text-inkSoft">Approved · {peso.format(run.total_amount ?? total)} posted to expenses</span>
             <div className="ml-auto flex gap-2">
+              <Button variant="ghost" onClick={emailAll} disabled={busy}><Mail className="w-4 h-4" /> Email all payslips</Button>
               <Button variant="dangerGhost" onClick={voidRun} disabled={busy}><XCircle className="w-4 h-4" /> Void run</Button>
               <Button variant="ghost" onClick={onClose}>Close</Button>
             </div>
@@ -1033,8 +1070,9 @@ function RunModal({
                         <button onClick={() => removeLine(it)} className="text-inkSoft hover:text-coral" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
                       </span>
                     ) : run.status === "approved" ? (
-                      <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-2">
                         <a href={payslipUrl(it)} target="_blank" rel="noopener noreferrer" className="text-berry hover:underline inline-flex items-center gap-1" title="Open payslip"><FileText className="w-3.5 h-3.5" /> Payslip</a>
+                        <button onClick={() => emailOne(it)} disabled={busy} className="text-berry hover:underline inline-flex items-center gap-1" title="Email payslip"><Mail className="w-3.5 h-3.5" /> Email</button>
                         <button onClick={() => copyPayslip(it)} className="text-inkSoft hover:text-ink" aria-label="Copy payslip link"><Copy className="w-3.5 h-3.5" /></button>
                       </span>
                     ) : null}

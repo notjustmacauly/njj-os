@@ -18,7 +18,7 @@ export default async function TeamPage() {
   const { data: members } = await supabase
     .from("team_members")
     .select(
-      "user_id, display_name, title, phone, photo_url, hire_date, status, notes, bank_name, account_number, account_name, sss_no, philhealth_no, tin_no, pagibig_no, pay_type, pay_rate, unpaid_break_min, hide_expense_amounts, attendance_supervisor",
+      "user_id, display_name, title, phone, photo_url, hire_date, status, notes, bank_name, account_number, account_name, payslip_email, sss_no, philhealth_no, tin_no, pagibig_no, pay_type, pay_rate, unpaid_break_min, hide_expense_amounts, attendance_supervisor",
     )
     .is("deleted_at", null)
     .order("display_name");
@@ -105,6 +105,7 @@ export default async function TeamPage() {
       bank_name: m.bank_name,
       account_number: m.account_number,
       account_name: m.account_name,
+      payslip_email: m.payslip_email,
       sss_no: m.sss_no,
       philhealth_no: m.philhealth_no,
       tin_no: m.tin_no,

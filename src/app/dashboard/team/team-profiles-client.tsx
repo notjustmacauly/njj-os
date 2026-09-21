@@ -40,6 +40,7 @@ export type Profile = {
   bank_name: string | null;
   account_number: string | null;
   account_name: string | null;
+  payslip_email: string | null;
   sss_no: string | null;
   philhealth_no: string | null;
   tin_no: string | null;
@@ -164,6 +165,7 @@ function ProfileModal({ p, onClose }: { p: Profile; onClose: () => void }) {
   const [bankName, setBankName] = React.useState(p.bank_name ?? "");
   const [accountNumber, setAccountNumber] = React.useState(p.account_number ?? "");
   const [accountName, setAccountName] = React.useState(p.account_name ?? "");
+  const [payslipEmail, setPayslipEmail] = React.useState(p.payslip_email ?? "");
   const [sss, setSss] = React.useState(p.sss_no ?? "");
   const [philhealth, setPhilhealth] = React.useState(p.philhealth_no ?? "");
   const [tin, setTin] = React.useState(p.tin_no ?? "");
@@ -184,6 +186,7 @@ function ProfileModal({ p, onClose }: { p: Profile; onClose: () => void }) {
         hire_date: hireDate || null,
         status,
         notes: notes.trim() || null,
+        payslip_email: payslipEmail.trim() || null,
         bank_name: bankName.trim() || null,
         account_number: accountNumber.trim() || null,
         account_name: accountName.trim() || null,
@@ -245,6 +248,11 @@ function ProfileModal({ p, onClose }: { p: Profile; onClose: () => void }) {
               </Select>
             </div>
             <div className="space-y-1"><Label>Photo URL</Label><Input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="optional link" disabled={busy} /></div>
+            <div className="space-y-1">
+              <Label>Payslip email</Label>
+              <Input type="email" value={payslipEmail} onChange={(e) => setPayslipEmail(e.target.value)} placeholder="private — where payslips are sent" disabled={busy} />
+              <p className="text-[11px] text-inkSoft">Payslips send here, not the login email.</p>
+            </div>
             <div className="space-y-1 sm:col-span-2"><Label>Bio / notes</Label><Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} disabled={busy} /></div>
           </div>
         </section>
