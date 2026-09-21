@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Settings2, Trash2, CheckCircle2, XCircle, ChevronRight, FileText, Copy } from "lucide-react";
+import { Plus, Settings2, Trash2, CheckCircle2, XCircle, ChevronRight, FileText, Copy, Coins } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -38,8 +38,14 @@ export type Item = {
   rate: number | null;
   hours: number;
   base_amount: number;
-  adjustment: number;
-  adjust_note: string | null;
+  overtime_pay: number;
+  bonuses: number;
+  tax: number;
+  philhealth: number;
+  sss: number;
+  pagibig: number;
+  absences: number;
+  other_deductions: number;
   net_amount: number;
   account_code: string | null;
   breakdown: BreakdownRow[] | null;
@@ -862,17 +868,21 @@ function RunModal({
   // the amounts here don't show a stale snapshot from when the modal opened.
   React.useEffect(() => { setRows(items); }, [items]);
 
-  const net = (it: Item) => Number(it.base_amount || 0) + Number(it.adjustment || 0);
+  const [payItem, setPayItem] = React.useState<Item | null>(null);
+  const net = (it: Item) => Number(it.net_amount || 0);
   const total = rows.reduce((s, it) => s + net(it), 0);
   const acctName = (code: string | null) => accounts.find((a) => a.code === code)?.name ?? code ?? "—";
   const dayCount = (it: Item) => (Array.isArray(it.breakdown) ? it.breakdown.length : 0);
+  const deductionsOf = (it: Item) =>
+    Number(it.tax || 0) + Number(it.philhealth || 0) + Number(it.sss || 0) + Number(it.pagibig || 0) + Number(it.absences || 0) + Number(it.other_deductions || 0);
+  const extrasOf = (it: Item) => Number(it.overtime_pay || 0) + Number(it.bonuses || 0);
 
   async function saveAccount(it: Item, code: string) {
     setRows((prev) => prev.map((x) => (x.id === it.id ? { ...x, account_code: code || null } : x)));
     const supabase = createClient();
     const { error } = await supabase.rpc("update_payroll_item", {
       p_item_id: it.id, p_hours: it.hours, p_rate: it.rate, p_base_amount: it.base_amount,
-      p_adjustment: it.adjustment, p_adjust_note: it.adjust_note, p_account_code: code || null,
+      p_adjustment: 0, p_adjust_note: null, p_account_code: code || null,
       p_breakdown: it.breakdown ?? [],
     });
     if (error) toast.push(error.message, "error");
@@ -1017,6 +1027,9 @@ function RunModal({
                             <FileText className="w-3.5 h-3.5" /> {days > 0 ? "Timesheet" : "Add timesheet"}
                           </button>
                         ) : null}
+                        <button onClick={() => setPayItem(it)} className="text-berry hover:underline inline-flex items-center gap-1" title="Overtime, bonuses & deductions">
+                          <Coins className="w-3.5 h-3.5" /> Pay details{extrasOf(it) || deductionsOf(it) ? " •" : ""}
+                        </button>
                         <button onClick={() => removeLine(it)} className="text-inkSoft hover:text-coral" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
                       </span>
                     ) : run.status === "approved" ? (
@@ -1042,6 +1055,87 @@ function RunModal({
       {run.status === "void" && run.void_reason ? (
         <p className="mt-3 text-xs text-inkSoft">Voided: {run.void_reason}</p>
       ) : null}
+      {payItem ? <PayDetailsModal item={payItem} onClose={() => setPayItem(null)} /> : null}
+    </Modal>
+  );
+}
+
+function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [ot, setOt] = React.useState(String(item.overtime_pay ?? 0));
+  const [bonus, setBonus] = React.useState(String(item.bonuses ?? 0));
+  const [tax, setTax] = React.useState(String(item.tax ?? 0));
+  const [ph, setPh] = React.useState(String(item.philhealth ?? 0));
+  const [sss, setSss] = React.useState(String(item.sss ?? 0));
+  const [pagibig, setPagibig] = React.useState(String(item.pagibig ?? 0));
+  const [absences, setAbsences] = React.useState(String(item.absences ?? 0));
+  const [other, setOther] = React.useState(String(item.other_deductions ?? 0));
+  const [busy, setBusy] = React.useState(false);
+  const n = (s: string) => Number(s) || 0;
+  const base = Number(item.base_amount || 0);
+  const gross = round2(base + n(ot) + n(bonus));
+  const totalDed = round2(n(tax) + n(ph) + n(sss) + n(pagibig) + n(absences) + n(other));
+  const netPay = round2(gross - totalDed);
+
+  async function save() {
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("set_payroll_pay_details", {
+      p_item_id: item.id, p_overtime: n(ot), p_bonuses: n(bonus),
+      p_tax: n(tax), p_philhealth: n(ph), p_sss: n(sss), p_pagibig: n(pagibig),
+      p_absences: n(absences), p_other: n(other),
+    });
+    setBusy(false);
+    if (error) return toast.push(error.message, "error");
+    toast.push("Pay details saved", "success");
+    router.refresh();
+    onClose();
+  }
+
+  const row = (label: string, value: string, set: (v: string) => void) => (
+    <div className="flex items-center justify-between gap-2">
+      <Label className="mb-0">{label}</Label>
+      <NumberInput prefix="₱" min="0" step="0.01" value={value} onChange={(e) => set(e.target.value)} disabled={busy} className="w-32 text-right" />
+    </div>
+  );
+
+  return (
+    <Modal open onClose={busy ? () => {} : onClose} title={`Pay details — ${item.name}`} size="md"
+      footer={<><Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}>
+      <div className="space-y-4">
+        <div>
+          <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-2">Earnings</div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-inkSoft">Base salary {item.pay_type === "hourly" ? "(from timesheet)" : item.pay_type === "fixed" ? "(fixed)" : ""}</span>
+              <span className="tabular-nums font-medium text-ink">{peso.format(base)}</span>
+            </div>
+            {row("Overtime pay", ot, setOt)}
+            {row("Bonuses", bonus, setBonus)}
+            <div className="flex items-center justify-between border-t border-border pt-2 text-sm font-semibold">
+              <span>Gross salary</span><span className="tabular-nums">{peso.format(gross)}</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-2">Deductions</div>
+          <div className="space-y-2">
+            {row("Taxes", tax, setTax)}
+            {row("PhilHealth", ph, setPh)}
+            {row("SSS", sss, setSss)}
+            {row("Pag-IBIG", pagibig, setPagibig)}
+            {row("Absences", absences, setAbsences)}
+            {row("Other deductions", other, setOther)}
+            <div className="flex items-center justify-between border-t border-border pt-2 text-sm font-semibold">
+              <span>Total deductions</span><span className="tabular-nums">{peso.format(totalDed)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between bg-cream/60 rounded-lg px-3 py-2 text-base font-bold text-ink">
+          <span>Net pay</span><span className="tabular-nums">{peso.format(netPay)}</span>
+        </div>
+      </div>
     </Modal>
   );
 }

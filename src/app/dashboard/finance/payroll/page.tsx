@@ -47,7 +47,7 @@ export default async function PayrollPage() {
   const { data: itemRows } = runIds.length
     ? await supabase
         .from("payroll_items")
-        .select("id, run_id, user_id, person_id, name, pay_type, rate, hours, base_amount, adjustment, adjust_note, net_amount, account_code, breakdown, share_token")
+        .select("id, run_id, user_id, person_id, name, pay_type, rate, hours, base_amount, overtime_pay, bonuses, tax, philhealth, sss, pagibig, absences, other_deductions, net_amount, account_code, breakdown, share_token")
         .in("run_id", runIds)
     : { data: [] as Item[] };
 

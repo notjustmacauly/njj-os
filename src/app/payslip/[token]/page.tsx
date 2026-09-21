@@ -6,31 +6,32 @@ import { PrintButton } from "./print-button";
 
 export const dynamic = "force-dynamic";
 
-type BreakdownRow = { label?: string; date?: string; start?: string; end?: string; hours?: number | string; rate?: number | string; amount?: number | string; break1h?: boolean };
 type Payslip = {
   run: { label: string; period_start: string; period_end: string; pay_date: string; status: string };
   name: string;
   pay_type: string;
   hours: number | string | null;
-  rate: number | string | null;
-  base_amount: number | string;
-  adjustment: number | string;
-  adjust_note: string | null;
-  net_amount: number | string;
-  breakdown: BreakdownRow[] | null;
   account_code: string | null;
   account_name: string | null;
+  base_amount: number | string;
+  overtime_pay: number | string;
+  bonuses: number | string;
+  tax: number | string;
+  philhealth: number | string;
+  sss: number | string;
+  pagibig: number | string;
+  absences: number | string;
+  other_deductions: number | string;
+  net_amount: number | string;
 };
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso + "T00:00:00+08:00").toLocaleDateString("en-US", {
-    timeZone: "Asia/Manila",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
+    timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric",
   });
 }
+const n = (v: number | string | null | undefined) => Number(v ?? 0);
 
 export default async function PayslipPage({ params }: { params: { token: string } }) {
   const supabase = await createClient();
@@ -42,24 +43,32 @@ export default async function PayslipPage({ params }: { params: { token: string 
       <div className="min-h-screen bg-cream flex items-center justify-center p-6">
         <div className="text-center">
           <p className="text-lg font-semibold text-ink">Payslip not found</p>
-          <p className="text-sm text-inkSoft mt-1">
-            This link may be incorrect or the run isn&rsquo;t finalised yet. Please contact {COMPANY.email}.
-          </p>
+          <p className="text-sm text-inkSoft mt-1">This link may be incorrect or the run isn&rsquo;t finalised yet. Please contact {COMPANY.email}.</p>
         </div>
       </div>
     );
   }
 
-  const breakdown = Array.isArray(p.breakdown) ? p.breakdown : [];
-  const hasBreakdown = breakdown.length > 0;
-  const adj = Number(p.adjustment ?? 0);
+  const gross = n(p.base_amount) + n(p.overtime_pay) + n(p.bonuses);
+  const totalDed = n(p.tax) + n(p.philhealth) + n(p.sss) + n(p.pagibig) + n(p.absences) + n(p.other_deductions);
+  const earnings: [string, number][] = [
+    ["Base salary", n(p.base_amount)],
+    ["Overtime pay", n(p.overtime_pay)],
+    ["Bonuses", n(p.bonuses)],
+  ];
+  const deductions: [string, number][] = [
+    ["Withholding tax", n(p.tax)],
+    ["PhilHealth", n(p.philhealth)],
+    ["SSS", n(p.sss)],
+    ["Pag-IBIG", n(p.pagibig)],
+    ["Absences", n(p.absences)],
+    ["Other deductions", n(p.other_deductions)],
+  ];
 
   return (
     <div className="min-h-screen bg-cream print:bg-white">
       <div className="max-w-2xl mx-auto p-4 print:p-0">
-        <div className="flex justify-end mb-3 print:hidden">
-          <PrintButton />
-        </div>
+        <div className="flex justify-end mb-3 print:hidden"><PrintButton /></div>
 
         <div className="bg-white border border-border rounded-xl shadow-card overflow-hidden print:border-0 print:shadow-none print:rounded-none">
           <div className="bg-salmon">
@@ -81,86 +90,62 @@ export default async function PayslipPage({ params }: { params: { token: string 
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 text-sm">
+            {/* Employee */}
+            <div className="grid grid-cols-2 gap-6 text-sm border-y border-border py-4">
               <div>
                 <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">Employee</div>
                 <div className="font-semibold text-ink text-base">{p.name}</div>
                 <div className="text-inkSoft capitalize">{p.pay_type} pay</div>
               </div>
-              {p.account_name ? (
-                <div className="text-right">
-                  <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">Paid via</div>
-                  <div className="text-ink">{p.account_name}</div>
-                </div>
-              ) : null}
+              <div className="text-right">
+                <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">Hours recorded</div>
+                <div className="text-ink">{p.hours != null && n(p.hours) > 0 ? `${n(p.hours).toFixed(2)} hrs` : "—"}</div>
+                {p.account_name ? <div className="text-inkSoft text-xs mt-1">Paid via {p.account_name}</div> : null}
+              </div>
             </div>
 
-            {/* Earnings */}
-            <div>
-              <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-2">Earnings</div>
-              <div className="border border-border rounded-lg overflow-hidden">
+            {/* Earnings + Deductions */}
+            <div className="grid sm:grid-cols-2 gap-6">
+              <div>
+                <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-2">Earnings</div>
                 <table className="w-full text-sm">
-                  <thead className="bg-cream text-inkSoft">
-                    <tr>
-                      <th className="text-left font-semibold px-3 py-2">Description</th>
-                      <th className="text-right font-semibold px-3 py-2">Hours</th>
-                      <th className="text-right font-semibold px-3 py-2">Rate</th>
-                      <th className="text-right font-semibold px-3 py-2">Amount</th>
+                  <tbody>
+                    {earnings.map(([label, amt]) => (
+                      <tr key={label}>
+                        <td className="py-1 text-inkSoft">{label}</td>
+                        <td className="py-1 text-right tabular-nums text-ink">{formatPHP(amt)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-border font-semibold">
+                      <td className="py-1.5 text-ink">Gross salary</td>
+                      <td className="py-1.5 text-right tabular-nums text-ink">{formatPHP(gross)}</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {hasBreakdown ? (
-                      breakdown.map((b, i) => {
-                        const desc =
-                          [b.date ? fmtDate(String(b.date)) : b.label, b.start && b.end ? `${b.start}–${b.end}` : null, b.break1h ? "−1h break" : null]
-                            .filter(Boolean)
-                            .join(" · ") || b.label || "Work";
-                        const netHours = Math.max(0, (Number(b.hours) || 0) - (b.break1h ? 1 : 0));
-                        return (
-                          <tr key={i}>
-                            <td className="px-3 py-2 text-ink">{desc}</td>
-                            <td className="px-3 py-2 text-right text-inkSoft">{b.hours != null && b.hours !== "" ? netHours : "—"}</td>
-                            <td className="px-3 py-2 text-right text-inkSoft">{b.rate != null && b.rate !== "" && Number(b.rate) > 0 ? formatPHP(Number(b.rate)) : "—"}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-ink">{formatPHP(Number(b.amount ?? 0))}</td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td className="px-3 py-2 text-ink">Base pay</td>
-                        <td className="px-3 py-2 text-right text-inkSoft">{p.pay_type === "hourly" && p.hours != null ? Number(p.hours) : "—"}</td>
-                        <td className="px-3 py-2 text-right text-inkSoft">{p.rate != null ? formatPHP(Number(p.rate)) : "—"}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-ink">{formatPHP(Number(p.base_amount ?? 0))}</td>
+                  </tbody>
+                </table>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-2">Deductions</div>
+                <table className="w-full text-sm">
+                  <tbody>
+                    {deductions.map(([label, amt]) => (
+                      <tr key={label}>
+                        <td className="py-1 text-inkSoft">{label}</td>
+                        <td className="py-1 text-right tabular-nums text-ink">{amt ? `− ${formatPHP(amt)}` : formatPHP(0)}</td>
                       </tr>
-                    )}
-                    {adj !== 0 ? (
-                      <tr>
-                        <td className="px-3 py-2 text-ink">{p.adjust_note || (adj > 0 ? "Addition" : "Deduction")}</td>
-                        <td className="px-3 py-2"></td>
-                        <td className="px-3 py-2"></td>
-                        <td className="px-3 py-2 text-right tabular-nums text-ink">{formatPHP(adj)}</td>
-                      </tr>
-                    ) : null}
+                    ))}
+                    <tr className="border-t border-border font-semibold">
+                      <td className="py-1.5 text-ink">Total deductions</td>
+                      <td className="py-1.5 text-right tabular-nums text-ink">{totalDed ? `− ${formatPHP(totalDed)}` : formatPHP(0)}</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
             </div>
 
             {/* Net */}
-            <div className="flex justify-end">
-              <div className="w-64 space-y-1">
-                <div className="flex justify-between text-sm text-inkSoft">
-                  <span>Base</span><span className="tabular-nums">{formatPHP(Number(p.base_amount ?? 0))}</span>
-                </div>
-                {adj !== 0 ? (
-                  <div className="flex justify-between text-sm text-inkSoft">
-                    <span>Adjustment</span><span className="tabular-nums">{formatPHP(adj)}</span>
-                  </div>
-                ) : null}
-                <div className="flex justify-between text-base font-bold text-ink border-t border-border pt-1">
-                  <span>Net pay</span><span className="tabular-nums">{formatPHP(Number(p.net_amount ?? 0))}</span>
-                </div>
-              </div>
+            <div className="flex items-center justify-between bg-cream rounded-lg px-4 py-3">
+              <span className="font-serif font-bold text-lg text-ink">Net pay</span>
+              <span className="font-bold text-xl text-ink tabular-nums">{formatPHP(n(p.net_amount))}</span>
             </div>
 
             <p className="text-[11px] text-inkSoft border-t border-border pt-3">
