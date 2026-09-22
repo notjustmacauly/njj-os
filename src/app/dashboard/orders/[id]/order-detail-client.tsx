@@ -683,6 +683,7 @@ export function OrderDetailClient({
           id: it.id,
           sku_code: it.sku_code,
           qty: it.qty,
+          preferred_batch_id: it.batch_id,
         }))}
         batchesBySku={deliverBatchesBySku}
         canOverride={canOverrideDelivery}

@@ -188,6 +188,12 @@ export default async function OrderDetailPage({
     if (!list.some((x) => x.id === it.batch_id)) {
       list.unshift({ id: b.id, external_id: b.external_id, remaining: 0 });
     }
+    // Same for the deliver picker, so the order's chosen batch can be
+    // pre-selected at delivery even if it's already depleted.
+    const dList = deliverBatchesBySku[it.sku_code] ?? (deliverBatchesBySku[it.sku_code] = []);
+    if (!dList.some((x) => x.id === it.batch_id)) {
+      dList.unshift({ id: b.id, external_id: b.external_id, remaining: 0, batch_date: "" });
+    }
   }
 
   return (

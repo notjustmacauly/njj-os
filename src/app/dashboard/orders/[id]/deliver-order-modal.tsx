@@ -24,6 +24,8 @@ type Item = {
   id: string;
   sku_code: string;
   qty: number;
+  /** The batch chosen on the order itself, if any — pre-selected at delivery. */
+  preferred_batch_id?: string | null;
 };
 
 type AllocationRow = {
@@ -51,6 +53,30 @@ function fifoFor(item: Item, batches: DeliverBatchOption[]): AllocationRow[] {
       qty: take,
     });
     need -= take;
+  }
+  return rows;
+}
+
+// What to pre-select for a line at delivery time. If a batch was already chosen
+// on the order, that batch is the default (take what it can cover, up to the
+// full qty even if it now reads short so it stays the visible pick), then FIFO
+// fills any shortfall from the other batches. With no chosen batch (e.g. orders
+// fulfilled from pre-system production), fall back to plain oldest-first FIFO.
+function seedFor(item: Item, batches: DeliverBatchOption[]): AllocationRow[] {
+  const preferred = item.preferred_batch_id
+    ? batches.find((b) => b.id === item.preferred_batch_id)
+    : undefined;
+  if (!preferred) return fifoFor(item, batches);
+
+  const rows: AllocationRow[] = [];
+  let need = item.qty;
+  const take = preferred.remaining > 0 ? Math.min(need, preferred.remaining) : need;
+  rows.push({ tempId: crypto.randomUUID(), batch_id: preferred.id, qty: take });
+  need -= take;
+
+  if (need > 0) {
+    const rest = fifoFor({ ...item, qty: need }, batches.filter((b) => b.id !== preferred.id));
+    rows.push(...rest);
   }
   return rows;
 }
@@ -86,11 +112,12 @@ export function DeliverOrderModal({
 
   React.useEffect(() => {
     if (!open) return;
-    // Seed FIFO defaults each time the modal opens.
+    // Seed defaults each time the modal opens: the batch chosen on the order
+    // (if any) is pre-selected, otherwise oldest-first FIFO.
     const seed: ItemAllocations = {};
     for (const it of items) {
       const opts = batchesBySku[it.sku_code] ?? [];
-      seed[it.id] = fifoFor(it, opts);
+      seed[it.id] = seedFor(it, opts);
     }
     setAllocs(seed);
     setOverride(false);
