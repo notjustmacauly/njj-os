@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Role } from "@/lib/roles";
-import { PayrollClient, type Run, type Item, type PayMember, type PayPerson } from "./payroll-client";
+import { PayrollClient, type Run, type Item, type PayMember, type PayPerson, type Advance } from "./payroll-client";
 
 export const dynamic = "force-dynamic";
 
@@ -44,12 +44,15 @@ export default async function PayrollPage() {
 
   const runList = (runs ?? []) as Run[];
   const runIds = runList.map((r) => r.id);
-  const { data: itemRows } = runIds.length
-    ? await supabase
-        .from("payroll_items")
-        .select("id, run_id, user_id, person_id, name, pay_type, rate, hours, base_amount, overtime_pay, bonuses, tax, philhealth, sss, pagibig, absences, other_deductions, net_amount, account_code, breakdown, share_token, payslip_emailed_at, payslip_period_start, payslip_period_end")
-        .in("run_id", runIds)
-    : { data: [] as Item[] };
+  const [{ data: itemRows }, { data: advanceRows }] = await Promise.all([
+    runIds.length
+      ? supabase
+          .from("payroll_items")
+          .select("id, run_id, user_id, person_id, name, pay_type, rate, hours, base_amount, overtime_pay, bonuses, tax, philhealth, sss, pagibig, absences, other_deductions, advance_repayment, advance_id, net_amount, account_code, breakdown, share_token, payslip_emailed_at, payslip_period_start, payslip_period_end")
+          .in("run_id", runIds)
+      : Promise.resolve({ data: [] as Item[] }),
+    supabase.rpc("list_cash_advances"),
+  ]);
 
   return (
     <PayrollClient
@@ -58,6 +61,7 @@ export default async function PayrollPage() {
       members={((members ?? []) as PayMember[]).filter((m) => (m.status ?? "active") === "active")}
       people={(people ?? []) as PayPerson[]}
       accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
+      advances={(advanceRows ?? []) as Advance[]}
     />
   );
 }

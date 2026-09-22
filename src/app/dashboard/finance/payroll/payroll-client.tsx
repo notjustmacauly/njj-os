@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Settings2, Trash2, CheckCircle2, XCircle, ChevronRight, FileText, Copy, Coins, Mail, Check, CalendarDays } from "lucide-react";
+import { Plus, Settings2, Trash2, CheckCircle2, XCircle, ChevronRight, FileText, Copy, Coins, Mail, Check, CalendarDays, HandCoins } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -46,6 +46,8 @@ export type Item = {
   pagibig: number;
   absences: number;
   other_deductions: number;
+  advance_repayment: number;
+  advance_id: string | null;
   net_amount: number;
   account_code: string | null;
   breakdown: BreakdownRow[] | null;
@@ -71,6 +73,19 @@ export type PayPerson = {
   default_rate: number | null;
   email: string | null;
   active: boolean;
+};
+export type Advance = {
+  id: string;
+  user_id: string | null;
+  person_id: string | null;
+  name: string;
+  principal: number;
+  balance: number;
+  installment: number;
+  advance_date: string;
+  account_code: string | null;
+  status: string;
+  notes: string | null;
 };
 
 const peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
@@ -101,15 +116,17 @@ export function PayrollClient({
   members,
   people,
   accounts,
+  advances,
 }: {
   runs: Run[];
   items: Item[];
   members: PayMember[];
   people: PayPerson[];
   accounts: Array<{ code: string; name: string }>;
+  advances: Advance[];
 }) {
   const router = useRouter();
-  const [tab, setTab] = React.useState<"runs" | "timesheet">("runs");
+  const [tab, setTab] = React.useState<"runs" | "timesheet" | "advances">("runs");
   const [showNew, setShowNew] = React.useState(false);
   const [showSetup, setShowSetup] = React.useState(false);
   const [openRun, setOpenRun] = React.useState<Run | null>(null);
@@ -179,22 +196,30 @@ export function PayrollClient({
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {(["runs", "timesheet"] as const).map((t) => (
+        {(["runs", "timesheet", "advances"] as const).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => { setTab(t); setTsPreset(null); }}
             className={cn(
-              "px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition capitalize",
+              "px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition",
               tab === t ? "text-berry border-berry" : "text-inkSoft border-transparent hover:text-ink",
             )}
           >
-            {t === "runs" ? "Payroll runs" : "Timesheet"}
+            {t === "runs" ? "Payroll runs" : t === "timesheet" ? "Timesheet" : "Cash advances"}
           </button>
         ))}
       </div>
 
-      {tab === "timesheet" ? (
+      {tab === "advances" ? (
+        <CashAdvancesTab
+          advances={advances}
+          members={members}
+          people={people}
+          accounts={accounts}
+          onChanged={() => router.refresh()}
+        />
+      ) : tab === "timesheet" ? (
         <TimesheetTab
           key={tsPreset ? `${tsPreset.subjectKey}:${tsPreset.targetRunId}` : "fresh"}
           members={members}
@@ -273,6 +298,7 @@ export function PayrollClient({
           run={openRun}
           items={itemsByRun.get(openRun.id) ?? []}
           accounts={accounts}
+          advances={advances}
           onClose={() => setOpenRun(null)}
           onChanged={() => { setOpenRun(null); router.refresh(); }}
           onEditTimesheet={(it) => editTimesheet(openRun, it)}
@@ -862,6 +888,7 @@ function RunModal({
   run,
   items,
   accounts,
+  advances,
   onClose,
   onChanged,
   onEditTimesheet,
@@ -869,6 +896,7 @@ function RunModal({
   run: Run;
   items: Item[];
   accounts: Array<{ code: string; name: string }>;
+  advances: Advance[];
   onClose: () => void;
   onChanged: () => void;
   onEditTimesheet: (it: Item) => void;
@@ -884,6 +912,11 @@ function RunModal({
 
   const [payItem, setPayItem] = React.useState<Item | null>(null);
   const [periodItem, setPeriodItem] = React.useState<Item | null>(null);
+  const [advItem, setAdvItem] = React.useState<Item | null>(null);
+  // Outstanding advances for a given line's subject.
+  const advancesFor = (it: Item) =>
+    advances.filter((a) => a.status === "outstanding" &&
+      ((it.user_id && a.user_id === it.user_id) || (it.person_id && a.person_id === it.person_id)));
   const net = (it: Item) => Number(it.net_amount || 0);
   const total = rows.reduce((s, it) => s + net(it), 0);
   const acctName = (code: string | null) => accounts.find((a) => a.code === code)?.name ?? code ?? "—";
@@ -1075,6 +1108,11 @@ function RunModal({
                         <button onClick={() => setPayItem(it)} className="text-berry hover:underline inline-flex items-center gap-1" title="Overtime, bonuses & deductions">
                           <Coins className="w-3.5 h-3.5" /> Pay details{extrasOf(it) || deductionsOf(it) ? " •" : ""}
                         </button>
+                        {advancesFor(it).length > 0 || Number(it.advance_repayment || 0) > 0 ? (
+                          <button onClick={() => setAdvItem(it)} className="text-berry hover:underline inline-flex items-center gap-1" title="Apply cash advance repayment">
+                            <HandCoins className="w-3.5 h-3.5" /> Advance{Number(it.advance_repayment || 0) > 0 ? ` −${peso.format(Number(it.advance_repayment))}` : ""}
+                          </button>
+                        ) : null}
                         <button onClick={() => setPeriodItem(it)} className="text-inkSoft hover:text-ink inline-flex items-center gap-1" title="Payslip dates"><CalendarDays className="w-3.5 h-3.5" /></button>
                         <button onClick={() => removeLine(it)} className="text-inkSoft hover:text-coral" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
                       </span>
@@ -1109,6 +1147,7 @@ function RunModal({
       ) : null}
       {payItem ? <PayDetailsModal item={payItem} onClose={() => setPayItem(null)} /> : null}
       {periodItem ? <PeriodModal item={periodItem} runStart={run.period_start} runEnd={run.period_end} onClose={() => setPeriodItem(null)} /> : null}
+      {advItem ? <AdvanceApplyModal item={advItem} advances={advancesFor(advItem)} onClose={() => setAdvItem(null)} /> : null}
     </Modal>
   );
 }
@@ -1163,8 +1202,9 @@ function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void })
   const [busy, setBusy] = React.useState(false);
   const n = (s: string) => Number(s) || 0;
   const base = Number(item.base_amount || 0);
+  const advance = Number(item.advance_repayment || 0);
   const gross = round2(base + n(ot) + n(bonus));
-  const totalDed = round2(n(tax) + n(ph) + n(sss) + n(pagibig) + n(absences) + n(other));
+  const totalDed = round2(n(tax) + n(ph) + n(sss) + n(pagibig) + n(absences) + n(other) + advance);
   const netPay = round2(gross - totalDed);
 
   async function save() {
@@ -1216,6 +1256,12 @@ function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void })
             {row("Pag-IBIG", pagibig, setPagibig)}
             {row("Absences", absences, setAbsences)}
             {row("Other deductions", other, setOther)}
+            {advance > 0 ? (
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-inkSoft">Cash advance repayment <span className="text-[10px]">(set in Advance)</span></span>
+                <span className="tabular-nums font-medium text-ink">−{peso.format(advance)}</span>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between border-t border-border pt-2 text-sm font-semibold">
               <span>Total deductions</span><span className="tabular-nums">{peso.format(totalDed)}</span>
             </div>
@@ -1226,5 +1272,228 @@ function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void })
         </div>
       </div>
     </Modal>
+  );
+}
+
+/* --------------------------------------------------------------- Cash advances */
+function AdvanceApplyModal({ item, advances, onClose }: { item: Item; advances: Advance[]; onClose: () => void }) {
+  const router = useRouter();
+  const toast = useToast();
+  const options = advances; // already filtered to this subject's outstanding advances
+  const [advId, setAdvId] = React.useState<string>(item.advance_id ?? options[0]?.id ?? "");
+  const sel = options.find((a) => a.id === advId);
+  const [amount, setAmount] = React.useState<string>(() => {
+    if (Number(item.advance_repayment || 0) > 0) return String(item.advance_repayment);
+    const a = options[0];
+    return a ? String(round2(Math.min(Number(a.installment || 0) || Number(a.balance), Number(a.balance)))) : "";
+  });
+  const [busy, setBusy] = React.useState(false);
+
+  function pick(id: string) {
+    setAdvId(id);
+    const a = options.find((x) => x.id === id);
+    if (a) setAmount(String(round2(Math.min(Number(a.installment || 0) || Number(a.balance), Number(a.balance)))));
+  }
+
+  async function apply(clear: boolean) {
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("set_payroll_advance", {
+      p_item_id: item.id,
+      p_advance_id: clear ? null : (advId || null),
+      p_amount: clear ? 0 : (Number(amount) || 0),
+    });
+    setBusy(false);
+    if (error) return toast.push(error.message, "error");
+    toast.push(clear ? "Advance repayment cleared" : "Advance repayment applied", "success");
+    router.refresh();
+    onClose();
+  }
+
+  return (
+    <Modal open onClose={busy ? () => {} : onClose} title={`Cash advance — ${item.name}`} size="sm"
+      footer={<>
+        <Button variant="ghost" onClick={() => apply(true)} disabled={busy}>Clear</Button>
+        <Button onClick={() => apply(false)} disabled={busy || !advId}>{busy ? "Saving…" : "Apply"}</Button>
+      </>}>
+      <div className="space-y-3">
+        {options.length === 0 ? (
+          <p className="text-sm text-inkSoft">No outstanding advance for this person. Record one in the Cash advances tab first.</p>
+        ) : (
+          <>
+            <div className="space-y-1">
+              <Label>Advance</Label>
+              <Select value={advId} onChange={(e) => pick(e.target.value)} disabled={busy}>
+                {options.map((a) => (
+                  <option key={a.id} value={a.id}>{fmtDate(a.advance_date)} · {peso.format(a.principal)} · {peso.format(a.balance)} left</option>
+                ))}
+              </Select>
+            </div>
+            {sel ? <p className="text-xs text-inkSoft">Balance {peso.format(sel.balance)} · usual tranche {peso.format(Number(sel.installment || 0))}</p> : null}
+            <div className="space-y-1">
+              <Label>Repay this run</Label>
+              <NumberInput prefix="₱" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={busy} className="text-right" />
+              {sel && Number(amount) > Number(sel.balance) ? <p className="text-[11px] text-yellow">Will be capped at the {peso.format(sel.balance)} remaining.</p> : null}
+            </div>
+            <p className="text-xs text-inkSoft">Shows as a &ldquo;Cash advance repayment&rdquo; deduction on the payslip and lowers net pay. Recorded against the advance when you approve the run.</p>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function CashAdvancesTab({ advances, members, people, accounts, onChanged }: {
+  advances: Advance[];
+  members: PayMember[];
+  people: PayPerson[];
+  accounts: Array<{ code: string; name: string }>;
+  onChanged: () => void;
+}) {
+  const toast = useToast();
+  const [adding, setAdding] = React.useState(false);
+  const [subject, setSubject] = React.useState("");
+  const [amount, setAmount] = React.useState("");
+  const [date, setDate] = React.useState(phToday());
+  const [installment, setInstallment] = React.useState("");
+  const [account, setAccount] = React.useState("");
+  const [notes, setNotes] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+
+  async function create() {
+    if (!subject) return toast.push("Pick a person", "error");
+    if (!(Number(amount) > 0)) return toast.push("Enter an amount", "error");
+    if (!account) return toast.push("Pick a paying account", "error");
+    const [kind, id] = subject.split(":");
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("create_cash_advance", {
+      p_user_id: kind === "m" ? id : null,
+      p_person_id: kind === "p" ? id : null,
+      p_amount: Number(amount),
+      p_advance_date: date,
+      p_installment: Number(installment) || 0,
+      p_account_code: account,
+      p_notes: notes.trim() || null,
+    });
+    setBusy(false);
+    if (error) return toast.push(error.message, "error");
+    toast.push("Cash advance recorded · posted to ledger", "success");
+    setAdding(false); setSubject(""); setAmount(""); setInstallment(""); setNotes("");
+    onChanged();
+  }
+
+  async function voidAdv(a: Advance) {
+    if (!confirm(`Void the ${peso.format(a.principal)} advance for ${a.name}? Its ledger expense will be reversed.`)) return;
+    const reason = prompt("Reason for voiding?") ?? "";
+    const supabase = createClient();
+    const { error } = await supabase.rpc("void_cash_advance", { p_id: a.id, p_reason: reason });
+    if (error) return toast.push(error.message, "error");
+    toast.push("Advance voided", "success");
+    onChanged();
+  }
+
+  const acctName = (code: string | null) => accounts.find((a) => a.code === code)?.name ?? code ?? "—";
+  const outstanding = advances.filter((a) => a.status === "outstanding");
+  const settled = advances.filter((a) => a.status === "settled");
+
+  const rowFor = (a: Advance) => (
+    <tr key={a.id} className="hover:bg-cream/40">
+      <td className="px-3 py-2 font-medium text-ink">{a.name}</td>
+      <td className="px-3 py-2 text-inkSoft">{fmtDate(a.advance_date)}</td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums text-inkSoft">{peso.format(a.principal)}</td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums font-semibold text-ink">{peso.format(a.balance)}</td>
+      <td className="px-3 py-2 text-right font-mono tabular-nums text-inkSoft">{a.installment ? peso.format(a.installment) : "—"}</td>
+      <td className="px-3 py-2 text-inkSoft text-xs">{acctName(a.account_code)}</td>
+      <td className="px-3 py-2 text-right">
+        {a.status === "outstanding" && Number(a.balance) === Number(a.principal) ? (
+          <button onClick={() => voidAdv(a)} className="text-inkSoft hover:text-coral" aria-label="Void advance"><XCircle className="w-4 h-4" /></button>
+        ) : a.status === "settled" ? (
+          <span className="text-[11px] font-semibold text-green">settled</span>
+        ) : null}
+      </td>
+    </tr>
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-inkSoft">Loans to staff, repaid in fixed tranches from future payslips. Recording one posts the cash out to the ledger.</p>
+        <Button onClick={() => setAdding((v) => !v)}><Plus className="w-4 h-4" /> Record advance</Button>
+      </div>
+
+      {adding ? (
+        <div className="bg-white border border-border rounded-lg shadow-card p-4 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label>Person</Label>
+              <Select value={subject} onChange={(e) => setSubject(e.target.value)} disabled={busy}>
+                <option value="">— choose —</option>
+                {members.length ? <optgroup label="On-system team">{members.map((m) => <option key={m.user_id} value={`m:${m.user_id}`}>{m.display_name}</option>)}</optgroup> : null}
+                {people.length ? <optgroup label="Production / off-system">{people.map((p) => <option key={p.id} value={`p:${p.id}`}>{p.name}</option>)}</optgroup> : null}
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Paying account</Label>
+              <Select value={account} onChange={(e) => setAccount(e.target.value)} disabled={busy}>
+                <option value="">— choose —</option>
+                {accounts.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Amount</Label>
+              <NumberInput prefix="₱" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={busy} className="text-right" />
+            </div>
+            <div className="space-y-1">
+              <Label>Tranche per pay run</Label>
+              <NumberInput prefix="₱" min="0" step="0.01" value={installment} onChange={(e) => setInstallment(e.target.value)} disabled={busy} className="text-right" placeholder="e.g. 500" />
+            </div>
+            <div className="space-y-1">
+              <Label>Date given</Label>
+              <DateInput value={date} onChange={(e) => setDate(e.target.value)} disabled={busy} />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label>Notes</Label>
+              <Input value={notes} onChange={(e) => setNotes(e.target.value)} disabled={busy} placeholder="optional" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setAdding(false)} disabled={busy}>Cancel</Button>
+            <Button onClick={create} disabled={busy}>{busy ? "Saving…" : "Record & post"}</Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-cream text-inkSoft">
+            <tr>
+              <th className="text-left font-semibold px-3 py-2">Person</th>
+              <th className="text-left font-semibold px-3 py-2">Given</th>
+              <th className="text-right font-semibold px-3 py-2">Principal</th>
+              <th className="text-right font-semibold px-3 py-2">Balance</th>
+              <th className="text-right font-semibold px-3 py-2">Tranche</th>
+              <th className="text-left font-semibold px-3 py-2">From</th>
+              <th className="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {advances.length === 0 ? (
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-inkSoft">No cash advances yet.</td></tr>
+            ) : (
+              <>
+                {outstanding.map(rowFor)}
+                {settled.length ? (
+                  <>
+                    <tr className="bg-cream/40"><td colSpan={7} className="px-3 py-1.5 text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">Settled</td></tr>
+                    {settled.map(rowFor)}
+                  </>
+                ) : null}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

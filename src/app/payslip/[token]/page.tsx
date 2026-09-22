@@ -22,6 +22,7 @@ type Payslip = {
   pagibig: number | string;
   absences: number | string;
   other_deductions: number | string;
+  advance_repayment: number | string;
   net_amount: number | string;
 };
 
@@ -50,7 +51,7 @@ export default async function PayslipPage({ params }: { params: { token: string 
   }
 
   const gross = n(p.base_amount) + n(p.overtime_pay) + n(p.bonuses);
-  const totalDed = n(p.tax) + n(p.philhealth) + n(p.sss) + n(p.pagibig) + n(p.absences) + n(p.other_deductions);
+  const totalDed = n(p.tax) + n(p.philhealth) + n(p.sss) + n(p.pagibig) + n(p.absences) + n(p.other_deductions) + n(p.advance_repayment);
   const earnings: [string, number][] = [
     ["Base salary", n(p.base_amount)],
     ["Overtime pay", n(p.overtime_pay)],
@@ -63,6 +64,7 @@ export default async function PayslipPage({ params }: { params: { token: string 
     ["Pag-IBIG", n(p.pagibig)],
     ["Absences", n(p.absences)],
     ["Other deductions", n(p.other_deductions)],
+    ["Cash advance repayment", n(p.advance_repayment)],
   ];
 
   return (

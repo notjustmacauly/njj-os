@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Role } from "@/lib/roles";
-import { TeamProfilesClient, type Profile, type Payslip, type Incident, type Hours, type TaskStats } from "./team-profiles-client";
+import { TeamProfilesClient, type Profile, type Payslip, type Incident, type Hours, type TaskStats, type OffPerson, type Advance } from "./team-profiles-client";
 
 export const dynamic = "force-dynamic";
 
@@ -78,18 +78,61 @@ export default async function TeamPage() {
     });
   }
 
-  // HR / incident log.
+  // HR / incident log (keyed by team member OR off-system person).
   const { data: incRows } = await supabase
     .from("hr_incidents")
-    .select("id, user_id, kind, title, details, occurred_on, severity")
+    .select("id, user_id, person_id, kind, title, details, occurred_on, severity")
     .is("deleted_at", null)
     .order("occurred_on", { ascending: false });
   const incByUser = new Map<string, Incident[]>();
+  const incByPerson = new Map<string, Incident[]>();
   for (const i of (incRows ?? []) as Incident[]) {
-    const list = incByUser.get(i.user_id) ?? [];
-    list.push(i);
-    incByUser.set(i.user_id, list);
+    if (i.user_id) {
+      const list = incByUser.get(i.user_id) ?? [];
+      list.push(i);
+      incByUser.set(i.user_id, list);
+    } else if (i.person_id) {
+      const list = incByPerson.get(i.person_id) ?? [];
+      list.push(i);
+      incByPerson.set(i.person_id, list);
+    }
   }
+
+  // Off-system people (production staff) + their payslips, incidents, advances.
+  const { data: peopleRows } = await supabase
+    .from("payroll_people")
+    .select("id, name, title, phone, hire_date, active, notes, email, pay_type, default_amount, default_rate, sss_no, philhealth_no, tin_no, pagibig_no")
+    .is("deleted_at", null)
+    .order("name");
+  const { data: personSlipRows } = await supabase
+    .from("payroll_items")
+    .select("share_token, net_amount, person_id, payroll_runs!inner(label, pay_date, status)")
+    .not("person_id", "is", null)
+    .eq("payroll_runs.status", "approved");
+  const slipsByPerson = new Map<string, Payslip[]>();
+  for (const s of (personSlipRows ?? []) as unknown as Array<{
+    share_token: string; net_amount: number | string; person_id: string;
+    payroll_runs: { label: string; pay_date: string } | { label: string; pay_date: string }[];
+  }>) {
+    const run = Array.isArray(s.payroll_runs) ? s.payroll_runs[0] : s.payroll_runs;
+    const list = slipsByPerson.get(s.person_id) ?? [];
+    list.push({ token: s.share_token, amount: Number(s.net_amount), label: run?.label ?? "", pay_date: run?.pay_date ?? "" });
+    slipsByPerson.set(s.person_id, list);
+  }
+  const { data: advRows } = await supabase.rpc("list_cash_advances");
+  const advByPerson = new Map<string, Advance[]>();
+  for (const a of (advRows ?? []) as Array<{ id: string; person_id: string | null; principal: number; balance: number; installment: number; advance_date: string; status: string }>) {
+    if (!a.person_id) continue;
+    const list = advByPerson.get(a.person_id) ?? [];
+    list.push({ id: a.id, principal: Number(a.principal), balance: Number(a.balance), installment: Number(a.installment), advance_date: a.advance_date, status: a.status });
+    advByPerson.set(a.person_id, list);
+  }
+  const offPeople: OffPerson[] = ((peopleRows ?? []) as unknown as Array<Omit<OffPerson, "payslips" | "incidents" | "advances">>).map((m) => ({
+    ...m,
+    payslips: (slipsByPerson.get(m.id) ?? []).sort((a, b) => (a.pay_date < b.pay_date ? 1 : -1)),
+    incidents: incByPerson.get(m.id) ?? [],
+    advances: advByPerson.get(m.id) ?? [],
+  }));
 
   const profiles: Profile[] = rows.map((m) => {
     const slips = (slipsByUser.get(m.user_id) ?? []).sort((a, b) => (a.pay_date < b.pay_date ? 1 : -1));
@@ -124,5 +167,5 @@ export default async function TeamPage() {
     };
   });
 
-  return <TeamProfilesClient profiles={profiles} adminAvailable={admin !== null} />;
+  return <TeamProfilesClient profiles={profiles} offPeople={offPeople} adminAvailable={admin !== null} />;
 }

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Shield, Wallet, User as UserIcon, Clock, IdCard, ClipboardList, Trash2, Plus, ListChecks } from "lucide-react";
+import { FileText, Shield, Wallet, User as UserIcon, Clock, IdCard, ClipboardList, Trash2, Plus, ListChecks, HandCoins } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
@@ -21,7 +21,8 @@ export type Hours = { month_minutes: number; total_minutes: number; shifts: numb
 export type TaskStats = { open: number; completed: number; completed_dated: number; ontime: number; overdue_open: number };
 export type Incident = {
   id: string;
-  user_id: string;
+  user_id: string | null;
+  person_id?: string | null;
   kind: "incident" | "concern" | "performance" | "commendation" | "note";
   title: string;
   details: string | null;
@@ -58,6 +59,28 @@ export type Profile = {
   taskStats: TaskStats | null;
 };
 
+export type Advance = { id: string; principal: number; balance: number; installment: number; advance_date: string; status: string };
+export type OffPerson = {
+  id: string;
+  name: string;
+  title: string | null;
+  phone: string | null;
+  hire_date: string | null;
+  active: boolean;
+  notes: string | null;
+  email: string | null;
+  pay_type: string;
+  default_amount: number;
+  default_rate: number | null;
+  sss_no: string | null;
+  philhealth_no: string | null;
+  tin_no: string | null;
+  pagibig_no: string | null;
+  payslips: Payslip[];
+  incidents: Incident[];
+  advances: Advance[];
+};
+
 const ROLE_OPTIONS: Role[] = ["owner", "partner", "manager", "staff", "marketing"];
 const STATUS_OPTIONS = ["active", "on_leave", "inactive"];
 const peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
@@ -87,8 +110,9 @@ const KIND_TONE: Record<string, string> = {
 };
 const KIND_OPTIONS = ["note", "concern", "incident", "performance", "commendation"] as const;
 
-export function TeamProfilesClient({ profiles, adminAvailable }: { profiles: Profile[]; adminAvailable: boolean }) {
+export function TeamProfilesClient({ profiles, offPeople = [], adminAvailable }: { profiles: Profile[]; offPeople?: OffPerson[]; adminAvailable: boolean }) {
   const [open, setOpen] = React.useState<Profile | null>(null);
+  const [openOff, setOpenOff] = React.useState<OffPerson | null>(null);
   return (
     <div className="space-y-6">
       <div>
@@ -141,8 +165,150 @@ export function TeamProfilesClient({ profiles, adminAvailable }: { profiles: Pro
         </table>
       </div>
 
+      {/* Production / off-system staff — paper timekeeping, no login. */}
+      <div>
+        <h2 className="font-serif font-bold text-xl text-ink">Production &amp; off-system staff</h2>
+        <p className="text-sm text-inkSoft mt-1 mb-3">Paper timekeeping, no login. Their HR file, gov IDs, payslips, and cash advances live here.</p>
+        <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-cream text-inkSoft">
+              <tr>
+                <th className="text-left font-semibold px-4 py-2">Name</th>
+                <th className="text-left font-semibold px-4 py-2">Title</th>
+                <th className="text-left font-semibold px-4 py-2">Status</th>
+                <th className="text-right font-semibold px-4 py-2">Advance balance</th>
+                <th className="text-right font-semibold px-4 py-2">Payslips</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {offPeople.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-inkSoft">No off-system staff yet. Add them in Payroll → Pay setup.</td></tr>
+              ) : offPeople.map((p) => {
+                const bal = p.advances.filter((a) => a.status === "outstanding").reduce((s, a) => s + Number(a.balance), 0);
+                return (
+                  <tr key={p.id} className="hover:bg-cream/40 cursor-pointer" onClick={() => setOpenOff(p)}>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-8 h-8 rounded-full bg-cream flex items-center justify-center text-xs font-bold text-inkSoft">{initials(p.name)}</span>
+                        <div className="font-medium text-ink">{p.name}</div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-inkSoft">{p.title ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-inkSoft">{p.active ? "active" : "inactive"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-ink">{bal > 0 ? peso.format(bal) : "—"}</td>
+                    <td className="px-4 py-2.5 text-right text-inkSoft">{p.payslips.length}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {open ? <ProfileModal p={open} onClose={() => setOpen(null)} /> : null}
+      {openOff ? <OffPersonModal p={openOff} onClose={() => setOpenOff(null)} /> : null}
     </div>
+  );
+}
+
+function OffPersonModal({ p, onClose }: { p: OffPerson; onClose: () => void }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [title, setTitle] = React.useState(p.title ?? "");
+  const [phone, setPhone] = React.useState(p.phone ?? "");
+  const [hireDate, setHireDate] = React.useState(p.hire_date ?? "");
+  const [sss, setSss] = React.useState(p.sss_no ?? "");
+  const [philhealth, setPhilhealth] = React.useState(p.philhealth_no ?? "");
+  const [tin, setTin] = React.useState(p.tin_no ?? "");
+  const [pagibig, setPagibig] = React.useState(p.pagibig_no ?? "");
+  const [busy, setBusy] = React.useState(false);
+
+  async function saveProfile() {
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("set_payroll_person_profile", {
+      p_id: p.id, p_title: title.trim() || null, p_phone: phone.trim() || null,
+      p_hire_date: hireDate || null, p_sss_no: sss.trim() || null,
+      p_philhealth_no: philhealth.trim() || null, p_tin_no: tin.trim() || null, p_pagibig_no: pagibig.trim() || null,
+    });
+    setBusy(false);
+    if (error) return toast.push(error.message, "error");
+    toast.push("Profile saved", "success");
+    router.refresh();
+  }
+
+  const outstanding = p.advances.filter((a) => a.status === "outstanding");
+
+  return (
+    <Modal open onClose={busy ? () => {} : onClose} title={p.name} description="Off-system staff · paper timekeeping" size="lg"
+      footer={<><Button variant="ghost" onClick={onClose} disabled={busy}>Close</Button><Button onClick={saveProfile} disabled={busy}>{busy ? "Saving…" : "Save profile"}</Button></>}>
+      <div className="space-y-6">
+        {/* Identity */}
+        <section>
+          <h3 className="font-serif font-bold text-base text-ink mb-2">Identity &amp; contact</h3>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <div className="space-y-1"><Label>Title / role</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} disabled={busy} placeholder="e.g. Production staff" /></div>
+            <div className="space-y-1"><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={busy} /></div>
+            <div className="space-y-1"><Label>Hire date</Label><DateInput value={hireDate} onChange={(e) => setHireDate(e.target.value)} disabled={busy} /></div>
+          </div>
+          <p className="text-xs text-inkSoft mt-2">Name, pay setup and payslip email are managed in Payroll → Pay setup.</p>
+        </section>
+
+        {/* Government IDs */}
+        <section>
+          <h3 className="font-serif font-bold text-base text-ink mb-2">Government IDs</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="space-y-1"><Label>SSS no.</Label><Input value={sss} onChange={(e) => setSss(e.target.value)} disabled={busy} /></div>
+            <div className="space-y-1"><Label>PhilHealth no.</Label><Input value={philhealth} onChange={(e) => setPhilhealth(e.target.value)} disabled={busy} /></div>
+            <div className="space-y-1"><Label>TIN</Label><Input value={tin} onChange={(e) => setTin(e.target.value)} disabled={busy} /></div>
+            <div className="space-y-1"><Label>Pag-IBIG no.</Label><Input value={pagibig} onChange={(e) => setPagibig(e.target.value)} disabled={busy} /></div>
+          </div>
+        </section>
+
+        {/* Cash advances */}
+        <section>
+          <h3 className="flex items-center gap-1.5 font-serif font-bold text-base text-ink mb-2"><HandCoins className="w-4 h-4" /> Cash advances</h3>
+          {p.advances.length === 0 ? (
+            <p className="text-sm text-inkSoft">No cash advances. Record one in Payroll → Cash advances.</p>
+          ) : (
+            <div className="border border-border rounded-lg divide-y divide-border">
+              {p.advances.map((a) => (
+                <div key={a.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                  <span className="text-ink">{fmtDate(a.advance_date)} · {peso.format(a.principal)}</span>
+                  <span className="flex items-center gap-3">
+                    <span className="tabular-nums text-inkSoft">{peso.format(a.balance)} left</span>
+                    <span className={cn("text-[11px] font-semibold", a.status === "settled" ? "text-green" : "text-yellow")}>{a.status}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {outstanding.length > 0 ? (
+            <p className="text-xs text-inkSoft mt-1">Repayments are deducted on payslips in each pay run.</p>
+          ) : null}
+        </section>
+
+        {/* Payslips */}
+        <section>
+          <h3 className="flex items-center gap-1.5 font-serif font-bold text-base text-ink mb-2"><FileText className="w-4 h-4" /> Payslips</h3>
+          {p.payslips.length === 0 ? (
+            <p className="text-sm text-inkSoft">No payslips yet.</p>
+          ) : (
+            <div className="border border-border rounded-lg divide-y divide-border">
+              {p.payslips.map((s) => (
+                <a key={s.token} href={`/payslip/${s.token}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between px-3 py-2 text-sm hover:bg-cream/40">
+                  <span className="text-ink">{s.label || fmtDate(s.pay_date)}</span>
+                  <span className="flex items-center gap-3"><span className="tabular-nums font-mono text-ink">{peso.format(s.amount)}</span><span className="text-berry inline-flex items-center gap-1"><FileText className="w-3.5 h-3.5" /> Open</span></span>
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* HR & incidents */}
+        <IncidentsSection personId={p.id} incidents={p.incidents} />
+      </div>
+    </Modal>
   );
 }
 
@@ -416,7 +582,7 @@ function ProfileModal({ p, onClose }: { p: Profile; onClose: () => void }) {
   );
 }
 
-function IncidentsSection({ userId, incidents }: { userId: string; incidents: Incident[] }) {
+function IncidentsSection({ userId, personId, incidents }: { userId?: string | null; personId?: string | null; incidents: Incident[] }) {
   const router = useRouter();
   const toast = useToast();
   const [adding, setAdding] = React.useState(false);
@@ -432,7 +598,7 @@ function IncidentsSection({ userId, incidents }: { userId: string; incidents: In
     setBusy(true);
     const supabase = createClient();
     const { error } = await supabase.rpc("add_hr_incident", {
-      p_user_id: userId, p_kind: kind, p_title: title.trim(),
+      p_user_id: userId ?? null, p_person_id: personId ?? null, p_kind: kind, p_title: title.trim(),
       p_details: details.trim() || null, p_occurred_on: when || null, p_severity: severity || null,
     });
     setBusy(false);
