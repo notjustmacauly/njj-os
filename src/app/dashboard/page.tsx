@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatPHP } from "@/lib/utils";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { hasRole, OWNER_PARTNER, type Role } from "@/lib/roles";
-import { MyDayCard, type MyTask } from "./my-day-card";
+import { MyDayCard, type MyTask, type MyEvent } from "./my-day-card";
 import type { ChecklistItem } from "./my-checklist";
 import { ActionCenter, type ActionItem } from "./action-center";
 
@@ -69,12 +69,16 @@ export default async function DashboardPage() {
       )
     : 0;
 
-  // My Day: my current shift + my open tasks + my personal checklist.
+  // My Day: my current shift + my open tasks + my personal checklist +
+  // upcoming events I'm tagged in.
   let myShift: { id: string; clock_in_at: string } | null = null;
   let myTasks: MyTask[] = [];
   let myChecklist: ChecklistItem[] = [];
+  let myEvents: MyEvent[] = [];
   if (user) {
-    const [{ data: s }, { data: ts }, { data: cl }] = await Promise.all([
+    // Show events that haven't ended yet — from the start of today onwards.
+    const todayStart = new Date(today + "T00:00:00+08:00").toISOString();
+    const [{ data: s }, { data: ts }, { data: cl }, { data: ev }] = await Promise.all([
       supabase.from("attendance").select("id, clock_in_at").eq("user_id", user.id).is("clock_out_at", null).maybeSingle(),
       supabase
         .from("tasks")
@@ -88,10 +92,20 @@ export default async function DashboardPage() {
         .select("id, title, cadence, weekday, completed_at, last_done_on")
         .is("deleted_at", null)
         .order("created_at", { ascending: true }),
+      supabase
+        .from("calendar_event_attendees")
+        .select("event:calendar_events!inner(id, title, event_type, starts_at, ends_at, all_day, location, deleted_at)")
+        .eq("user_id", user.id),
     ]);
     myShift = (s as { id: string; clock_in_at: string } | null) ?? null;
     myTasks = ((ts ?? []) as MyTask[]).filter((t) => t.status !== "done" && t.status !== "posted");
     myChecklist = (cl ?? []) as ChecklistItem[];
+    type EvJoin = { event: (MyEvent & { deleted_at: string | null }) | (MyEvent & { deleted_at: string | null })[] | null };
+    myEvents = ((ev ?? []) as unknown as EvJoin[])
+      .map((r) => (Array.isArray(r.event) ? r.event[0] : r.event))
+      .filter((e): e is MyEvent & { deleted_at: string | null } =>
+        !!e && e.deleted_at == null && (e.ends_at ?? e.starts_at) >= todayStart)
+      .sort((a, b) => (a.starts_at < b.starts_at ? -1 : a.starts_at > b.starts_at ? 1 : 0));
   }
 
   // Action center — role-based "needs your attention" counts. Counts only
@@ -150,7 +164,7 @@ export default async function DashboardPage() {
 
       {canBilling ? <ActionCenter items={actions} /> : null}
 
-      <MyDayCard openShift={myShift} tasks={myTasks} checklist={myChecklist} />
+      <MyDayCard openShift={myShift} tasks={myTasks} checklist={myChecklist} events={myEvents} />
 
       {isMarketing ? null : (
       <>

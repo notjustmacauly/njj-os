@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Clock, LogIn, LogOut, ArrowRight } from "lucide-react";
+import { LogIn, LogOut, ArrowRight, CalendarDays, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -18,6 +18,42 @@ export type MyTask = {
   due_date: string | null;
   post_date: string | null;
 };
+
+export type MyEvent = {
+  id: string;
+  title: string;
+  event_type: string;
+  starts_at: string;
+  ends_at: string | null;
+  all_day: boolean;
+  location: string | null;
+};
+
+const EVENT_TYPE_LABEL: Record<string, string> = {
+  meeting: "Meeting",
+  event: "Event",
+  marketing: "Marketing",
+  holiday: "Holiday",
+  deadline: "Deadline",
+  other: "Event",
+};
+
+function formatEventWhen(e: MyEvent): string {
+  const d = new Date(e.starts_at);
+  const day = d.toLocaleDateString("en-PH", {
+    timeZone: "Asia/Manila",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  if (e.all_day) return `${day} · all day`;
+  const time = d.toLocaleTimeString("en-PH", {
+    timeZone: "Asia/Manila",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${day} · ${time}`;
+}
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending",
@@ -49,10 +85,12 @@ export function MyDayCard({
   openShift,
   tasks,
   checklist,
+  events = [],
 }: {
   openShift: { id: string; clock_in_at: string } | null;
   tasks: MyTask[];
   checklist: ChecklistItem[];
+  events?: MyEvent[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -141,6 +179,43 @@ export function MyDayCard({
         )}
       </div>
     </div>
+
+    {/* My upcoming events — events I've been tagged in */}
+    {events.length > 0 ? (
+      <div className="bg-white border border-border rounded-lg shadow-card p-4">
+        <div className="flex items-center justify-between">
+          <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft inline-flex items-center gap-1.5">
+            <CalendarDays className="w-3.5 h-3.5" /> My upcoming events
+          </div>
+          <Link href="/dashboard/calendar" className="text-xs font-semibold text-berry hover:underline inline-flex items-center gap-1">
+            Calendar <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+        <ul className="mt-2 divide-y divide-border">
+          {events.slice(0, 5).map((e) => (
+            <li key={e.id}>
+              <Link href="/dashboard/calendar" className="flex items-center justify-between gap-3 py-2 hover:text-berry">
+                <span className="min-w-0">
+                  <span className="block truncate text-sm text-ink">{e.title}</span>
+                  {e.location ? (
+                    <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-inkSoft">
+                      <MapPin className="w-3 h-3" /> {e.location}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-xs text-inkSoft">{formatEventWhen(e)}</span>
+                  <span className="text-[10px] uppercase tracking-smallcaps font-semibold text-berry">
+                    {EVENT_TYPE_LABEL[e.event_type] ?? "Event"}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ) : null}
+
     <MyChecklist initialItems={checklist} />
     </div>
   );
