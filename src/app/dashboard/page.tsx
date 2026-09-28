@@ -43,10 +43,11 @@ export default async function DashboardPage() {
     { count: openShifts },
     balancesRes,
   ] = await Promise.all([
-    supabase.from("orders").select("*", { count: "exact", head: true }),
+    supabase.from("orders").select("*", { count: "exact", head: true }).is("deleted_at", null),
     supabase
       .from("orders")
       .select("*", { count: "exact", head: true })
+      .is("deleted_at", null)
       .eq("fulfillment_status", "Pending"),
     supabase
       .from("tickets")

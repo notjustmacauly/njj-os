@@ -125,18 +125,22 @@ export default async function OrdersListPage({
     supabase
       .from("orders")
       .select("*", { count: "exact", head: true })
+      .is("deleted_at", null)
       .eq("fulfillment_status", "Pending"),
     supabase
       .from("orders")
       .select("*", { count: "exact", head: true })
+      .is("deleted_at", null)
       .eq("payment_status", "Pending"),
     supabase
       .from("orders")
       .select("*", { count: "exact", head: true })
+      .is("deleted_at", null)
       .eq("payment_status", "Receivable"),
     supabase
       .from("orders")
       .select("*", { count: "exact", head: true })
+      .is("deleted_at", null)
       .eq("payment_status", "Billed"),
   ]);
 
@@ -144,6 +148,7 @@ export default async function OrdersListPage({
   const { data: pendingCansRows } = await supabase
     .from("orders")
     .select("pcl_qty, acg_qty, wpm_qty")
+    .is("deleted_at", null)
     .in("fulfillment_status", ["Pending", "Packed"]);
   const pendingCans = (pendingCansRows ?? []).reduce(
     (acc, r) => ({
@@ -171,7 +176,8 @@ export default async function OrdersListPage({
     .select(
       "id, external_id, order_date, channel, partner_id, partner:partners(name, pays_on_delivery), customer_name, pcl_qty, acg_qty, wpm_qty, total, payment_status, fulfillment_status",
       { count: "exact" },
-    );
+    )
+    .is("deleted_at", null);
 
   if (!searchAllDates) {
     listQuery = listQuery.gte("order_date", from).lte("order_date", to);
