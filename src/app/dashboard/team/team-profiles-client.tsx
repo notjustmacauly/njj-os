@@ -16,7 +16,8 @@ import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/roles";
 
-export type Payslip = { token: string; amount: number; label: string; pay_date: string };
+export type TsDay = { label?: string; date?: string; start?: string; end?: string; break1h?: boolean; hours?: number | string; rate?: number | string; amount?: number | string };
+export type Payslip = { token: string; amount: number; label: string; pay_date: string; breakdown?: TsDay[] | null };
 export type Hours = { month_minutes: number; total_minutes: number; shifts: number; last_shift: string | null };
 export type TaskStats = { open: number; completed: number; completed_dated: number; ontime: number; overdue_open: number };
 export type Incident = {
@@ -288,21 +289,10 @@ function OffPersonModal({ p, onClose }: { p: OffPerson; onClose: () => void }) {
           ) : null}
         </section>
 
-        {/* Payslips */}
+        {/* Payslips + internal timesheet basis */}
         <section>
           <h3 className="flex items-center gap-1.5 font-serif font-bold text-base text-ink mb-2"><FileText className="w-4 h-4" /> Payslips</h3>
-          {p.payslips.length === 0 ? (
-            <p className="text-sm text-inkSoft">No payslips yet.</p>
-          ) : (
-            <div className="border border-border rounded-lg divide-y divide-border">
-              {p.payslips.map((s) => (
-                <a key={s.token} href={`/payslip/${s.token}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between px-3 py-2 text-sm hover:bg-cream/40">
-                  <span className="text-ink">{s.label || fmtDate(s.pay_date)}</span>
-                  <span className="flex items-center gap-3"><span className="tabular-nums font-mono text-ink">{peso.format(s.amount)}</span><span className="text-berry inline-flex items-center gap-1"><FileText className="w-3.5 h-3.5" /> Open</span></span>
-                </a>
-              ))}
-            </div>
-          )}
+          <PayslipList slips={p.payslips} />
         </section>
 
         {/* HR & incidents */}
@@ -555,30 +545,85 @@ function ProfileModal({ p, onClose }: { p: Profile; onClose: () => void }) {
           </div>
         </section>
 
-        {/* Payslips */}
+        {/* Payslips + internal timesheet basis */}
         <section>
           <h3 className="flex items-center gap-1.5 font-serif font-bold text-base text-ink mb-2"><FileText className="w-4 h-4" /> Payslips</h3>
-          {p.payslips.length === 0 ? (
-            <p className="text-sm text-inkSoft">No payslips yet — they appear here once a run they&rsquo;re in is approved.</p>
-          ) : (
-            <div className="border border-border rounded-lg divide-y divide-border">
-              {p.payslips.map((s) => (
-                <a key={s.token} href={`/payslip/${s.token}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between px-3 py-2 text-sm hover:bg-cream/40">
-                  <span className="text-ink">{s.label || fmtDate(s.pay_date)}</span>
-                  <span className="flex items-center gap-3">
-                    <span className="tabular-nums font-mono text-ink">{peso.format(s.amount)}</span>
-                    <span className="text-berry inline-flex items-center gap-1"><FileText className="w-3.5 h-3.5" /> Open</span>
-                  </span>
-                </a>
-              ))}
-            </div>
-          )}
+          <PayslipList slips={p.payslips} />
         </section>
 
         {/* HR & incidents */}
         <IncidentsSection userId={p.user_id} incidents={p.incidents} />
       </div>
     </Modal>
+  );
+}
+
+const nnum = (v: number | string | null | undefined) => Number(v ?? 0);
+
+// Payslip history + the internal timesheet basis (owner-only; never on the
+// shared payslip itself).
+function PayslipList({ slips }: { slips: Payslip[] }) {
+  if (slips.length === 0) {
+    return <p className="text-sm text-inkSoft">No payslips yet — they appear here once a run they&rsquo;re in is approved.</p>;
+  }
+  return (
+    <div className="border border-border rounded-lg divide-y divide-border">
+      {slips.map((s) => {
+        const days = Array.isArray(s.breakdown) ? s.breakdown : [];
+        const tsHours = days.reduce((a, d) => a + nnum(d.hours), 0);
+        return (
+          <div key={s.token}>
+            <div className="flex items-center justify-between px-3 py-2 text-sm">
+              <span className="text-ink">{s.label || fmtDate(s.pay_date)}</span>
+              <span className="flex items-center gap-3">
+                <span className="tabular-nums font-mono text-ink">{peso.format(s.amount)}</span>
+                <a href={`/payslip/${s.token}`} target="_blank" rel="noopener noreferrer" className="text-berry inline-flex items-center gap-1"><FileText className="w-3.5 h-3.5" /> Open</a>
+              </span>
+            </div>
+            {days.length > 0 ? (
+              <details className="px-3 pb-2">
+                <summary className="cursor-pointer text-xs text-inkSoft hover:text-ink inline-flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> Timesheet basis (internal) · {days.length} day{days.length > 1 ? "s" : ""}
+                </summary>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="text-inkSoft">
+                      <tr className="border-b border-border">
+                        <th className="text-left font-semibold py-1 pr-2">Date</th>
+                        <th className="text-left font-semibold py-1 px-2">In</th>
+                        <th className="text-left font-semibold py-1 px-2">Out</th>
+                        <th className="text-center font-semibold py-1 px-2">Break</th>
+                        <th className="text-right font-semibold py-1 px-2">Hours</th>
+                        <th className="text-right font-semibold py-1 px-2">Rate</th>
+                        <th className="text-right font-semibold py-1 pl-2">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {days.map((d, i) => (
+                        <tr key={i}>
+                          <td className="py-1 pr-2 text-ink whitespace-nowrap">{d.label ?? fmtDate(d.date ?? null)}</td>
+                          <td className="py-1 px-2 text-inkSoft">{d.start || "—"}</td>
+                          <td className="py-1 px-2 text-inkSoft">{d.end || "—"}</td>
+                          <td className="py-1 px-2 text-center text-inkSoft">{d.break1h ? "−1h" : "—"}</td>
+                          <td className="py-1 px-2 text-right tabular-nums text-ink">{nnum(d.hours) > 0 ? nnum(d.hours).toFixed(2) : "—"}</td>
+                          <td className="py-1 px-2 text-right tabular-nums text-inkSoft">{nnum(d.rate) > 0 ? peso.format(nnum(d.rate)) : "—"}</td>
+                          <td className="py-1 pl-2 text-right tabular-nums text-ink">{peso.format(nnum(d.amount))}</td>
+                        </tr>
+                      ))}
+                      <tr className="border-t border-border font-semibold">
+                        <td className="py-1 pr-2" colSpan={4}>Total</td>
+                        <td className="py-1 px-2 text-right tabular-nums">{tsHours.toFixed(2)}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

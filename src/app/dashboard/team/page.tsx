@@ -44,20 +44,20 @@ export default async function TeamPage() {
     );
   }
 
-  // Payslips: approved run lines per person.
+  // Payslips: approved run lines per person (+ the internal timesheet basis).
   const { data: slipRows } = await supabase
     .from("payroll_items")
-    .select("share_token, net_amount, user_id, payroll_runs!inner(label, pay_date, status)")
+    .select("share_token, net_amount, user_id, breakdown, payroll_runs!inner(label, pay_date, status)")
     .not("user_id", "is", null)
     .eq("payroll_runs.status", "approved");
   const slipsByUser = new Map<string, Payslip[]>();
   for (const s of (slipRows ?? []) as unknown as Array<{
-    share_token: string; net_amount: number | string; user_id: string;
+    share_token: string; net_amount: number | string; user_id: string; breakdown: Payslip["breakdown"];
     payroll_runs: { label: string; pay_date: string } | { label: string; pay_date: string }[];
   }>) {
     const run = Array.isArray(s.payroll_runs) ? s.payroll_runs[0] : s.payroll_runs;
     const list = slipsByUser.get(s.user_id) ?? [];
-    list.push({ token: s.share_token, amount: Number(s.net_amount), label: run?.label ?? "", pay_date: run?.pay_date ?? "" });
+    list.push({ token: s.share_token, amount: Number(s.net_amount), label: run?.label ?? "", pay_date: run?.pay_date ?? "", breakdown: s.breakdown });
     slipsByUser.set(s.user_id, list);
   }
 
@@ -106,17 +106,17 @@ export default async function TeamPage() {
     .order("name");
   const { data: personSlipRows } = await supabase
     .from("payroll_items")
-    .select("share_token, net_amount, person_id, payroll_runs!inner(label, pay_date, status)")
+    .select("share_token, net_amount, person_id, breakdown, payroll_runs!inner(label, pay_date, status)")
     .not("person_id", "is", null)
     .eq("payroll_runs.status", "approved");
   const slipsByPerson = new Map<string, Payslip[]>();
   for (const s of (personSlipRows ?? []) as unknown as Array<{
-    share_token: string; net_amount: number | string; person_id: string;
+    share_token: string; net_amount: number | string; person_id: string; breakdown: Payslip["breakdown"];
     payroll_runs: { label: string; pay_date: string } | { label: string; pay_date: string }[];
   }>) {
     const run = Array.isArray(s.payroll_runs) ? s.payroll_runs[0] : s.payroll_runs;
     const list = slipsByPerson.get(s.person_id) ?? [];
-    list.push({ token: s.share_token, amount: Number(s.net_amount), label: run?.label ?? "", pay_date: run?.pay_date ?? "" });
+    list.push({ token: s.share_token, amount: Number(s.net_amount), label: run?.label ?? "", pay_date: run?.pay_date ?? "", breakdown: s.breakdown });
     slipsByPerson.set(s.person_id, list);
   }
   const { data: advRows } = await supabase.rpc("list_cash_advances");
