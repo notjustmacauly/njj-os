@@ -216,10 +216,7 @@ export function Sidebar({ role, email }: { role: Role; email: string }) {
         <div className="px-3 pt-2">
           <Link
             href="/dashboard/website"
-            className={cn(
-              "flex items-center justify-between gap-2 bg-berry text-white px-4 py-3 rounded-lg font-bold text-sm shadow-card hover:bg-berry/90 transition",
-              pathname.startsWith("/dashboard/website") && "ring-2 ring-berry/30 ring-offset-2",
-            )}
+            className="flex items-center justify-between gap-2 bg-berry text-white px-4 py-3 rounded-lg font-bold text-sm shadow-card hover:bg-berry/90 transition"
           >
             <span className="flex items-center gap-2">
               <Globe className="w-4 h-4" />

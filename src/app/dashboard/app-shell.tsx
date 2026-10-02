@@ -7,6 +7,7 @@ import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/roles";
 import { Sidebar } from "./sidebar";
+import { WebsiteSidebar } from "./website/website-sidebar";
 import { NotificationsBell } from "./notifications-bell";
 import { RegisterSW } from "./register-sw";
 import { VersionWatcher } from "./version-watcher";
@@ -68,6 +69,9 @@ export function AppShell({
   }, [navOpen]);
 
   const displayName = displayNameFromEmail(email);
+  // The Website studio is its own workspace: it swaps the whole OS sidebar
+  // for its own, with a "Back to Operations" exit.
+  const websiteMode = pathname === "/dashboard/website" || pathname.startsWith("/dashboard/website/");
 
   return (
     <div className="min-h-dvh flex flex-col lg:flex-row bg-cream">
@@ -85,10 +89,10 @@ export function AppShell({
           <Menu className="w-5 h-5" />
         </button>
         <Link
-          href="/dashboard"
+          href={websiteMode ? "/dashboard/website" : "/dashboard"}
           className="font-serif font-bold text-ink text-base tracking-tight"
         >
-          NJJ OS
+          {websiteMode ? "NotJust Website" : "NJJ OS"}
         </Link>
         <div className="ml-auto flex items-center gap-1">
           <NotificationsBell role={role} />
@@ -126,11 +130,18 @@ export function AppShell({
           type="button"
           onClick={() => setNavOpen(false)}
           aria-label="Close menu"
-          className="lg:hidden absolute top-2 right-2 z-10 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-md text-inkSoft hover:bg-cream touch-manipulation"
+          className={cn(
+            "lg:hidden absolute top-2 right-2 z-10 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-md touch-manipulation",
+            websiteMode ? "text-white/60 hover:bg-white/10" : "text-inkSoft hover:bg-cream",
+          )}
         >
           <X className="w-4 h-4" />
         </button>
-        <Sidebar role={role} email={email} />
+        {websiteMode ? (
+          <WebsiteSidebar role={role} email={email} />
+        ) : (
+          <Sidebar role={role} email={email} />
+        )}
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col">
