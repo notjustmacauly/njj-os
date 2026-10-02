@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Shop",
-  description: "Cold-pressed juice packs — 4-packs and 7-day sets, delivered fresh.",
+  description: "Cold-pressed collagen juice in 4, 7 and 28-can packs — pick any mix of flavours, delivered fresh.",
 };
 
 export default async function ShopPage() {
@@ -22,8 +22,8 @@ export default async function ShopPage() {
       <header className="mb-8">
         <h1 className="font-display text-3xl sm:text-4xl font-semibold text-ink">Shop</h1>
         <p className="text-inkSoft mt-2">
-          Cold-pressed 330&nbsp;ml cans with high-protein collagen — in 4-packs and
-          7-day sets, delivered fresh.
+          Cold-pressed 330&nbsp;ml cans with high-protein collagen. Pick a pack, then go
+          all in on one flavour or mix your own.
         </p>
       </header>
 

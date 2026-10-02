@@ -4,9 +4,11 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { COMPANY } from "@/lib/company";
 import { formatPHP } from "@/lib/utils";
-import { flavorArt } from "../../_components/flavor";
-import type { CatalogItem } from "../../_components/product-card";
+import { flavorArt, MIX_GRADIENT } from "../../_components/flavor";
+import { MixCans, type CatalogItem } from "../../_components/product-card";
+import { PackBuilder, type Flavor } from "../../_components/pack-builder";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +31,7 @@ export async function generateMetadata({
   if (!product) return { title: "Not found" };
   return {
     title: product.name,
-    description: product.subtitle
-      ? `${product.name} — ${product.subtitle} of ${product.flavor_name}. Delivered fresh.`
-      : product.name,
+    description: `${product.name} — ${product.cans_per_unit} cold-pressed collagen juices, your choice of flavours. Delivered fresh.`,
   };
 }
 
@@ -43,9 +43,20 @@ export default async function ProductDetailPage({
   const product = await getProduct(params.slug);
   if (!product) notFound();
 
+  const supabase = await createClient();
+  const { data: flavorRows } = await supabase.from("web_flavors").select("code, name, cans_available");
+  // A single-SKU pack only offers its own flavour; mix packs offer them all.
+  const ORDER = ["PCL", "ACG", "WPM"];
+  const rank = (c: string) => (ORDER.indexOf(c) + 1 || 99);
+  const flavors = ((flavorRows ?? []) as Flavor[])
+    .filter((f) => !product.sku_code || f.code === product.sku_code)
+    .sort((a, b) => rank(a.code) - rank(b.code));
+
+  const isMix = !product.sku_code;
   const art = flavorArt(product.sku_code);
+  const deliveries = product.deliveries ?? 1;
+  const perDelivery = product.cans_per_unit / deliveries;
   const soldOut = product.packs_available <= 0;
-  const low = !soldOut && product.packs_available <= 5;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -57,9 +68,9 @@ export default async function ProductDetailPage({
         Back to shop
       </Link>
 
-      <div className="grid gap-8 md:grid-cols-2">
+      <div className="grid gap-8 md:grid-cols-2 md:items-start">
         {/* Art */}
-        <div className={`relative aspect-square rounded-3xl bg-gradient-to-br ${art.gradient} overflow-hidden`}>
+        <div className={`group relative aspect-square rounded-3xl bg-gradient-to-br ${isMix ? MIX_GRADIENT : art.gradient} overflow-hidden md:sticky md:top-24`}>
           {product.image_url ? (
             <Image
               src={product.image_url}
@@ -69,6 +80,8 @@ export default async function ProductDetailPage({
               priority
               className="object-contain p-10 drop-shadow-[0_25px_35px_rgba(26,19,15,0.25)]"
             />
+          ) : isMix ? (
+            <MixCans large />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-[8rem] opacity-80">
               <span aria-hidden>{art.emoji}</span>
@@ -86,12 +99,13 @@ export default async function ProductDetailPage({
           <h1 className="font-display text-3xl sm:text-4xl font-semibold text-ink mt-1">
             {product.name}
           </h1>
-          <p className="text-inkSoft mt-1">{product.flavor_name}</p>
 
-          <div className="mt-4 flex items-baseline gap-3">
+          <div className="mt-3 flex items-baseline gap-3">
             <span className="text-2xl text-ink font-semibold tabular-nums">{formatPHP(product.price)}</span>
             <span className="text-sm text-inkSoft">
-              {product.cans_per_unit} × 330&nbsp;ml cans
+              {deliveries > 1
+                ? `${perDelivery} cans a week × ${deliveries} weeks`
+                : `${product.cans_per_unit} × 330 ml cans`}
             </span>
           </div>
 
@@ -110,40 +124,27 @@ export default async function ProductDetailPage({
             <p className="text-ink/80 leading-relaxed mt-5">{product.description}</p>
           ) : null}
 
-          <div className="mt-5 text-sm">
-            {soldOut ? (
-              <span className="inline-flex items-center rounded-full bg-ink/10 text-ink px-3 py-1 font-semibold">
-                Sold out
-              </span>
-            ) : low ? (
-              <span className="inline-flex items-center rounded-full bg-salmonBg text-coral px-3 py-1 font-semibold">
-                Only {product.packs_available} left
-              </span>
-            ) : (
-              <span className="inline-flex items-center rounded-full bg-berryBg text-berry px-3 py-1 font-semibold">
-                In stock
-              </span>
-            )}
-          </div>
-
-          {/* Checkout lands in the next phase. */}
-          <div className="mt-8">
-            <button
-              type="button"
-              disabled
-              className="w-full sm:w-auto inline-flex items-center justify-center rounded-full bg-ink/10 text-inkSoft font-semibold px-6 py-3 cursor-not-allowed"
-              title="Online checkout is coming soon"
-            >
-              Add to cart — coming soon
-            </button>
-            <p className="text-xs text-inkSoft mt-2">
-              Online ordering launches shortly. For now, message us at{" "}
-              <span className="text-ink">notjustgroup@gmail.com</span> to order.
-            </p>
-          </div>
+          {soldOut ? (
+            <div className="mt-6 rounded-2xl bg-ink/5 px-4 py-3 text-sm text-ink">
+              <span className="font-semibold">Sold out for now.</span> We press in small batches — check back soon.
+            </div>
+          ) : (
+            <PackBuilder
+              packName={product.name}
+              cansPerUnit={product.cans_per_unit}
+              deliveries={deliveries}
+              price={Number(product.price)}
+              deliveryFee={Number(product.delivery_fee ?? 0)}
+              flavors={flavors}
+              orderEmail={COMPANY.email}
+            />
+          )}
 
           <div className="mt-8 border-t border-border pt-5 text-sm text-inkSoft space-y-1">
-            <p>🚚 Delivered fresh across the metro (delivery fee at checkout).</p>
+            <p>
+              🚚 Delivered fresh across the metro — {formatPHP(product.delivery_fee ?? 0)} per delivery
+              {deliveries > 1 ? ", every week for four weeks" : ""}.
+            </p>
             <p>❄️ Cold-pressed in small batches — keep chilled, drink fresh.</p>
           </div>
         </div>

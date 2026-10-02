@@ -23,6 +23,8 @@ export type WebProductRow = {
   description: string | null;
   sku_code: string | null;
   cans_per_unit: number;
+  deliveries: number;
+  delivery_fee: number | string;
   price: number | string;
   image_url: string | null;
   badge: string | null;
@@ -109,7 +111,7 @@ export function WebProductsClient({
               <tr className="text-left">
                 <th className="px-4 py-2 font-semibold w-16">Image</th>
                 <th className="px-4 py-2 font-semibold">Product</th>
-                <th className="px-4 py-2 font-semibold w-24">Flavour</th>
+                <th className="px-4 py-2 font-semibold w-24">Flavours</th>
                 <th className="px-4 py-2 font-semibold w-20 text-right">Cans</th>
                 <th className="px-4 py-2 font-semibold w-24 text-right">Price</th>
                 <th className="px-4 py-2 font-semibold w-28">Stock</th>
@@ -138,8 +140,15 @@ export function WebProductsClient({
                         {[r.subtitle, r.badge].filter(Boolean).join(" · ") || r.slug}
                       </div>
                     </td>
-                    <td className="px-4 py-2 text-xs text-inkSoft">{r.sku_code ?? "—"}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{r.cans_per_unit}</td>
+                    <td className="px-4 py-2 text-xs text-inkSoft">{r.sku_code ?? "Mix"}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {r.cans_per_unit}
+                      {r.deliveries > 1 ? (
+                        <div className="text-[10px] text-inkSoft">
+                          {r.cans_per_unit / r.deliveries}/wk × {r.deliveries}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-2 text-right tabular-nums">{formatPHP(r.price)}</td>
                     <td className="px-4 py-2 text-xs">
                       {!r.is_published ? (
@@ -241,8 +250,10 @@ function ProductFormModal({
   const [slugTouched, setSlugTouched] = React.useState(mode === "edit");
   const [subtitle, setSubtitle] = React.useState(row?.subtitle ?? "");
   const [description, setDescription] = React.useState(row?.description ?? "");
-  const [skuCode, setSkuCode] = React.useState(row?.sku_code ?? skus[0]?.code ?? "");
+  const [skuCode, setSkuCode] = React.useState(row ? row.sku_code ?? "" : "");
   const [cans, setCans] = React.useState(String(row?.cans_per_unit ?? 4));
+  const [deliveries, setDeliveries] = React.useState(String(row?.deliveries ?? 1));
+  const [deliveryFee, setDeliveryFee] = React.useState(String(Number(row?.delivery_fee ?? 50)));
   const [price, setPrice] = React.useState(String(Number(row?.price ?? 0)));
   const [badge, setBadge] = React.useState(row?.badge ?? "");
   const [imageUrl, setImageUrl] = React.useState(row?.image_url ?? "");
@@ -260,6 +271,11 @@ function ProductFormModal({
     if (!Number.isFinite(priceNum) || priceNum < 0) return setError("Price must be ≥ 0.");
     const cansNum = Number(cans);
     if (!Number.isInteger(cansNum) || cansNum <= 0) return setError("Cans per pack must be a whole number above 0.");
+    const delivNum = Number(deliveries);
+    if (!Number.isInteger(delivNum) || delivNum <= 0) return setError("Deliveries must be a whole number above 0.");
+    if (cansNum % delivNum !== 0) return setError("Cans must split evenly across deliveries.");
+    const feeNum = Number(deliveryFee);
+    if (!Number.isFinite(feeNum) || feeNum < 0) return setError("Delivery fee must be ≥ 0.");
     const sortNum = Number(sortOrder);
     if (!Number.isFinite(sortNum)) return setError("Sort order must be a number.");
 
@@ -270,6 +286,8 @@ function ProductFormModal({
       description: description.trim() || null,
       sku_code: skuCode || null,
       cans_per_unit: cansNum,
+      deliveries: delivNum,
+      delivery_fee: feeNum,
       price: priceNum,
       badge: badge.trim() || null,
       image_url: imageUrl.trim() || null,
@@ -373,10 +391,9 @@ function ProductFormModal({
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div className="space-y-1">
-            <Label htmlFor="wp_sku" required>
-              Flavour (SKU)
-            </Label>
+            <Label htmlFor="wp_sku">Flavours</Label>
             <Select id="wp_sku" value={skuCode} onChange={(e) => setSkuCode(e.target.value)} disabled={submitting}>
+              <option value="">Mix — customer chooses</option>
               {skus.map((s) => (
                 <option key={s.code} value={s.code}>
                   {s.code} · {s.name}
@@ -413,6 +430,41 @@ function ProductFormModal({
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="wp_deliveries" required>
+              Deliveries
+            </Label>
+            <NumberInput
+              id="wp_deliveries"
+              min="1"
+              step="1"
+              value={deliveries}
+              onChange={(e) => setDeliveries(e.target.value)}
+              disabled={submitting}
+            />
+            <p className="text-xs text-inkSoft">
+              {Number(deliveries) > 1 && Number(cans) % Number(deliveries) === 0
+                ? `${Number(cans) / Number(deliveries)} cans a week, same mix each week.`
+                : "1 = delivered all at once."}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="wp_fee" required>
+              Delivery fee (each)
+            </Label>
+            <NumberInput
+              id="wp_fee"
+              prefix="₱"
+              min="0"
+              step="1"
+              value={deliveryFee}
+              onChange={(e) => setDeliveryFee(e.target.value)}
+              disabled={submitting}
+            />
+          </div>
+        </div>
+
         <div className="grid sm:grid-cols-[1fr_96px] gap-3 items-start">
           <div className="space-y-1">
             <Label htmlFor="wp_image">Image URL</Label>
@@ -423,7 +475,7 @@ function ProductFormModal({
               placeholder="/can-pcl.png"
               disabled={submitting}
             />
-            <p className="text-xs text-inkSoft">Leave blank to use the flavour colour + emoji.</p>
+            <p className="text-xs text-inkSoft">Leave blank to use the default can art.</p>
           </div>
           <div className="w-24 h-24 rounded-md bg-cream border border-border overflow-hidden flex items-center justify-center">
             {imageUrl.trim() ? (
