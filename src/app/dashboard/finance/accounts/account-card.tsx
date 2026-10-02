@@ -85,7 +85,7 @@ export function AccountCard({
               e.stopPropagation();
               setEditOpen(true);
             }}
-            aria-label={`Set opening balance for ${data.name}`}
+            aria-label={`Set balance for ${data.name}`}
             className="absolute top-2 right-2 z-10 p-1.5 rounded-md text-inkSoft hover:bg-cream hover:text-ink"
           >
             <Pencil className="w-3.5 h-3.5" />
@@ -112,7 +112,7 @@ export function AccountCard({
       </div>
 
       {canEditOpening ? (
-        <SetOpeningBalanceDialog
+        <SetBalanceDialog
           open={editOpen}
           account={data}
           onClose={() => setEditOpen(false)}
@@ -122,7 +122,7 @@ export function AccountCard({
   );
 }
 
-function SetOpeningBalanceDialog({
+function SetBalanceDialog({
   open,
   account,
   onClose,
@@ -134,40 +134,40 @@ function SetOpeningBalanceDialog({
   const router = useRouter();
   const toast = useToast();
   const [confirm, setConfirm] = React.useState("");
-  const [opening, setOpening] = React.useState(String(account.opening_balance));
+  const [target, setTarget] = React.useState(String(account.current_balance));
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (open) {
       setConfirm("");
-      setOpening(String(account.opening_balance));
+      setTarget(String(account.current_balance));
       setError(null);
     }
-  }, [open, account.opening_balance]);
+  }, [open, account.current_balance]);
 
-  const openingNum = Number(opening);
+  const targetNum = Number(target);
   const canSubmit =
     !submitting &&
     confirm.trim().toLowerCase() === account.name.toLowerCase() &&
-    Number.isFinite(openingNum) &&
-    openingNum >= 0;
+    Number.isFinite(targetNum) &&
+    targetNum >= 0;
 
   async function handleSubmit() {
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
     const supabase = createClient();
-    const { error: err } = await supabase
-      .from("accounts")
-      .update({ opening_balance: openingNum })
-      .eq("code", account.code);
+    const { error: err } = await supabase.rpc("set_account_current_balance", {
+      p_code: account.code,
+      p_target: targetNum,
+    });
     setSubmitting(false);
     if (err) {
       setError(err.message);
       return;
     }
-    toast.push(`Opening balance updated for ${account.name}`, "success");
+    toast.push(`Balance set for ${account.name}`, "success");
     onClose();
     router.refresh();
   }
@@ -176,15 +176,15 @@ function SetOpeningBalanceDialog({
     <Modal
       open={open}
       onClose={submitting ? () => {} : onClose}
-      title={`Set opening balance — ${account.name}`}
-      description="Opening balance is part of the running total. Use carefully. Type the account name to confirm."
+      title={`Set balance — ${account.name}`}
+      description="Sets this account's live balance to the amount you enter. Past transactions are kept; future ones move the balance from here. Type the account name to confirm."
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={!canSubmit} variant="dangerGhost">
-            {submitting ? "Saving…" : "Update opening balance"}
+            {submitting ? "Saving…" : "Set balance"}
           </Button>
         </>
       }
@@ -192,29 +192,29 @@ function SetOpeningBalanceDialog({
       <div className="space-y-4">
         <dl className="text-sm space-y-1.5">
           <div className="flex justify-between">
-            <dt className="text-inkSoft">Current opening balance</dt>
-            <dd className="font-mono">{formatPHP(account.opening_balance)}</dd>
-          </div>
-          <div className="flex justify-between">
             <dt className="text-inkSoft">Current live balance</dt>
             <dd className="font-mono">{formatPHP(account.current_balance)}</dd>
           </div>
         </dl>
 
         <div className="space-y-1">
-          <Label htmlFor="opening_balance" required>
-            New opening balance
+          <Label htmlFor="target_balance" required>
+            Set balance to
           </Label>
           <NumberInput
-            id="opening_balance"
+            id="target_balance"
             prefix="₱"
             min="0"
             step="0.01"
-            value={opening}
-            onChange={(e) => setOpening(e.target.value)}
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
             disabled={submitting}
             autoFocus
           />
+          <p className="text-xs text-inkSoft">
+            The card will show exactly this amount. It&rsquo;s reconciled against recorded
+            transactions, so logging or voiding entries later still adjusts it correctly.
+          </p>
         </div>
 
         <div className="space-y-1">
