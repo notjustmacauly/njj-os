@@ -274,7 +274,7 @@ function RejectModal({
       open
       onClose={busy ? () => {} : onCancel}
       title={`Reject ${row.reference}?`}
-      description="The payment is reversed out of Unverified Receipts, every delivery for this order is cancelled and the stock is freed. The customer's order page will show it as cancelled."
+      description="The payment is reversed out of Unverified Receipts, every delivery is marked Cancelled (kept in Orders as a record) and the stock is freed. The customer's order page will show it as cancelled."
       size="md"
       footer={
         <>
