@@ -26,13 +26,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "bundles", label: "Bundles" },
 ];
 
-const SUB_NAV: { key: string; label: string; href: string; disabled?: boolean }[] = [
-  { key: "catalog", label: "Catalog", href: "/dashboard/settings/catalog?tab=skus" },
-  { key: "team", label: "Team", href: "/dashboard/settings/team" },
-  { key: "notifications", label: "Notifications", href: "/dashboard/settings/notifications" },
-  { key: "accounts", label: "Accounts", href: "#", disabled: true },
-];
-
 function parseTab(v: string | null): TabKey {
   if (v === "tickets" || v === "pos" || v === "bundles") return v;
   return "skus";
@@ -61,35 +54,12 @@ export function CatalogClient({
       <header>
         <h1 className="font-serif font-bold text-3xl text-ink flex items-center gap-2">
           <SettingsIcon className="w-7 h-7 text-berry" />
-          Settings
+          Catalog
         </h1>
         <p className="text-sm text-inkSoft mt-1">
-          Configure the catalog, team, and ledger.
+          SKUs, ticket types, POS products and bundles.
         </p>
       </header>
-
-      {/* Sub-nav: Catalog / Team (coming soon) / Accounts (coming soon) */}
-      <nav className="border-b border-border -mx-6 px-6 flex gap-1">
-        {SUB_NAV.map((item) =>
-          item.disabled ? (
-            <span
-              key={item.key}
-              className="px-4 py-2 text-sm font-medium text-inkSoft/50 cursor-not-allowed border-b-2 border-transparent inline-flex items-center gap-1"
-            >
-              {item.label}
-              <span className="text-[9px] uppercase tracking-smallcaps">soon</span>
-            </span>
-          ) : (
-            <Link
-              key={item.key}
-              href={item.href}
-              className="px-4 py-2 text-sm font-semibold text-berry border-b-2 border-berry -mb-px"
-            >
-              {item.label}
-            </Link>
-          ),
-        )}
-      </nav>
 
       {/* Inner tabs: SKUs / Ticket Types / POS Products */}
       <div className="flex gap-1 border-b border-border">

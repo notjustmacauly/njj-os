@@ -19,8 +19,8 @@ import {
   Banknote,
   Settings,
   ShoppingCart,
-  ScrollText,
-  Send,
+  Globe,
+  ArrowUpRight,
   Coins,
   LogOut,
   Plus,
@@ -40,6 +40,8 @@ type NavItem = {
   // For the finance tabs, whose sub-pages don't share the href prefix, mark
   // which finance group owns the tab so it stays highlighted across them.
   financeGroup?: "billing" | "financials" | "spending" | "payroll";
+  // Extra path prefixes that should also highlight this item.
+  alsoActive?: string[];
 };
 
 // Which finance tab a path belongs to (mirrors the finance sub-nav grouping).
@@ -111,20 +113,16 @@ const SECTIONS: Section[] = [
   {
     label: "Settings",
     items: [
-      // Catalog view is all-roles, so everyone can hit /dashboard/settings;
-      // the page redirects to /dashboard/settings/catalog.
-      { href: "/dashboard/settings", label: "Settings", icon: Settings, roles: TRACKER_ROLES },
-      // Owner-only team hub: profiles, access, pay, payslips.
-      { href: "/dashboard/team", label: "Team", icon: Users, roles: ["owner"] },
-      // Owner-only oversight: who changed what across the whole system.
-      { href: "/dashboard/settings/activity", label: "Activity Log", icon: ScrollText, roles: ["owner"] },
-      // Owner-only: manage who can use the Telegram expense bot.
-      { href: "/dashboard/settings/telegram", label: "Expense bot", icon: Send, roles: ["owner"] },
+      // One gear entry. Catalog, Notifications, Team, Activity Log and the
+      // Expense bot are tabs inside (see settings/settings-nav.tsx).
+      { href: "/dashboard/settings", label: "Settings", icon: Settings, roles: TRACKER_ROLES, alsoActive: ["/dashboard/team"] },
     ],
   },
 ];
 
 const POS_ROLES: readonly Role[] = ALL_ROLES;
+// Website admin (storefront, events, members) — owner + partner.
+const WEBSITE_ROLES: readonly Role[] = ["owner", "partner"];
 // Create Order / Create Expense both require owner/partner/manager
 // (their pages redirect staff away), so gate the quick actions to match.
 const QUICK_ACTION_ROLES: readonly Role[] = ["owner", "partner", "manager"];
@@ -213,6 +211,27 @@ export function Sidebar({ role, email }: { role: Role; email: string }) {
         </div>
       ) : null}
 
+      {/* Website admin — its own dashboard for the public site */}
+      {WEBSITE_ROLES.includes(role) ? (
+        <div className="px-3 pt-2">
+          <Link
+            href="/dashboard/website"
+            className={cn(
+              "flex items-center justify-between gap-2 bg-berry text-white px-4 py-3 rounded-lg font-bold text-sm shadow-card hover:bg-berry/90 transition",
+              pathname.startsWith("/dashboard/website") && "ring-2 ring-berry/30 ring-offset-2",
+            )}
+          >
+            <span className="flex items-center gap-2">
+              <Globe className="w-4 h-4" />
+              Website
+            </span>
+            <span className="bg-white/15 rounded-md p-1">
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </span>
+          </Link>
+        </div>
+      ) : null}
+
       <nav className="flex-1 px-3 py-2 overflow-y-auto">
         {SECTIONS.map((section) => {
           const items = section.items.filter((i) => i.roles.includes(role));
@@ -227,7 +246,9 @@ export function Sidebar({ role, email }: { role: Role; email: string }) {
                   const Icon = item.icon;
                   const active = item.financeGroup
                     ? financeGroupForPath(pathname) === item.financeGroup
-                    : pathname === item.href || pathname.startsWith(item.href + "/");
+                    : [item.href, ...(item.alsoActive ?? [])].some(
+                        (p) => pathname === p || pathname.startsWith(p + "/"),
+                      );
                   return (
                     <Link
                       key={item.href}
