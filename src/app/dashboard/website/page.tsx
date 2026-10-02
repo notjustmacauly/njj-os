@@ -16,14 +16,19 @@ type ProductRow = {
 
 export default async function WebsiteOverviewPage() {
   const supabase = await createClient();
-  const [{ data: products }, { data: catalog }] = await Promise.all([
+  const [{ data: products }, { data: catalog }, { data: checkouts }] = await Promise.all([
     supabase
       .from("web_products")
       .select("id, name, subtitle, price, is_published")
       .is("deleted_at", null)
       .order("sort_order"),
     supabase.from("web_catalog").select("id, packs_available"),
+    supabase.from("web_checkouts").select("total, payment_verification, created_at").neq("payment_verification", "rejected"),
   ]);
+  const sales = (checkouts ?? []) as Array<{ total: number | string; payment_verification: string; created_at: string }>;
+  const toVerify = sales.filter((s) => s.payment_verification === "unverified");
+  const monthStart = new Date(new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }).slice(0, 8) + "01T00:00:00+08:00");
+  const monthSales = sales.filter((s) => new Date(s.created_at) >= monthStart).reduce((a, s) => a + Number(s.total), 0);
 
   const rows = (products ?? []) as ProductRow[];
   const stock = new Map(
@@ -39,10 +44,17 @@ export default async function WebsiteOverviewPage() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Live products" value={published.length} sub="Shown in the shop" accent="berry" />
-        <KpiCard label="Hidden" value={rows.length - published.length} sub="Drafts / unpublished" accent="peri" />
-        <KpiCard label="Sold out" value={soldOut.length} sub="Live but no stock" accent="coral" />
-        <KpiCard label="Low stock" value={low.length} sub="5 packs or fewer" accent="yellow" />
+        <Link href="/dashboard/website/orders">
+          <KpiCard
+            label="To verify"
+            value={toVerify.length}
+            sub={toVerify.length ? `${formatPHP(toVerify.reduce((a, s) => a + Number(s.total), 0))} unchecked` : "All payments checked"}
+            accent="coral"
+          />
+        </Link>
+        <KpiCard label="Sales this month" value={formatPHP(monthSales)} sub="Website orders" accent="berry" />
+        <KpiCard label="Live products" value={published.length} sub={`${rows.length - published.length} hidden`} accent="peri" />
+        <KpiCard label="Sold out / low" value={`${soldOut.length} / ${low.length}`} sub="Live packs" accent="yellow" />
       </div>
 
       <div className="grid lg:grid-cols-[1.4fr_1fr] gap-6">

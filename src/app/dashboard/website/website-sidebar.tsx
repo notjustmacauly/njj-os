@@ -10,9 +10,11 @@ import {
   FileText,
   LayoutDashboard,
   Package,
+  ReceiptText,
   Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import type { Role } from "@/lib/roles";
 
 type Item = {
@@ -34,7 +36,10 @@ const SECTIONS: Section[] = [
   },
   {
     label: "Shop",
-    items: [{ href: "/dashboard/website/products", label: "Products", icon: Package }],
+    items: [
+      { href: "/dashboard/website/orders", label: "Orders", icon: ReceiptText },
+      { href: "/dashboard/website/products", label: "Products", icon: Package },
+    ],
   },
   {
     label: "Community",
@@ -57,6 +62,21 @@ function displayNameFromEmail(email: string): string {
 
 export function WebsiteSidebar({ role, email }: { role: Role; email: string }) {
   const pathname = usePathname();
+  // Badge on Orders: website payments still waiting to be checked.
+  const [toVerify, setToVerify] = React.useState(0);
+  React.useEffect(() => {
+    let alive = true;
+    createClient()
+      .from("web_checkouts")
+      .select("id", { count: "exact", head: true })
+      .eq("payment_verification", "unverified")
+      .then(({ count }) => {
+        if (alive) setToVerify(count ?? 0);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [pathname]);
 
   return (
     <aside className="w-60 bg-ink text-white flex flex-col h-dvh overflow-y-auto lg:sticky lg:top-0 overscroll-contain">
@@ -117,6 +137,11 @@ export function WebsiteSidebar({ role, email }: { role: Role; email: string }) {
                   >
                     <Icon className="w-4 h-4" />
                     {item.label}
+                    {item.href === "/dashboard/website/orders" && toVerify > 0 ? (
+                      <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-berry text-white text-[11px] font-bold flex items-center justify-center">
+                        {toVerify}
+                      </span>
+                    ) : null}
                   </Link>
                 );
               })}

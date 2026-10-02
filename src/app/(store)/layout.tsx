@@ -3,6 +3,7 @@ import { Manrope, Fraunces } from "next/font/google";
 import { COMPANY } from "@/lib/company";
 import { SiteHeader } from "./_components/site-header";
 import { SiteFooter } from "./_components/site-footer";
+import { CartProvider } from "./_components/cart";
 
 // Storefront type: Manrope = clean modern body; Fraunces = warm editorial
 // display for headlines. Scoped to the store via CSS variables so the OS
@@ -32,9 +33,11 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
     <div
       className={`${bodyFont.variable} ${displayFont.variable} font-body min-h-screen bg-cream text-ink flex flex-col`}
     >
-      <SiteHeader />
-      <main className="flex-1">{children}</main>
-      <SiteFooter />
+      <CartProvider>
+        <SiteHeader />
+        <main className="flex-1">{children}</main>
+        <SiteFooter />
+      </CartProvider>
     </div>
   );
 }

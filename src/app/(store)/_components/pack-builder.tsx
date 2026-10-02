@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Minus, Plus } from "lucide-react";
+import Link from "next/link";
+import { Check, Minus, Plus } from "lucide-react";
 import { cn, formatPHP } from "@/lib/utils";
 import { flavorArt } from "./flavor";
+import { useCart } from "./cart";
 
 export type Flavor = { code: string; name: string; cans_available: number };
 
@@ -15,22 +17,26 @@ type Mix = Record<string, number>;
  * tweaking one turns it into a mix on its own.
  */
 export function PackBuilder({
+  productId,
+  slug,
   packName,
   cansPerUnit,
   deliveries,
   price,
   deliveryFee,
   flavors,
-  orderEmail,
 }: {
+  productId: string;
+  slug: string;
   packName: string;
   cansPerUnit: number;
   deliveries: number;
   price: number;
   deliveryFee: number;
   flavors: Flavor[];
-  orderEmail: string;
 }) {
+  const cart = useCart();
+  const [added, setAdded] = React.useState(false);
   const perDelivery = cansPerUnit / deliveries;
   const empty = React.useMemo(() => Object.fromEntries(flavors.map((f) => [f.code, 0])) as Mix, [flavors]);
   const [mix, setMix] = React.useState<Mix>(empty);
@@ -59,18 +65,21 @@ export function PackBuilder({
   const fees = deliveryFee * deliveries;
   const total = price + fees;
 
-  const mixLine = flavors
-    .filter((f) => mix[f.code] > 0)
-    .map((f) => `${mix[f.code]}× ${f.name}`)
-    .join(", ");
-  const mailto =
-    `mailto:${orderEmail}?subject=${encodeURIComponent(`Order: ${packName}`)}` +
-    `&body=${encodeURIComponent(
-      `Hi NotJust! I'd like to order:\n\n${packName}\n` +
-        (deliveries > 1 ? `Weekly mix (${perDelivery} cans × ${deliveries} weeks): ` : "Mix: ") +
-        `${mixLine}\n\nTotal: ${formatPHP(total)} (incl. ${formatPHP(fees)} delivery)\n\n` +
-        `Name:\nMobile:\nDelivery address:\n`,
-    )}`;
+  function addToCart() {
+    if (!complete) return;
+    cart.add({
+      product_id: productId,
+      slug,
+      name: packName,
+      cans: cansPerUnit,
+      deliveries,
+      price,
+      delivery_fee: deliveryFee,
+      mix: Object.fromEntries(Object.entries(mix).filter(([, n]) => n > 0)),
+    });
+    setAdded(true);
+    setMix(empty);
+  }
 
   return (
     <div className="mt-6 space-y-5">
@@ -194,24 +203,30 @@ export function PackBuilder({
         </div>
       </dl>
 
-      {/* Until online checkout lands, send the built order by email. */}
       <div>
-        <a
-          href={complete ? mailto : undefined}
-          aria-disabled={!complete}
+        <button
+          type="button"
+          onClick={addToCart}
+          disabled={!complete}
           className={cn(
             "w-full inline-flex items-center justify-center rounded-full font-semibold px-6 py-3.5 transition",
             complete
               ? "bg-berry text-white hover:bg-berryLt shadow-lg shadow-berry/20"
-              : "bg-ink/10 text-inkSoft cursor-not-allowed pointer-events-none",
+              : "bg-ink/10 text-inkSoft cursor-not-allowed",
           )}
         >
-          {complete ? "Order this pack" : `Pick ${remaining} more`}
-        </a>
-        <p className="text-xs text-inkSoft mt-2">
-          Online checkout is launching soon. For now this sends your order to us by email and we&apos;ll confirm
-          payment and delivery with you.
-        </p>
+          {complete ? "Add to cart" : `Pick ${remaining} more`}
+        </button>
+        {added ? (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-berryBg px-4 py-3 text-sm">
+            <span className="flex items-center gap-2 font-semibold text-berry">
+              <Check className="w-4 h-4" /> Added to your cart
+            </span>
+            <Link href="/shop/cart" className="font-semibold text-ink underline underline-offset-2">
+              View cart &amp; checkout
+            </Link>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -3,8 +3,28 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X } from "lucide-react";
+import { Menu, ShoppingBag, X } from "lucide-react";
 import { COMPANY } from "@/lib/company";
+import { useCart } from "./cart";
+
+function CartButton() {
+  const { lines, ready } = useCart();
+  const n = ready ? lines.length : 0;
+  return (
+    <Link
+      href="/shop/cart"
+      aria-label={n ? `Cart, ${n} pack${n === 1 ? "" : "s"}` : "Cart"}
+      className="relative inline-flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/15 transition"
+    >
+      <ShoppingBag className="w-5 h-5" />
+      {n > 0 ? (
+        <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-white text-brandpink text-[11px] font-bold flex items-center justify-center">
+          {n}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
 
 const NAV: Array<{ label: string; href: string }> = [
   { label: "Home", href: "/" },
@@ -48,9 +68,14 @@ export function SiteHeader() {
           >
             Order now
           </Link>
+          <span className="ml-1">
+            <CartButton />
+          </span>
         </nav>
 
-        {/* Mobile toggle */}
+        {/* Mobile: cart + menu toggle */}
+        <div className="md:hidden flex items-center gap-1">
+        <CartButton />
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -60,6 +85,7 @@ export function SiteHeader() {
         >
           {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
+        </div>
       </div>
 
       {/* Mobile drawer */}

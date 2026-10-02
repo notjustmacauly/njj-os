@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { COMPANY } from "@/lib/company";
 import { formatPHP } from "@/lib/utils";
 import { flavorArt, MIX_GRADIENT } from "../../_components/flavor";
 import { MixCans, type CatalogItem } from "../../_components/product-card";
@@ -130,13 +129,14 @@ export default async function ProductDetailPage({
             </div>
           ) : (
             <PackBuilder
+              productId={product.id}
+              slug={product.slug}
               packName={product.name}
               cansPerUnit={product.cans_per_unit}
               deliveries={deliveries}
               price={Number(product.price)}
               deliveryFee={Number(product.delivery_fee ?? 0)}
               flavors={flavors}
-              orderEmail={COMPANY.email}
             />
           )}
 
