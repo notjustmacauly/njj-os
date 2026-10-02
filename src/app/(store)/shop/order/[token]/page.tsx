@@ -80,7 +80,7 @@ export default async function OrderPage({ params }: { params: { token: string } 
             <dd className="tabular-nums">{formatPHP(r.delivery_total)}</dd>
           </div>
           <div className="flex justify-between text-base font-semibold">
-            <dt>Total paid</dt>
+            <dt>{rejected ? "Total" : "Total paid"}</dt>
             <dd className="tabular-nums">{formatPHP(r.total)}</dd>
           </div>
         </dl>
