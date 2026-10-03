@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, FileText, Package, Trophy } from "lucide-react";
+import { FileText, Package, Trophy } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { formatPHP } from "@/lib/utils";
@@ -99,11 +99,6 @@ export default async function WebsiteOverviewPage() {
 
         <section className="bg-white border border-border rounded-lg shadow-card p-5 space-y-4">
           <h2 className="font-semibold text-ink">Coming to this dashboard</h2>
-          <Upcoming
-            icon={CalendarDays}
-            title="Events & Passes"
-            body="Publish events, sell ₱250 passes and pass bundles, scan member QR codes at check-in."
-          />
           <Upcoming
             icon={Trophy}
             title="Members"

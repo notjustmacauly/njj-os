@@ -18,10 +18,20 @@ export type WebCheckoutRow = {
   customer_name: string;
   customer_email: string;
   customer_phone: string;
-  delivery_address: string;
+  delivery_address: string | null;
   delivery_notes: string | null;
   first_delivery_date: string;
-  items: Array<{ name: string; cans: number; deliveries: number; price: number; mix: Record<string, number> }>;
+  kind: "shop" | "passes";
+  event: { name: string; event_date: string } | null;
+  items: Array<{
+    name: string;
+    price: number;
+    cans?: number;
+    deliveries?: number;
+    mix?: Record<string, number>;
+    kind?: "pass" | "paddle";
+    qty?: number;
+  }>;
   subtotal: number | string;
   delivery_total: number | string;
   total: number | string;
@@ -187,23 +197,44 @@ export function WebOrdersClient({
                   <a href={`mailto:${r.customer_email}`} className="text-berry">{r.customer_email}</a>
                 </div>
                 <div className="text-xs text-inkSoft whitespace-pre-line">
-                  {r.delivery_address}
+                  {r.delivery_address ?? ""}
                   {r.delivery_notes ? ` — ${r.delivery_notes}` : ""}
                 </div>
+                {r.kind === "passes" ? (
+                  <div className="text-sm">
+                    <span className="inline-flex rounded-full bg-berryBg text-berry text-[11px] font-semibold px-2 py-0.5 mr-1.5">
+                      Event passes
+                    </span>
+                    {r.event ? (
+                      <span className="text-ink">
+                        {r.event.name} · {fmtDate(r.event.event_date)}
+                      </span>
+                    ) : null}
+                    <ul className="mt-1 space-y-0.5">
+                      {r.items.map((i, n) => (
+                        <li key={n} className="text-inkSoft">
+                          {i.qty}× {i.name}
+                          {i.kind === "pass" ? " pass" : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
                 <ul className="text-sm space-y-0.5">
                   {r.items.map((i, n) => (
                     <li key={n}>
                       <span className="font-medium text-ink">{i.name}</span>{" "}
                       <span className="text-inkSoft">
-                        {Object.entries(i.mix)
+                        {Object.entries(i.mix ?? {})
                           .filter(([, q]) => q > 0)
                           .map(([c, q]) => `${q}× ${FLAVOR[c] ?? c}`)
                           .join(" · ")}
-                        {i.deliveries > 1 ? ` (weekly × ${i.deliveries})` : ""}
+                        {(i.deliveries ?? 1) > 1 ? ` (weekly × ${i.deliveries})` : ""}
                       </span>
                     </li>
                   ))}
                 </ul>
+                )}
                 <div className="flex flex-wrap gap-1.5 text-xs">
                   {r.orders.map((o) => (
                     <Link

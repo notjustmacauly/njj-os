@@ -9,14 +9,14 @@ export default async function WebsiteOrdersPage() {
     supabase
       .from("web_checkouts")
       .select(
-        "id, reference, customer_name, customer_email, customer_phone, delivery_address, delivery_notes, first_delivery_date, items, subtotal, delivery_total, total, payment_verification, proof_path, flags, verified_account_code, review_note, reviewed_at, created_at, email_sent_at, email_error",
+        "id, kind, event:events(name, event_date), reference, customer_name, customer_email, customer_phone, delivery_address, delivery_notes, first_delivery_date, items, subtotal, delivery_total, total, payment_verification, proof_path, flags, verified_account_code, review_note, reviewed_at, created_at, email_sent_at, email_error",
       )
       .order("created_at", { ascending: false })
       .limit(200),
     supabase.from("accounts").select("code, name").eq("is_active", true).order("code"),
   ]);
 
-  const rows = (checkouts ?? []) as Omit<WebCheckoutRow, "proof_url" | "orders">[];
+  const rows = (checkouts ?? []) as unknown as Omit<WebCheckoutRow, "proof_url" | "orders">[];
 
   // Screenshots live in a private bucket — sign short-lived links for staff.
   const paths = rows.map((r) => r.proof_path).filter((p): p is string => !!p);

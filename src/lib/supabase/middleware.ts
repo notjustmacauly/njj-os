@@ -55,7 +55,8 @@ export async function updateSession(request: NextRequest) {
     // Shareable per-employee payslip (/payslip/<token>) — anon token RPC.
     path.startsWith("/payslip/") ||
     // Public customer storefront (Wix replacement) — open to anyone.
-    path.startsWith("/shop");
+    path.startsWith("/shop") ||
+    path.startsWith("/events");
 
   if (!user && !isAuthPage && !isPublicAsset) {
     const url = request.nextUrl.clone();

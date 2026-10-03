@@ -44,7 +44,7 @@ const SECTIONS: Section[] = [
   {
     label: "Community",
     items: [
-      { href: "#events", label: "Events & Passes", icon: CalendarDays, soon: true },
+      { href: "/dashboard/website/events", label: "Events & Passes", icon: CalendarDays },
       { href: "#members", label: "Members", icon: Trophy, soon: true },
     ],
   },

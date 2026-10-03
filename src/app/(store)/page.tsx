@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ProductCard, type CatalogItem } from "./_components/product-card";
+import { EventCard } from "./_components/event-card";
+import type { PublicEvent } from "./_components/events";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,13 @@ export default async function StoreHome() {
     .select("*")
     .order("sort_order", { ascending: true });
   const items = (data ?? []) as CatalogItem[];
+  const { data: eventRows } = await supabase
+    .from("web_events")
+    .select("*")
+    .order("event_date", { ascending: true })
+    .order("start_time", { ascending: true })
+    .limit(3);
+  const events = (eventRows ?? []) as PublicEvent[];
 
   return (
     <>
@@ -156,16 +165,40 @@ export default async function StoreHome() {
         </div>
       </section>
 
-      {/* ── Events / Community / Partners ────────────────────── */}
+      {/* ── Upcoming events ──────────────────────────────────── */}
+      {events.length > 0 ? (
+        <section id="events" className="scroll-mt-24 pb-16 sm:pb-20">
+          <div className="max-w-7xl mx-auto px-6 flex items-end justify-between gap-4">
+            <div>
+              <span className="text-xs uppercase tracking-smallcaps font-semibold text-berry">Events</span>
+              <h2 className="font-display font-semibold text-ink text-3xl sm:text-4xl mt-1">Come play with us</h2>
+              <p className="text-inkSoft mt-1">₱250 per pass. Grab a spot before they&apos;re gone.</p>
+            </div>
+            <Link href="/events" className="shrink-0 inline-flex items-center gap-1.5 text-sm font-semibold text-berry hover:underline">
+              All events <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="max-w-7xl mx-auto px-6 mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {events.map((e) => (
+              <EventCard key={e.id} event={e} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* ── Community / Partners ─────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-6 pb-20">
-        <div className="grid gap-5 md:grid-cols-3">
-          <TeaserCard
-            id="events"
-            eyebrow="Events"
-            title="Catch us out there"
-            body="Pop-ups, markets, and fresh-pressed moments around the city. Event booking is coming soon."
-            gradient="from-[#FBE7A1] to-[#F7A9B0]"
-          />
+        <div className={`grid gap-5 ${events.length === 0 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          {events.length === 0 ? (
+            <TeaserCard
+              id="events"
+              eyebrow="Events"
+              title="Catch us out there"
+              body="Community games, pop-ups and markets around the city."
+              gradient="from-[#FBE7A1] to-[#F7A9B0]"
+              cta={{ label: "See events", href: "/events" }}
+            />
+          ) : null}
           <TeaserCard
             id="community"
             eyebrow="Community"
