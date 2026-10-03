@@ -73,11 +73,16 @@ export async function POST(req: Request) {
 
   const result = data as { reference: string; token: string; replayed?: boolean };
   if (!result.replayed) {
+    // Email never blocks the order, but the outcome is recorded so a failure
+    // shows (with a Resend button) in Website studio → Orders.
+    let emailError: string | null = null;
     try {
       await sendCheckoutEmails(supabase, result.token);
-    } catch {
-      // Email is best-effort; the order is already placed.
+    } catch (e) {
+      emailError = (e as Error).message || "Unknown email error";
+      console.error("checkout email failed", result.reference, emailError);
     }
+    await supabase.rpc("web_mark_checkout_email", { p_token: result.token, p_error: emailError });
   }
 
   return NextResponse.json({ reference: result.reference, token: result.token });

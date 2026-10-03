@@ -9,7 +9,7 @@ export default async function WebsiteOrdersPage() {
     supabase
       .from("web_checkouts")
       .select(
-        "id, reference, customer_name, customer_email, customer_phone, delivery_address, delivery_notes, first_delivery_date, items, subtotal, delivery_total, total, payment_verification, proof_path, flags, verified_account_code, review_note, reviewed_at, created_at",
+        "id, reference, customer_name, customer_email, customer_phone, delivery_address, delivery_notes, first_delivery_date, items, subtotal, delivery_total, total, payment_verification, proof_path, flags, verified_account_code, review_note, reviewed_at, created_at, email_sent_at, email_error",
       )
       .order("created_at", { ascending: false })
       .limit(200),

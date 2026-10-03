@@ -42,15 +42,23 @@ function mixText(mix: Record<string, number>): string {
     .join(", ");
 }
 
-/** Customer confirmation + a heads-up to the team. Skipped if Gmail isn't configured. */
-export async function sendCheckoutEmails(supabase: SupabaseClient, token: string) {
+/**
+ * Customer confirmation + a heads-up to the team. Throws on failure so the
+ * caller can record it. `teamCopy: false` skips the team email (resends).
+ */
+export async function sendCheckoutEmails(
+  supabase: SupabaseClient,
+  token: string,
+  { teamCopy = true }: { teamCopy?: boolean } = {},
+) {
   const user = process.env.GMAIL_USER ?? process.env.GMAIL_USER_MAC;
   const pass = process.env.GMAIL_APP_PASSWORD ?? process.env.GMAIL_APP_PASSWORD_MAC;
-  if (!user || !pass) return;
+  if (!user || !pass) throw new Error("Email isn't configured (GMAIL_USER / GMAIL_APP_PASSWORD missing in Netlify).");
 
-  const { data } = await supabase.rpc("web_get_checkout", { p_token: token });
+  const { data, error } = await supabase.rpc("web_get_checkout", { p_token: token });
+  if (error) throw new Error(`Couldn't load the order: ${error.message}`);
   const r = data as CheckoutReceipt | null;
-  if (!r) return;
+  if (!r) throw new Error("Order not found.");
 
   const link = `${site()}/shop/order/${token}`;
   const packs = r.items
@@ -90,6 +98,7 @@ export async function sendCheckoutEmails(supabase: SupabaseClient, token: string
     text: `Thanks ${r.name}! Your order ${r.reference} is confirmed. Total ${formatPHP(r.total)}. View it: ${link}`,
   });
 
+  if (!teamCopy) return;
   await transport.sendMail({
     from: `"${COMPANY.brandName} Website" <${user}>`,
     to: COMPANY.email,

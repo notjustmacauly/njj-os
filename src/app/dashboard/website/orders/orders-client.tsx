@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, X } from "lucide-react";
+import { AlertTriangle, Check, Mail, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -33,6 +33,8 @@ export type WebCheckoutRow = {
   review_note: string | null;
   reviewed_at: string | null;
   created_at: string;
+  email_sent_at: string | null;
+  email_error: string | null;
   orders: Array<{ id: string; external_id: string; delivery_date: string; fulfillment_status: string; total: number | string }>;
 };
 
@@ -76,6 +78,21 @@ export function WebOrdersClient({
   };
   const visible = rows.filter((r) => r.payment_verification === filter);
   const defaultAccount = accounts.some((a) => a.code === DEFAULT_ACCOUNT) ? DEFAULT_ACCOUNT : accounts[0]?.code ?? "";
+
+  async function resend(r: WebCheckoutRow) {
+    if (busy) return;
+    setBusy(r.id);
+    const res = await fetch("/api/shop/checkout/resend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: r.id }),
+    });
+    const json = (await res.json().catch(() => ({}))) as { error?: string; sentTo?: string };
+    setBusy(null);
+    if (!res.ok) toast.push(json.error ?? "Couldn't send the email.", "error");
+    else toast.push(`Confirmation sent to ${json.sentTo}`, "success");
+    router.refresh();
+  }
 
   async function review(r: WebCheckoutRow, decision: "verified" | "rejected", note?: string) {
     if (busy) return;
@@ -197,6 +214,26 @@ export function WebOrdersClient({
                       {o.external_id} · {fmtDate(o.delivery_date)} · {o.fulfillment_status}
                     </Link>
                   ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {r.email_error ? (
+                    <span className="text-coral font-semibold" title={r.email_error}>
+                      ✉︎ Email failed: {r.email_error.slice(0, 90)}
+                    </span>
+                  ) : r.email_sent_at ? (
+                    <span className="text-emerald-700">✉︎ Confirmation sent {fmtDate(r.email_sent_at)}</span>
+                  ) : (
+                    <span className="text-inkSoft">✉︎ No confirmation email recorded</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => resend(r)}
+                    disabled={busy === r.id}
+                    className="inline-flex items-center gap-1 font-semibold text-berry hover:underline disabled:opacity-50"
+                  >
+                    <Mail className="w-3 h-3" />
+                    Resend email
+                  </button>
                 </div>
                 {r.payment_verification !== "unverified" ? (
                   <p className="text-xs text-inkSoft">
