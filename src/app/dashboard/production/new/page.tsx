@@ -43,6 +43,7 @@ export default async function NewBatchPage() {
         .select("code, name, type, unit, cost_per_unit")
         .is("deleted_at", null)
         .eq("is_active", true)
+        .neq("type", "resale") // resale goods (e.g. bottled water) aren't batch ingredients
         .order("name"),
       // Active lots only — depleted lots can't be drawn from.
       supabase

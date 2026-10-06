@@ -136,6 +136,7 @@ export default async function InventoryPage() {
             <tbody>
               {rows.map((r) => {
                 const qty = Number(r.qty_on_hand ?? 0);
+                const negative = qty < 0;
                 const low = qty > 0 && qty < lowStockThreshold(r.ingredient_type);
                 const empty = qty === 0;
                 const avgCost =
@@ -163,15 +164,21 @@ export default async function InventoryPage() {
                     </td>
                     <td
                       className={`px-4 py-2.5 text-right font-mono tabular-nums ${
-                        empty
-                          ? "text-inkSoft"
-                          : low
-                            ? "text-coral font-semibold"
-                            : "text-ink"
+                        negative
+                          ? "text-coral font-semibold"
+                          : empty
+                            ? "text-inkSoft"
+                            : low
+                              ? "text-coral font-semibold"
+                              : "text-ink"
                       }`}
                     >
                       {formatQty(qty, r.unit)}
-                      {low ? (
+                      {negative ? (
+                        <span className="ml-1 text-[10px] uppercase tracking-smallcaps">
+                          negative
+                        </span>
+                      ) : low ? (
                         <span className="ml-1 text-[10px] uppercase tracking-smallcaps">
                           low
                         </span>

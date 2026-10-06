@@ -12,6 +12,7 @@ import {
   type Role,
 } from "@/lib/roles";
 import { LotsView, type LotRow } from "./lots-view";
+import { AdjustStockButton } from "./adjust-stock";
 import { RecordPager } from "@/components/record-pager";
 
 type LotRecord = {
@@ -135,22 +136,27 @@ export default async function IngredientLotsPage({
           </h1>
           <p className="text-xs text-inkSoft mt-1 font-mono">{code} · {ingredient.unit}</p>
         </div>
-        {canReceive ? (
-          <Link
-            href={`/dashboard/inventory/receive?ingredient=${encodeURIComponent(code)}`}
-            className={buttonClasses({ variant: "berryGhost", size: "sm" })}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Log receipt
-          </Link>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {ingredient.type === "resale" ? (
+            <AdjustStockButton code={code} unit={ingredient.unit} />
+          ) : null}
+          {canReceive ? (
+            <Link
+              href={`/dashboard/inventory/receive?ingredient=${encodeURIComponent(code)}`}
+              className={buttonClasses({ variant: "berryGhost", size: "sm" })}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Log receipt
+            </Link>
+          ) : null}
+        </div>
       </header>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Stat
           label="On hand"
-          value={`${totalOnHand.toFixed(1)} ${ingredient.unit}`}
-          accent="berry"
+          value={`${totalOnHand.toFixed(ingredient.unit === "unit" ? 0 : 1)} ${ingredient.unit}`}
+          accent={totalOnHand < 0 ? "coral" : "berry"}
         />
         <Stat
           label="Active lots"
