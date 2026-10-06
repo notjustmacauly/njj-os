@@ -125,5 +125,5 @@ export function Panel({ children, className }: { children: React.ReactNode; clas
 }
 
 export function FormError({ children }: { children: React.ReactNode }) {
-  return <p role="alert" className="text-sm font-semibold text-[#C2412D] dark:text-[#F08A72]">{children}</p>;
+  return <p role="alert" className="text-sm font-semibold text-s-danger">{children}</p>;
 }

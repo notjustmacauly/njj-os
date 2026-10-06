@@ -4,6 +4,7 @@ import { COMPANY } from "@/lib/company";
 import { SiteHeader } from "./_components/site-header";
 import { SiteFooter } from "./_components/site-footer";
 import { CartProvider } from "./_components/cart";
+import { ThemeScript } from "./_components/theme";
 
 // Storefront type: Bricolage Grotesque = characterful grotesk display;
 // Manrope = clean body. Scoped to the store via CSS variables so the OS
@@ -33,6 +34,7 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
     <div
       className={`store ${bodyFont.variable} ${displayFont.variable} font-body antialiased min-h-[100dvh] bg-s-canvas text-s-fg flex flex-col`}
     >
+      <ThemeScript />
       <CartProvider>
         <SiteHeader />
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:rounded-full focus:bg-s-invert focus:text-s-invert-fg focus:px-4 focus:py-2">

@@ -37,6 +37,7 @@ const config: Config = {
           "brand-fg": "rgb(var(--s-brand-fg) / <alpha-value>)",
           invert: "rgb(var(--s-invert) / <alpha-value>)",
           "invert-fg": "rgb(var(--s-invert-fg) / <alpha-value>)",
+          danger: "rgb(var(--s-danger) / <alpha-value>)",
         },
       },
       borderRadius: {

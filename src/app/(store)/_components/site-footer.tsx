@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { COMPANY } from "@/lib/company";
 import { Container } from "./ui";
+import { ThemeSwitch } from "./theme";
 
 const LINKS: Array<{ label: string; href: string }> = [
   { label: "Home", href: "/" },
@@ -35,11 +36,11 @@ export function SiteFooter() {
           <p className="text-s-muted max-w-[30ch]">{COMPANY.address}</p>
         </div>
       </Container>
-      <Container className="py-6 border-t border-s-line/[0.06] flex flex-wrap justify-between gap-2 text-xs text-s-muted">
+      <Container className="py-6 border-t border-s-line/[0.06] flex flex-wrap items-center justify-between gap-4 text-xs text-s-muted">
         <span>
-          © {new Date().getFullYear()} {COMPANY.registeredName}
+          © {new Date().getFullYear()} {COMPANY.registeredName}. TIN {COMPANY.tin}
         </span>
-        <span>TIN {COMPANY.tin}</span>
+        <ThemeSwitch />
       </Container>
     </footer>
   );

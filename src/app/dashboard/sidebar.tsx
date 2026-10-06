@@ -27,6 +27,7 @@ import {
   ListChecks,
   Clock,
   CalendarDays,
+  HandCoins,
 } from "lucide-react";
 
 import type { Role } from "@/lib/roles";
@@ -69,6 +70,8 @@ const SECTIONS: Section[] = [
       { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays, roles: TRACKER_ROLES },
       { href: "/dashboard/attendance", label: "Time-in", icon: Clock, roles: TRACKER_ROLES },
       { href: "/dashboard/payslips", label: "My Payslips", icon: Coins, roles: TRACKER_ROLES },
+      // Submit-only payment/reimbursement requests — restricted marketing role.
+      { href: "/dashboard/requests", label: "Requests", icon: HandCoins, roles: ["marketing"] },
     ],
   },
   {

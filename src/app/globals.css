@@ -12,11 +12,13 @@ html, body {
 }
 
 /* ── Storefront design tokens ─────────────────────────────────
-   Scoped to .store so the OS dashboard keeps its own palette.
+   Scoped to the storefront so the OS dashboard keeps its own palette.
    Palette: neutral off-white / off-black + one brand pop (logo salmon).
    Shape rule: media + cards 28px (double-bezel shells 32px), buttons and
-   chips full pill, inputs 14px. Light/dark follow the visitor's system. */
-.store {
+   chips full pill, inputs 14px.
+   Theme: follows the device unless the visitor picks Light or Dark in the
+   footer switch, which sets <html data-theme="light|dark"> (see theme.tsx). */
+:root:has(.store), .store {
   --s-canvas: 246 246 244;   /* page */
   --s-surface: 255 255 254;  /* raised panels */
   --s-sunken: 236 236 233;   /* bezel shells, media wells */
@@ -27,10 +29,12 @@ html, body {
   --s-brand-fg: 18 18 18;    /* text on brand */
   --s-invert: 18 18 18;      /* primary button fill */
   --s-invert-fg: 250 250 248;
+  --s-danger: 194 65 45;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  .store {
+  :root:not([data-theme="light"]):has(.store),
+  :root:not([data-theme="light"]) .store {
     --s-canvas: 15 15 16;
     --s-surface: 26 26 28;
     --s-sunken: 34 34 37;
@@ -39,8 +43,22 @@ html, body {
     --s-line: 243 243 241;
     --s-invert: 243 243 241;
     --s-invert-fg: 15 15 16;
+    --s-danger: 240 138 114;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"]:has(.store),
+:root[data-theme="dark"] .store {
+  --s-canvas: 15 15 16;
+  --s-surface: 26 26 28;
+  --s-sunken: 34 34 37;
+  --s-fg: 243 243 241;
+  --s-muted: 168 168 162;
+  --s-line: 243 243 241;
+  --s-invert: 243 243 241;
+  --s-invert-fg: 15 15 16;
+  --s-danger: 240 138 114;
+  color-scheme: dark;
 }
 html:has(.store), body:has(.store) { background: rgb(var(--s-canvas)); }
 
