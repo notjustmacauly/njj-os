@@ -27,7 +27,7 @@ export function fmtTime(t: string | null): string {
 
 export function timeRange(e: { start_time: string | null; end_time: string | null }): string {
   if (!e.start_time) return "";
-  return e.end_time ? `${fmtTime(e.start_time)} – ${fmtTime(e.end_time)}` : fmtTime(e.start_time);
+  return e.end_time ? `${fmtTime(e.start_time)} - ${fmtTime(e.end_time)}` : fmtTime(e.start_time);
 }
 
 export function fmtEventDate(iso: string, style: "long" | "short" = "long"): string {

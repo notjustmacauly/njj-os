@@ -25,6 +25,19 @@ const config: Config = {
         yellowBg: "#FBEFC7",
         green:    "#2E7D32",   // success — paid, delivered, checked-in
         greenBg:  "#E8F5E9",
+        // Storefront tokens (CSS variables in globals.css, auto dark mode)
+        s: {
+          canvas: "rgb(var(--s-canvas) / <alpha-value>)",
+          surface: "rgb(var(--s-surface) / <alpha-value>)",
+          sunken: "rgb(var(--s-sunken) / <alpha-value>)",
+          fg: "rgb(var(--s-fg) / <alpha-value>)",
+          muted: "rgb(var(--s-muted) / <alpha-value>)",
+          line: "rgb(var(--s-line) / <alpha-value>)",
+          brand: "rgb(var(--s-brand) / <alpha-value>)",
+          "brand-fg": "rgb(var(--s-brand-fg) / <alpha-value>)",
+          invert: "rgb(var(--s-invert) / <alpha-value>)",
+          "invert-fg": "rgb(var(--s-invert-fg) / <alpha-value>)",
+        },
       },
       borderRadius: {
         sm:      "6px",
@@ -39,13 +52,19 @@ const config: Config = {
         serif: ["ui-serif", "Georgia", "Cambria", "Times New Roman", "serif"],
         // Storefront — modern, premium (loaded via next/font in the store layout)
         body:    ["var(--font-body)", "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ["var(--font-display)", "ui-serif", "Georgia", "serif"],
+        display: ["var(--font-display)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       letterSpacing: {
         // Small-caps section labels
         smallcaps: "0.08em",
       },
+      transitionTimingFunction: {
+        // Storefront: heavy, spring-like settle
+        settle: "cubic-bezier(0.32, 0.72, 0, 1)",
+      },
       boxShadow: {
+        // Storefront: diffused ambient shadow tinted to the ink, never pure black
+        float: "0 24px 60px -24px rgb(var(--s-line) / 0.18), 0 8px 20px -12px rgb(var(--s-line) / 0.10)",
         card: "0 1px 2px rgba(26, 26, 46, 0.04), 0 1px 1px rgba(26, 26, 46, 0.03)",
       },
     },

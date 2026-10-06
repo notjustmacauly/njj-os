@@ -42,7 +42,7 @@ export async function receiveProof(req: Request): Promise<ProofUpload | NextResp
     return NextResponse.json({ error: "Please upload your payment screenshot." }, { status: 400 });
   }
   if (proof.size > MAX_BYTES) {
-    return NextResponse.json({ error: "That image is over 10 MB — please send a smaller screenshot." }, { status: 400 });
+    return NextResponse.json({ error: "That image is over 10 MB. Send a smaller screenshot." }, { status: 400 });
   }
   const ext = EXT[proof.type];
   if (!ext) return NextResponse.json({ error: "Please upload a JPG or PNG screenshot." }, { status: 400 });
@@ -54,7 +54,7 @@ export async function receiveProof(req: Request): Promise<ProofUpload | NextResp
   const { error } = await supabase.storage
     .from("web-payment-proofs")
     .upload(path, bytes, { contentType: proof.type, upsert: false });
-  if (error) return NextResponse.json({ error: "We couldn't save your screenshot — please try again." }, { status: 502 });
+  if (error) return NextResponse.json({ error: "We couldn't save your screenshot. Try again." }, { status: 502 });
 
   return { supabase, payload, path, sha };
 }

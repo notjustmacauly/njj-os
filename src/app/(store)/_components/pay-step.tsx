@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { ImageUp, Loader2 } from "lucide-react";
+import { ImageUpLine, SpinnerLine } from "./icons";
 import { COMPANY } from "@/lib/company";
 import { cn, formatPHP } from "@/lib/utils";
 
@@ -55,43 +55,43 @@ export function PayPanels({
 
   return (
     <>
-      <div className="rounded-3xl bg-white ring-1 ring-border p-6">
-        <div className="text-sm font-semibold text-ink">1. Scan and pay exactly</div>
-        <div className="mt-1 font-display text-4xl font-semibold text-berry tabular-nums">{formatPHP(total)}</div>
-        <div className="mt-4 flex flex-col sm:flex-row gap-5 sm:items-center">
-          <div className="relative w-56 h-56 shrink-0 rounded-2xl overflow-hidden ring-1 ring-border bg-white">
-            <Image src={COMPANY.payQrSrc} alt="Payment QR code" fill sizes="224px" className="object-contain" />
+      <div className="rounded-[28px] bg-s-surface ring-1 ring-s-line/[0.07] p-6 sm:p-7">
+        <p className="text-sm font-semibold text-s-fg">1. Scan and pay exactly</p>
+        <p className="mt-1 font-display text-5xl font-semibold tracking-[-0.03em] tabular-nums text-s-fg">{formatPHP(total)}</p>
+        <div className="mt-6 flex flex-col sm:flex-row gap-6 sm:items-center">
+          <div className="relative w-56 h-56 shrink-0 rounded-[20px] overflow-hidden bg-white ring-1 ring-s-line/10">
+            <Image src={COMPANY.payQrSrc} alt="InstaPay QR code for payment" fill sizes="224px" className="object-contain" />
           </div>
-          <p className="text-sm text-inkSoft">
-            Scan with GCash, Maya or any bank app (InstaPay). On your phone? Screenshot this QR and open it from your
+          <p className="text-sm text-s-muted leading-relaxed max-w-[34ch]">
+            Scan with GCash, Maya or any bank app through InstaPay. On your phone? Screenshot this QR and open it from your
             banking app.
           </p>
         </div>
       </div>
 
-      <div className="rounded-3xl bg-white ring-1 ring-border p-6">
-        <div className="text-sm font-semibold text-ink">2. Upload your payment screenshot</div>
+      <div className="rounded-[28px] bg-s-surface ring-1 ring-s-line/[0.07] p-6 sm:p-7">
+        <p className="text-sm font-semibold text-s-fg">2. Upload your payment screenshot</p>
         <label
           className={cn(
-            "mt-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-8 cursor-pointer transition text-center",
-            file ? "border-berry/40 bg-berryBg/40" : "border-border hover:border-berry/40",
+            "mt-4 flex flex-col items-center justify-center gap-2 rounded-[20px] border-2 border-dashed px-4 py-10 cursor-pointer text-center transition duration-300 ease-settle",
+            file ? "border-s-fg/30 bg-s-sunken/60" : "border-s-line/15 hover:border-s-line/40",
           )}
         >
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="Your payment screenshot" className="max-h-64 rounded-lg" />
+            <img src={preview} alt="Your payment screenshot" className="max-h-64 rounded-[14px]" />
           ) : (
             <>
-              <ImageUp className="w-8 h-8 text-berry" />
-              <span className="text-sm font-semibold text-ink">Tap to choose your screenshot</span>
-              <span className="text-xs text-inkSoft">JPG or PNG, up to 10 MB</span>
+              <ImageUpLine className="w-7 h-7 text-s-fg" />
+              <span className="text-sm font-semibold text-s-fg">Choose your screenshot</span>
+              <span className="text-xs text-s-muted">JPG or PNG, up to 10 MB</span>
             </>
           )}
           <input type="file" accept="image/*" className="sr-only" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
         </label>
         {file ? (
-          <button type="button" onClick={() => onFile(null)} className="mt-2 text-xs text-inkSoft underline">
-            Choose a different image
+          <button type="button" onClick={() => onFile(null)} className="mt-3 text-xs font-semibold text-s-muted underline underline-offset-4">
+            Use a different image
           </button>
         ) : null}
       </div>
@@ -101,10 +101,10 @@ export function PayPanels({
 
 export function ConfirmingOverlay() {
   return (
-    <div className="fixed inset-0 z-[60] bg-cream/95 backdrop-blur flex flex-col items-center justify-center text-center px-6">
-      <Loader2 className="w-10 h-10 text-berry animate-spin" />
-      <p className="mt-5 font-display text-2xl font-semibold text-ink">Confirming your payment…</p>
-      <p className="mt-1 text-inkSoft">Hang tight, this only takes a moment.</p>
+    <div role="status" className="fixed inset-0 z-[60] bg-s-canvas/95 backdrop-blur-xl flex flex-col items-center justify-center text-center px-6">
+      <SpinnerLine className="w-9 h-9 text-s-fg animate-spin motion-reduce:animate-none" />
+      <p className="mt-6 font-display text-3xl font-semibold tracking-[-0.02em] text-s-fg">Confirming your payment</p>
+      <p className="mt-2 text-s-muted">This only takes a moment.</p>
     </div>
   );
 }
@@ -117,7 +117,7 @@ export function ConfirmingOverlay() {
 export async function submitWithProof(endpoint: string, payload: unknown, file: File): Promise<string> {
   const started = Date.now();
   const upload = await shrinkImage(file);
-  if (upload.size > 5.5 * 1024 * 1024) throw new Error("That image is too large — please send a regular screenshot instead.");
+  if (upload.size > 5.5 * 1024 * 1024) throw new Error("That image is too large. Send a regular screenshot instead.");
   const body = new FormData();
   body.append("payload", JSON.stringify(payload));
   body.append("proof", upload);
@@ -125,11 +125,11 @@ export async function submitWithProof(endpoint: string, payload: unknown, file: 
   try {
     res = await fetch(endpoint, { method: "POST", body });
   } catch {
-    throw new Error("We couldn't reach the server — check your connection and try again.");
+    throw new Error("We couldn't reach the server. Check your connection and try again.");
   }
   const json = (await res.json().catch(() => ({}))) as { token?: string; error?: string };
   const wait = 1800 - (Date.now() - started);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  if (!res.ok || !json.token) throw new Error(json.error ?? "Something went wrong — please try again.");
+  if (!res.ok || !json.token) throw new Error(json.error ?? "Something went wrong. Try again.");
   return json.token;
 }

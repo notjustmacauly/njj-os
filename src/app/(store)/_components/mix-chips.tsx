@@ -5,14 +5,11 @@ export function MixChips({ mix }: { mix: Record<string, number> }) {
     <div className="mt-2 flex flex-wrap gap-1.5">
       {Object.entries(mix)
         .filter(([, n]) => n > 0)
-        .map(([code, n]) => {
-          const art = flavorArt(code);
-          return (
-            <span key={code} className="rounded-full bg-cream ring-1 ring-border px-2.5 py-0.5 text-xs font-semibold text-ink/80">
-              {n}× {art.emoji} {art.short ?? code}
-            </span>
-          );
-        })}
+        .map(([code, n]) => (
+          <span key={code} className="rounded-full bg-s-sunken px-3 py-1 text-xs font-semibold text-s-fg/80 tabular-nums">
+            {n} {flavorArt(code).short ?? code}
+          </span>
+        ))}
     </div>
   );
 }

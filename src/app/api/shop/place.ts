@@ -10,7 +10,11 @@ export async function placeAndNotify(
   const { data, error } = await supabase.rpc(rpc, { p_payload: payload });
   if (error) {
     // 22023 = our own validation messages, safe to show the shopper.
-    const msg = error.code === "22023" ? error.message : "Something went wrong placing your order — please try again.";
+    // Storefront copy uses no em-dashes; soften the ones in database messages.
+    const msg =
+      error.code === "22023"
+        ? error.message.replace(/\s+[—–]\s+/g, ", ")
+        : "Something went wrong placing your order. Try again.";
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 

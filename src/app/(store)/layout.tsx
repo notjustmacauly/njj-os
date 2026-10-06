@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
-import { Manrope, Fraunces } from "next/font/google";
+import { Manrope, Bricolage_Grotesque } from "next/font/google";
 import { COMPANY } from "@/lib/company";
 import { SiteHeader } from "./_components/site-header";
 import { SiteFooter } from "./_components/site-footer";
 import { CartProvider } from "./_components/cart";
 
-// Storefront type: Manrope = clean modern body; Fraunces = warm editorial
-// display for headlines. Scoped to the store via CSS variables so the OS
+// Storefront type: Bricolage Grotesque = characterful grotesk display;
+// Manrope = clean body. Scoped to the store via CSS variables so the OS
 // dashboard keeps its own fonts.
 const bodyFont = Manrope({
   subsets: ["latin"],
   variable: "--font-body",
   display: "swap",
 });
-const displayFont = Fraunces({
+const displayFont = Bricolage_Grotesque({
   subsets: ["latin"],
   variable: "--font-display",
   display: "swap",
@@ -21,7 +21,7 @@ const displayFont = Fraunces({
 
 export const metadata: Metadata = {
   title: {
-    default: `${COMPANY.brandName} — Cold-pressed juice, delivered fresh`,
+    default: `${COMPANY.brandName} | Cold-pressed juice, delivered fresh`,
     template: `%s · ${COMPANY.brandName}`,
   },
   description:
@@ -31,11 +31,16 @@ export const metadata: Metadata = {
 export default function StoreLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className={`${bodyFont.variable} ${displayFont.variable} font-body min-h-screen bg-cream text-ink flex flex-col`}
+      className={`store ${bodyFont.variable} ${displayFont.variable} font-body antialiased min-h-[100dvh] bg-s-canvas text-s-fg flex flex-col`}
     >
       <CartProvider>
         <SiteHeader />
-        <main className="flex-1">{children}</main>
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:rounded-full focus:bg-s-invert focus:text-s-invert-fg focus:px-4 focus:py-2">
+          Skip to content
+        </a>
+        <main id="main" className="flex-1">
+          {children}
+        </main>
         <SiteFooter />
       </CartProvider>
     </div>

@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, Minus, Plus } from "lucide-react";
 import { cn, formatPHP } from "@/lib/utils";
 import { flavorArt } from "./flavor";
 import { useCart } from "./cart";
+import { CanThumb } from "./product-card";
+import { CheckLine, MinusLine, PlusLine } from "./icons";
+import { Btn } from "./ui";
 
 export type Flavor = { code: string; name: string; cans_available: number };
 
@@ -48,9 +50,11 @@ export function PackBuilder({
   const cap = (f: Flavor) => Math.min(perDelivery, f.cans_available);
 
   function setAll(code: string) {
+    setAdded(false);
     setMix({ ...empty, [code]: perDelivery });
   }
   function bump(code: string, delta: number) {
+    setAdded(false);
     setMix((m) => {
       const next = (m[code] ?? 0) + delta;
       const f = flavors.find((x) => x.code === code)!;
@@ -61,7 +65,6 @@ export function PackBuilder({
   }
 
   const activePreset = flavors.find((f) => mix[f.code] === perDelivery)?.code ?? null;
-  const isMixed = complete && !activePreset;
   const fees = deliveryFee * deliveries;
   const total = price + fees;
 
@@ -82,148 +85,117 @@ export function PackBuilder({
   }
 
   return (
-    <div className="mt-6 space-y-5">
+    <div className="mt-10 space-y-7">
       {/* Quick picks */}
       <div>
-        <div className="text-sm font-semibold text-ink">
+        <p className="text-sm font-semibold text-s-fg">
           {deliveries > 1 ? `Choose your weekly ${perDelivery}` : `Choose your ${perDelivery}`}
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-2">
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
           {flavors.map((f) => {
             const art = flavorArt(f.code);
             const disabled = f.cans_available < perDelivery;
+            const on = activePreset === f.code;
             return (
               <button
                 key={f.code}
                 type="button"
                 disabled={disabled}
                 onClick={() => setAll(f.code)}
+                aria-pressed={on}
                 className={cn(
-                  "rounded-xl px-3 py-2.5 text-left ring-1 transition",
-                  activePreset === f.code ? "ring-2 ring-berry bg-berryBg" : "ring-border bg-white hover:ring-ink/30",
-                  disabled && "opacity-40 cursor-not-allowed",
+                  "rounded-full px-4 py-2.5 text-sm font-semibold ring-1 transition duration-300 ease-settle active:scale-[0.98]",
+                  on ? "bg-s-invert text-s-invert-fg ring-s-invert" : "bg-s-surface text-s-fg ring-s-line/15 hover:ring-s-line/40",
+                  disabled && "opacity-35 pointer-events-none",
                 )}
               >
-                <div className="text-sm font-semibold text-ink">
-                  <span aria-hidden>{art.emoji}</span> All {art.short ?? f.name}
-                </div>
-                <div className="text-xs text-inkSoft">{art.preset ?? f.name}</div>
+                All {art.short ?? f.name}
               </button>
             );
           })}
-          <button
-            type="button"
-            onClick={() => setMix(empty)}
-            className={cn(
-              "rounded-xl px-3 py-2.5 text-left ring-1 transition",
-              isMixed || (!complete && chosen > 0) ? "ring-2 ring-berry bg-berryBg" : "ring-border bg-white hover:ring-ink/30",
-            )}
-          >
-            <div className="text-sm font-semibold text-ink">
-              <span aria-hidden>🎨</span> Mix your own
-            </div>
-            <div className="text-xs text-inkSoft">Pick each flavour below</div>
-          </button>
         </div>
+        <p className="mt-2 text-xs text-s-muted">Or set your own mix below.</p>
       </div>
 
       {/* Counters */}
-      <div className="rounded-2xl bg-white ring-1 ring-border divide-y divide-border">
-        {flavors.map((f) => {
-          const art = flavorArt(f.code);
+      <div className="rounded-[24px] bg-s-surface ring-1 ring-s-line/[0.08]">
+        {flavors.map((f, i) => {
           const n = mix[f.code] ?? 0;
           const atCap = n >= cap(f) || remaining <= 0;
           return (
-            <div key={f.code} className="flex items-center gap-3 px-4 py-3">
-              <span className={`w-9 h-9 rounded-full bg-gradient-to-br ${art.gradient} flex items-center justify-center`} aria-hidden>
-                {art.emoji}
-              </span>
+            <div key={f.code} className={cn("flex items-center gap-4 px-5 py-3.5", i > 0 && "border-t border-s-line/[0.06]")}>
+              <CanThumb code={f.code} />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-ink truncate">{f.name}</div>
+                <div className="text-sm font-semibold text-s-fg">{f.name}</div>
                 {f.cans_available <= 0 ? (
-                  <div className="text-xs text-coral">Sold out</div>
+                  <div className="text-xs text-s-muted">Sold out</div>
                 ) : f.cans_available < perDelivery ? (
-                  <div className="text-xs text-coral">Only {f.cans_available} left</div>
+                  <div className="text-xs text-s-muted">Only {f.cans_available} left</div>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => bump(f.code, -1)}
                   disabled={n === 0}
                   aria-label={`One less ${f.name}`}
-                  className="w-9 h-9 rounded-full ring-1 ring-border flex items-center justify-center text-ink hover:bg-cream disabled:opacity-30"
+                  className="w-10 h-10 rounded-full ring-1 ring-s-line/15 flex items-center justify-center text-s-fg transition hover:bg-s-line/[0.05] active:scale-[0.95] disabled:opacity-25"
                 >
-                  <Minus className="w-4 h-4" />
+                  <MinusLine className="w-4 h-4" />
                 </button>
-                <span className="w-6 text-center font-semibold tabular-nums">{n}</span>
+                <span className="w-7 text-center font-semibold tabular-nums text-s-fg">{n}</span>
                 <button
                   type="button"
                   onClick={() => bump(f.code, 1)}
                   disabled={atCap}
                   aria-label={`One more ${f.name}`}
-                  className="w-9 h-9 rounded-full ring-1 ring-border flex items-center justify-center text-ink hover:bg-cream disabled:opacity-30"
+                  className="w-10 h-10 rounded-full ring-1 ring-s-line/15 flex items-center justify-center text-s-fg transition hover:bg-s-line/[0.05] active:scale-[0.95] disabled:opacity-25"
                 >
-                  <Plus className="w-4 h-4" />
+                  <PlusLine className="w-4 h-4" />
                 </button>
               </div>
             </div>
           );
         })}
-        <div className="px-4 py-2.5 flex items-center justify-between text-sm">
-          <span className={cn("font-semibold", complete ? "text-berry" : "text-inkSoft")}>
+        <div className="flex items-center justify-between border-t border-s-line/[0.06] px-5 py-3 text-sm">
+          <span className="font-semibold tabular-nums text-s-fg">
             {chosen} of {perDelivery} chosen
           </span>
-          {!complete ? (
-            <span className="text-inkSoft">{remaining} to go</span>
-          ) : deliveries > 1 ? (
-            <span className="text-inkSoft">Same mix every week</span>
-          ) : null}
+          <span className="text-s-muted">
+            {!complete ? `${remaining} to go` : deliveries > 1 ? "Same mix every week" : "Ready"}
+          </span>
         </div>
       </div>
 
       {/* Price summary */}
-      <dl className="text-sm space-y-1.5">
+      <dl className="grid gap-2 text-sm">
         <div className="flex justify-between">
-          <dt className="text-inkSoft">
-            {packName}
-            {deliveries > 1 ? ` (${perDelivery} cans × ${deliveries} weeks)` : ""}
-          </dt>
-          <dd className="tabular-nums text-ink">{formatPHP(price)}</dd>
+          <dt className="text-s-muted">{packName}</dt>
+          <dd className="tabular-nums text-s-fg">{formatPHP(price)}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-inkSoft">
+          <dt className="text-s-muted">
             Delivery{deliveries > 1 ? ` (${formatPHP(deliveryFee)} × ${deliveries})` : ""}
           </dt>
-          <dd className="tabular-nums text-ink">{formatPHP(fees)}</dd>
+          <dd className="tabular-nums text-s-fg">{formatPHP(fees)}</dd>
         </div>
-        <div className="flex justify-between border-t border-border pt-2 text-base font-semibold">
-          <dt className="text-ink">Total</dt>
-          <dd className="tabular-nums text-ink">{formatPHP(total)}</dd>
+        <div className="flex justify-between border-t border-s-line/[0.08] pt-3 text-base font-semibold text-s-fg">
+          <dt>Total</dt>
+          <dd className="tabular-nums">{formatPHP(total)}</dd>
         </div>
       </dl>
 
       <div>
-        <button
-          type="button"
-          onClick={addToCart}
-          disabled={!complete}
-          className={cn(
-            "w-full inline-flex items-center justify-center rounded-full font-semibold px-6 py-3.5 transition",
-            complete
-              ? "bg-berry text-white hover:bg-berryLt shadow-lg shadow-berry/20"
-              : "bg-ink/10 text-inkSoft cursor-not-allowed",
-          )}
-        >
+        <Btn onClick={addToCart} disabled={!complete} arrow={complete} className={complete ? "w-full justify-between" : "w-full"}>
           {complete ? "Add to cart" : `Pick ${remaining} more`}
-        </button>
+        </Btn>
         {added ? (
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-berryBg px-4 py-3 text-sm">
-            <span className="flex items-center gap-2 font-semibold text-berry">
-              <Check className="w-4 h-4" /> Added to your cart
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-[18px] bg-s-sunken px-5 py-3.5 text-sm">
+            <span className="flex items-center gap-2 font-semibold text-s-fg">
+              <CheckLine className="w-4 h-4" /> Added to your cart
             </span>
-            <Link href="/shop/cart" className="font-semibold text-ink underline underline-offset-2">
-              View cart &amp; checkout
+            <Link href="/shop/cart" className="font-semibold text-s-fg underline underline-offset-4">
+              View cart
             </Link>
           </div>
         ) : null}

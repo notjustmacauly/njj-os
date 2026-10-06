@@ -2,47 +2,28 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Minus, Plus } from "lucide-react";
 import { cn, formatPHP } from "@/lib/utils";
 import type { PublicEvent } from "../../_components/events";
+import { MinusLine, PlusLine } from "../../_components/icons";
+import { Btn } from "../../_components/ui";
 
-function Stepper({
-  value,
-  onChange,
-  max,
-  label,
-}: {
-  value: number;
-  onChange: (n: number) => void;
-  max: number;
-  label: string;
-}) {
+function Stepper({ value, onChange, max, label }: { value: number; onChange: (n: number) => void; max: number; label: string }) {
+  const b =
+    "w-10 h-10 rounded-full ring-1 ring-s-line/15 flex items-center justify-center text-s-fg transition hover:bg-s-line/[0.05] active:scale-[0.95] disabled:opacity-25";
   return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(0, value - 1))}
-        disabled={value === 0}
-        aria-label={`One less ${label}`}
-        className="w-9 h-9 rounded-full ring-1 ring-border flex items-center justify-center text-ink hover:bg-cream disabled:opacity-30"
-      >
-        <Minus className="w-4 h-4" />
+    <div className="flex items-center gap-1.5">
+      <button type="button" onClick={() => onChange(Math.max(0, value - 1))} disabled={value === 0} aria-label={`One less ${label}`} className={b}>
+        <MinusLine className="w-4 h-4" />
       </button>
-      <span className="w-6 text-center font-semibold tabular-nums">{value}</span>
-      <button
-        type="button"
-        onClick={() => onChange(Math.min(max, value + 1))}
-        disabled={value >= max}
-        aria-label={`One more ${label}`}
-        className="w-9 h-9 rounded-full ring-1 ring-border flex items-center justify-center text-ink hover:bg-cream disabled:opacity-30"
-      >
-        <Plus className="w-4 h-4" />
+      <span className="w-7 text-center font-semibold tabular-nums text-s-fg">{value}</span>
+      <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label={`One more ${label}`} className={b}>
+        <PlusLine className="w-4 h-4" />
       </button>
     </div>
   );
 }
 
-/** Price box: passes per sport (+ paddle rental) → pass checkout. */
+/** Passes per sport (plus paddle rental) leading into pass checkout. */
 export function PassPicker({ event }: { event: PublicEvent }) {
   const router = useRouter();
   const price = Number(event.pass_price);
@@ -65,66 +46,51 @@ export function PassPicker({ event }: { event: PublicEvent }) {
   }
 
   return (
-    <aside className="rounded-3xl bg-white ring-1 ring-border p-6 md:sticky md:top-24">
+    <div className="rounded-[28px] bg-s-surface ring-1 ring-s-line/[0.07] p-6 sm:p-7">
       <div className="flex items-baseline gap-2">
-        <span className="font-display text-3xl font-semibold text-ink tabular-nums">{formatPHP(price)}</span>
-        <span className="text-sm text-inkSoft">per pass · one sport</span>
+        <span className="font-display text-4xl font-semibold tracking-[-0.03em] tabular-nums text-s-fg">{formatPHP(price)}</span>
+        <span className="text-sm text-s-muted">per pass, one sport</span>
       </div>
 
       {event.sports.length === 0 ? (
-        <p className="mt-4 text-sm text-inkSoft">Passes open soon.</p>
+        <p className="mt-5 text-s-muted">Passes open soon.</p>
       ) : allSoldOut ? (
-        <p className="mt-4 rounded-2xl bg-ink/5 px-4 py-3 text-sm text-ink">
-          <span className="font-semibold">Sold out.</span> Follow us for the next one!
+        <p className="mt-5 rounded-[18px] bg-s-sunken px-5 py-4 text-s-fg">
+          <span className="font-semibold">Sold out.</span> Watch this page for the next date.
         </p>
       ) : (
         <>
-          <div className="mt-5 rounded-2xl ring-1 ring-border divide-y divide-border">
-            {event.sports.map((s) => (
-              <div key={s.id} className={cn("flex items-center gap-3 px-4 py-3", s.left <= 0 && "opacity-50")}>
+          <div className="mt-6 rounded-[22px] ring-1 ring-s-line/[0.08]">
+            {event.sports.map((s, i) => (
+              <div key={s.id} className={cn("flex items-center gap-3 px-5 py-3.5", i > 0 && "border-t border-s-line/[0.06]", s.left <= 0 && "opacity-45")}>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-ink">{s.name}</div>
-                  <div className={cn("text-xs", s.left <= 0 ? "text-inkSoft" : s.left <= 5 ? "text-coral" : "text-inkSoft")}>
-                    {s.left <= 0 ? "Sold out" : `${s.left} spots left`}
-                  </div>
+                  <div className="text-sm font-semibold text-s-fg">{s.name}</div>
+                  <div className="text-xs text-s-muted">{s.left <= 0 ? "Sold out" : `${s.left} spots left`}</div>
                 </div>
-                <Stepper
-                  value={qty[s.id] ?? 0}
-                  onChange={(n) => setQty((q) => ({ ...q, [s.id]: n }))}
-                  max={Math.min(s.left, 10)}
-                  label={`${s.name} pass`}
-                />
+                <Stepper value={qty[s.id] ?? 0} onChange={(n) => setQty((q) => ({ ...q, [s.id]: n }))} max={Math.min(s.left, 10)} label={`${s.name} pass`} />
               </div>
             ))}
             {paddlePrice != null ? (
-              <div className="flex items-center gap-3 px-4 py-3">
+              <div className="flex items-center gap-3 px-5 py-3.5 border-t border-s-line/[0.06]">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-ink">Paddle rental</div>
-                  <div className="text-xs text-inkSoft">{formatPHP(paddlePrice)} each · optional</div>
+                  <div className="text-sm font-semibold text-s-fg">Paddle rental</div>
+                  <div className="text-xs text-s-muted">{formatPHP(paddlePrice)} each, optional</div>
                 </div>
                 <Stepper value={paddles} onChange={setPaddles} max={Math.max(passes, 0)} label="paddle rental" />
               </div>
             ) : null}
           </div>
 
-          <div className="mt-4 flex justify-between text-base font-semibold">
+          <div className="mt-5 flex justify-between text-base font-semibold text-s-fg">
             <span>Total</span>
             <span className="tabular-nums">{formatPHP(total)}</span>
           </div>
-          <button
-            type="button"
-            onClick={go}
-            disabled={!passes}
-            className={cn(
-              "mt-4 w-full inline-flex items-center justify-center rounded-full font-semibold px-6 py-3.5 transition",
-              passes ? "bg-berry text-white hover:bg-berryLt shadow-lg shadow-berry/20" : "bg-ink/10 text-inkSoft cursor-not-allowed",
-            )}
-          >
+          <Btn onClick={go} disabled={!passes} arrow={passes > 0} className={cn("mt-5 w-full", passes > 0 && "justify-between")}>
             {passes ? `Get ${passes} pass${passes === 1 ? "" : "es"}` : "Choose a sport"}
-          </button>
-          <p className="mt-2 text-xs text-inkSoft text-center">QR passes are emailed to you right after payment.</p>
+          </Btn>
+          <p className="mt-3 text-xs text-s-muted text-center">QR passes are emailed right after payment.</p>
         </>
       )}
-    </aside>
+    </div>
   );
 }

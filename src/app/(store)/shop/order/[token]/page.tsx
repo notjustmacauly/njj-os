@@ -3,13 +3,14 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
 import type { Metadata } from "next";
-import { CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { COMPANY } from "@/lib/company";
 import { formatPHP } from "@/lib/utils";
 import { MixChips } from "../../../_components/mix-chips";
 import type { CheckoutReceipt } from "@/app/api/shop/checkout/emails";
 import { fmtEventDate, timeRange } from "../../../_components/events";
+import { CheckCircleLine } from "../../../_components/icons";
+import { Btn, Container, Panel } from "../../../_components/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Your order", robots: { index: false } };
@@ -36,86 +37,98 @@ export default async function OrderPage({ params }: { params: { token: string } 
   if (r.kind === "passes") return <PassesReceipt r={r} rejected={rejected} />;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-12">
-      <div className="text-center">
-        {rejected ? (
-          <>
-            <h1 className="font-display text-3xl font-semibold text-ink">We couldn&apos;t confirm this payment</h1>
-            <p className="mt-2 text-inkSoft">
-              Order {r.reference} was cancelled. If you think this is a mistake, email us at{" "}
-              <a className="text-berry underline" href={`mailto:${COMPANY.email}`}>
-                {COMPANY.email}
-              </a>
-              .
-            </p>
-          </>
-        ) : (
-          <>
-            <CheckCircle2 className="w-14 h-14 text-berry mx-auto" />
-            <h1 className="mt-4 font-display text-3xl sm:text-4xl font-semibold text-ink">
-              Payment completed 🎉
-            </h1>
-            <p className="mt-2 text-inkSoft">
-              Thanks, {r.name.split(" ")[0]}! Your order <span className="font-semibold text-ink">{r.reference}</span>{" "}
-              is confirmed. A copy is on its way to {r.email}.
-            </p>
-          </>
-        )}
-      </div>
+    <Container className="pt-14 md:pt-20 max-w-3xl">
+      <Header r={r} rejected={rejected} title="Payment completed." body={`Your order ${r.reference} is confirmed. A copy is on its way to ${r.email}.`} />
 
-      <div className="mt-10 rounded-3xl bg-white ring-1 ring-border p-6">
-        <ul className="space-y-3">
-          {r.items.map((i, n) => (
-            <li key={n} className="text-sm">
-              <div className="flex justify-between gap-3">
-                <span className="font-semibold text-ink">{i.name}</span>
-                <span className="tabular-nums">{formatPHP(i.price)}</span>
-              </div>
-              {i.deliveries > 1 ? (
-                <p className="text-xs text-inkSoft">Same mix every week for {i.deliveries} weeks</p>
-              ) : null}
-              <MixChips mix={i.mix} />
-            </li>
-          ))}
-        </ul>
-        <dl className="mt-4 text-sm space-y-1.5 border-t border-border pt-3">
-          <div className="flex justify-between">
-            <dt className="text-inkSoft">Delivery</dt>
-            <dd className="tabular-nums">{formatPHP(r.delivery_total)}</dd>
-          </div>
-          <div className="flex justify-between text-base font-semibold">
-            <dt>{rejected ? "Total" : "Total paid"}</dt>
-            <dd className="tabular-nums">{formatPHP(r.total)}</dd>
-          </div>
-        </dl>
-      </div>
-
-      {!rejected ? (
-        <div className="mt-6 rounded-3xl bg-white ring-1 ring-border p-6 text-sm">
-          <div className="font-semibold text-ink">{r.deliveries.length > 1 ? "Your deliveries" : "Delivery"}</div>
-          <ol className="mt-2 space-y-1.5">
-            {r.deliveries.map((d, n) => (
-              <li key={d.reference} className="flex justify-between gap-3">
-                <span>
-                  {r.deliveries.length > 1 ? `${n + 1}. ` : ""}
-                  {fmtDate(d.date)}
-                </span>
-                <span className="text-inkSoft">{d.status === "Delivered" ? "Delivered ✓" : "Scheduled"}</span>
+      <div className="mt-12 grid gap-4">
+        <Panel>
+          <ul className="grid gap-4">
+            {r.items.map((i, n) => (
+              <li key={n} className="text-sm">
+                <div className="flex justify-between gap-3">
+                  <span className="font-semibold text-s-fg">{i.name}</span>
+                  <span className="tabular-nums text-s-fg">{formatPHP(i.price)}</span>
+                </div>
+                {(i.deliveries ?? 1) > 1 ? (
+                  <p className="text-xs text-s-muted mt-0.5">Same mix every week for {i.deliveries} weeks</p>
+                ) : null}
+                <MixChips mix={i.mix ?? {}} />
               </li>
             ))}
-          </ol>
-          <p className="mt-4 text-inkSoft">
-            Delivering to <span className="text-ink">{r.address ?? ""}</span>. We&apos;ll message you on the day.
-          </p>
+          </ul>
+          <Totals r={r} rejected={rejected} delivery />
+        </Panel>
+
+        {!rejected ? (
+          <Panel>
+            <p className="text-sm font-semibold text-s-fg">{r.deliveries.length > 1 ? "Your deliveries" : "Delivery"}</p>
+            <ol className="mt-4 grid gap-2">
+              {r.deliveries.map((d, n) => (
+                <li key={d.reference} className="flex items-center justify-between gap-3 rounded-[16px] bg-s-sunken/70 px-4 py-3 text-sm">
+                  <span className="text-s-fg">
+                    {r.deliveries.length > 1 ? <span className="text-s-muted tabular-nums mr-2">{n + 1}</span> : null}
+                    {fmtDate(d.date)}
+                  </span>
+                  <span className="text-s-muted">{d.status === "Delivered" ? "Delivered" : "Scheduled"}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-5 text-sm text-s-muted">
+              Delivering to <span className="text-s-fg">{r.address ?? ""}</span>. We&apos;ll message you on the day.
+            </p>
+          </Panel>
+        ) : null}
+      </div>
+
+      <div className="mt-10">
+        <Btn href="/shop" variant="quiet">
+          Back to the shop
+        </Btn>
+      </div>
+    </Container>
+  );
+}
+
+function Header({ r, rejected, title, body }: { r: CheckoutReceipt; rejected: boolean; title: string; body: string }) {
+  if (rejected) {
+    return (
+      <div>
+        <h1 className="font-display font-semibold tracking-[-0.04em] leading-[1] text-5xl text-s-fg">We couldn&apos;t confirm this payment.</h1>
+        <p className="mt-5 text-lg text-s-muted max-w-[52ch]">
+          Order {r.reference} was cancelled. If you think this is a mistake, email{" "}
+          <a className="text-s-fg underline underline-offset-4" href={`mailto:${COMPANY.email}`}>
+            {COMPANY.email}
+          </a>
+          .
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <CheckCircleLine className="w-12 h-12 text-s-fg" />
+      <h1 className="mt-6 font-display font-semibold tracking-[-0.04em] leading-[1] text-5xl md:text-6xl text-s-fg">{title}</h1>
+      <p className="mt-5 text-lg text-s-muted max-w-[52ch]">
+        Thanks, {r.name.split(" ")[0]}. {body}
+      </p>
+    </div>
+  );
+}
+
+function Totals({ r, rejected, delivery }: { r: CheckoutReceipt; rejected: boolean; delivery?: boolean }) {
+  return (
+    <dl className="mt-5 grid gap-2 text-sm border-t border-s-line/[0.08] pt-4">
+      {delivery ? (
+        <div className="flex justify-between">
+          <dt className="text-s-muted">Delivery</dt>
+          <dd className="tabular-nums text-s-fg">{formatPHP(r.delivery_total)}</dd>
         </div>
       ) : null}
-
-      <div className="mt-8 text-center">
-        <Link href="/shop" className="inline-flex rounded-full bg-cream ring-1 ring-border px-6 py-3 font-semibold text-ink hover:bg-creamDk">
-          Back to the shop
-        </Link>
+      <div className="flex justify-between text-base font-semibold text-s-fg">
+        <dt>{rejected ? "Total" : "Total paid"}</dt>
+        <dd className="tabular-nums">{formatPHP(r.total)}</dd>
       </div>
-    </div>
+    </dl>
   );
 }
 
@@ -125,99 +138,79 @@ async function PassesReceipt({ r, rejected }: { r: CheckoutReceipt; rejected: bo
   // Each QR opens the staff check-in screen in the OS when scanned.
   const qrs = await Promise.all(
     r.passes.map((p) =>
-      QRCode.toString(`${origin}/dashboard/checkin/${p.token}`, { type: "svg", margin: 1, width: 220, color: { dark: "#1A1A2E" } }),
+      QRCode.toString(`${origin}/dashboard/checkin/${p.token}`, { type: "svg", margin: 1, width: 220, color: { dark: "#121212", light: "#ffffff" } }),
     ),
   );
   const e = r.event;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-12">
-      <div className="text-center">
-        {rejected ? (
-          <>
-            <h1 className="font-display text-3xl font-semibold text-ink">We couldn&apos;t confirm this payment</h1>
-            <p className="mt-2 text-inkSoft">
-              Order {r.reference} was cancelled and these passes are no longer valid. If you think this is a mistake, email{" "}
-              <a className="text-berry underline" href={`mailto:${COMPANY.email}`}>
-                {COMPANY.email}
-              </a>
-              .
-            </p>
-          </>
-        ) : (
-          <>
-            <CheckCircle2 className="w-14 h-14 text-berry mx-auto" />
-            <h1 className="mt-4 font-display text-3xl sm:text-4xl font-semibold text-ink">You&apos;re in! 🎉</h1>
-            <p className="mt-2 text-inkSoft">
-              Payment completed for <span className="font-semibold text-ink">{r.reference}</span>. Show these QR codes at the
-              door — one per player. A copy went to {r.email}.
-            </p>
-          </>
-        )}
-      </div>
+    <Container className="pt-14 md:pt-20 max-w-3xl">
+      <Header
+        r={r}
+        rejected={rejected}
+        title="You're in."
+        body={`Payment completed for ${r.reference}. Show these QR codes at the door, one per player. A copy went to ${r.email}.`}
+      />
 
       {e ? (
-        <div className="mt-8 rounded-3xl bg-white ring-1 ring-border p-6 text-sm">
-          <div className="font-display font-semibold text-xl text-ink">{e.name}</div>
-          <p className="mt-1 text-ink">
+        <Panel className="mt-12">
+          <p className="font-display text-2xl font-semibold tracking-[-0.02em] text-s-fg">{e.name}</p>
+          <p className="mt-2 text-s-fg">
             {fmtEventDate(e.date)}
-            {timeRange(e) ? ` · ${timeRange(e)}` : ""}
+            {timeRange(e) ? `, ${timeRange(e)}` : ""}
           </p>
           {e.venue ? (
-            <p className="mt-0.5 text-inkSoft">
+            <p className="mt-1 text-s-muted">
               {e.venue}
               {e.maps_url ? (
                 <>
-                  {" · "}
-                  <a href={e.maps_url} target="_blank" rel="noreferrer" className="text-berry font-semibold">
+                  {". "}
+                  <a href={e.maps_url} target="_blank" rel="noreferrer" className="font-semibold text-s-fg underline underline-offset-4">
                     Open in Maps
                   </a>
                 </>
               ) : null}
             </p>
           ) : null}
-        </div>
+        </Panel>
       ) : null}
 
       {!rejected ? (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {r.passes.map((p, i) => (
-            <div key={p.token} className="rounded-3xl bg-white ring-1 ring-border p-5 text-center">
-              <div className="text-xs uppercase tracking-smallcaps font-semibold text-berry">
+            <div key={p.token} className="rounded-[28px] bg-s-surface ring-1 ring-s-line/[0.07] p-6 text-center">
+              <p className="text-sm text-s-muted">
                 Pass {i + 1} of {r.passes.length}
-              </div>
-              <div className="font-semibold text-ink mt-1">{p.sport}</div>
-              <div className="mx-auto mt-3 w-48 h-48" dangerouslySetInnerHTML={{ __html: qrs[i] }} />
-              <div className="mt-2 text-xs text-inkSoft font-mono">{p.code}</div>
-              {p.checked_in ? <div className="mt-1 text-xs font-semibold text-emerald-700">Checked in ✓</div> : null}
+              </p>
+              <p className="font-semibold text-s-fg mt-0.5">{p.sport}</p>
+              <div className="mx-auto mt-4 w-48 h-48 rounded-[16px] overflow-hidden bg-white p-2" dangerouslySetInnerHTML={{ __html: qrs[i] }} />
+              <p className="mt-3 text-xs text-s-muted font-mono">{p.code}</p>
+              {p.checked_in ? <p className="mt-1 text-xs font-semibold text-s-fg">Checked in</p> : null}
             </div>
           ))}
         </div>
       ) : null}
 
-      <div className="mt-6 rounded-3xl bg-white ring-1 ring-border p-6 text-sm">
-        <ul className="space-y-1.5">
+      <Panel className="mt-4">
+        <ul className="grid gap-2 text-sm">
           {r.items.map((i, n) => (
             <li key={n} className="flex justify-between">
-              <span>
-                {i.qty}× {i.name}
+              <span className="text-s-fg">
+                {i.qty} × {i.name}
                 {i.kind === "pass" ? " pass" : ""}
               </span>
-              <span className="tabular-nums">{formatPHP(i.qty * i.price)}</span>
+              <span className="tabular-nums text-s-fg">{formatPHP(i.qty * i.price)}</span>
             </li>
           ))}
         </ul>
-        <div className="mt-3 flex justify-between border-t border-border pt-3 text-base font-semibold">
-          <span>{rejected ? "Total" : "Total paid"}</span>
-          <span className="tabular-nums">{formatPHP(r.total)}</span>
-        </div>
-      </div>
+        <Totals r={r} rejected={rejected} />
+      </Panel>
 
-      <div className="mt-8 text-center">
-        <Link href="/events" className="inline-flex rounded-full bg-cream ring-1 ring-border px-6 py-3 font-semibold text-ink hover:bg-creamDk">
+      <div className="mt-10">
+        <Link href="/events" className="text-sm font-semibold text-s-fg underline underline-offset-4">
           More events
         </Link>
       </div>
-    </div>
+    </Container>
   );
 }

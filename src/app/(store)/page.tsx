@@ -1,265 +1,218 @@
 import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { ProductCard, type CatalogItem } from "./_components/product-card";
+import { COMPANY } from "@/lib/company";
+import { PackTrio, type CatalogItem } from "./_components/product-card";
 import { EventCard } from "./_components/event-card";
 import type { PublicEvent } from "./_components/events";
+import { flavorArt } from "./_components/flavor";
+import { Reveal } from "./_components/reveal";
+import { ArrowUpRightLine } from "./_components/icons";
+import { Bezel, Btn, Container, H2, Lede } from "./_components/ui";
 
 export const dynamic = "force-dynamic";
+
+const FLAVOURS = ["PCL", "ACG", "WPM"] as const;
+const FLAVOUR_NAMES: Record<(typeof FLAVOURS)[number], string> = {
+  PCL: "Pineapple Cucumber Lemon",
+  ACG: "Apple Carrot Grape",
+  WPM: "Watermelon Passionfruit Mint",
+};
 
 export default async function StoreHome() {
   const supabase = await createClient();
 
-  // Staff (anyone with an OS role) who lands on the public home — e.g. after
-  // accepting a Supabase invite, which redirects here — goes to the dashboard.
+  // Staff (anyone with an OS role) who lands on the public home, e.g. after
+  // accepting a Supabase invite, goes to the dashboard.
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (user) {
-    const { data: roleRow } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle();
     if (roleRow?.role) redirect("/dashboard");
   }
 
-  const { data } = await supabase
-    .from("web_catalog")
-    .select("*")
-    .order("sort_order", { ascending: true });
+  const [{ data }, { data: eventRows }] = await Promise.all([
+    supabase.from("web_catalog").select("*").order("sort_order", { ascending: true }),
+    supabase
+      .from("web_events")
+      .select("*")
+      .order("event_date", { ascending: true })
+      .order("start_time", { ascending: true })
+      .limit(6),
+  ]);
   const items = (data ?? []) as CatalogItem[];
-  const { data: eventRows } = await supabase
-    .from("web_events")
-    .select("*")
-    .order("event_date", { ascending: true })
-    .order("start_time", { ascending: true })
-    .limit(3);
   const events = (eventRows ?? []) as PublicEvent[];
 
   return (
     <>
-      {/* ── Hero (full-bleed photo + overlaid card) ──────────── */}
-      <section className="relative overflow-hidden">
-        {/* Full-bleed product photo */}
-        <div className="absolute inset-0">
-          <Image
-            src="/hero-shot.jpg"
-            alt="Not Just Juice — cold-pressed high-protein collagen in apple, pineapple and watermelon"
-            fill
-            priority
-            sizes="100vw"
-            className="object-cover object-[68%_center]"
-          />
-          {/* soft wash on the left so the card reads on any screen */}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-transparent lg:hidden" />
-        </div>
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 flex items-center min-h-[78vh] lg:min-h-[86vh] py-16">
-          <div className="njj-rise w-full max-w-lg bg-white/95 backdrop-blur rounded-[2.5rem] shadow-2xl ring-1 ring-white/60 p-8 sm:p-10">
-            <span className="inline-flex items-center gap-2 rounded-full bg-salmonBg px-3.5 py-1.5 text-xs font-semibold uppercase tracking-smallcaps text-berry">
-              Cold-pressed · High-protein collagen
-            </span>
-            <h1 className="font-display font-semibold text-ink leading-[0.98] tracking-tight mt-5 text-4xl sm:text-5xl lg:text-6xl">
-              Juice that
-              <br />
-              makes you{" "}
-              <span className="italic text-berry">glow.</span>
+      {/* Hero: asymmetric split, real product photo */}
+      <section className="pt-8 md:pt-12">
+        <Container className="grid items-center gap-10 md:grid-cols-12 md:min-h-[calc(100dvh-9rem)]">
+          <div className="md:col-span-6">
+            <h1 className="font-display font-semibold tracking-[-0.04em] leading-[0.95] text-[3.25rem] sm:text-6xl xl:text-7xl text-s-fg [text-wrap:balance]">
+              Juice that makes you glow.
             </h1>
-            <p className="mt-5 text-lg text-inkSoft">
-              Real fruit, cold-pressed into 330&nbsp;ml cans — with{" "}
-              <span className="text-ink font-semibold">high-protein collagen</span> and
-              no added sugar. Delivered fresh to your door.
-            </p>
-            {/* Product facts */}
-            <div className="mt-6 flex flex-wrap gap-2">
-              {["High-protein collagen", "No added sugar", "330 ml"].map((f) => (
-                <span
-                  key={f}
-                  className="rounded-full bg-cream px-3 py-1.5 text-sm font-semibold text-ink/80 ring-1 ring-border"
-                >
-                  {f}
-                </span>
+            <Lede className="mt-6">
+              Real fruit, cold-pressed into 330 ml cans with high-protein collagen. No added sugar. Delivered fresh to
+              your door.
+            </Lede>
+            <div className="mt-9 flex flex-wrap items-center gap-2">
+              <Btn href="/shop" arrow>
+                Shop packs
+              </Btn>
+              <Btn href="/events" variant="quiet">
+                Upcoming events
+              </Btn>
+            </div>
+          </div>
+          <div className="md:col-span-6">
+            <Bezel>
+              <div className="relative aspect-[4/3] md:aspect-[5/4]">
+                <Image
+                  src="/hero-shot.jpg"
+                  alt="Not Just Juice cans in pineapple, apple and watermelon with a fresh fruit splash"
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 92vw, 760px"
+                  className="object-cover object-[68%_center]"
+                />
+              </div>
+            </Bezel>
+          </div>
+        </Container>
+      </section>
+
+      {/* Packs: asymmetric trio */}
+      {items.length > 0 ? (
+        <section className="py-24 md:py-32">
+          <Container>
+            <Reveal>
+              <H2>Pick your pack.</H2>
+              <Lede className="mt-4">Every pack comes in any mix of the three flavours. Same price, whatever you choose.</Lede>
+            </Reveal>
+            <Reveal delay={120} className="mt-12">
+              <PackTrio items={items} />
+            </Reveal>
+          </Container>
+        </section>
+      ) : null}
+
+      {/* Story: editorial statement over the three cans */}
+      <section id="about" className="scroll-mt-28">
+        <Container>
+          <Reveal>
+            <div className="rounded-[36px] bg-s-surface ring-1 ring-s-line/[0.07] px-6 py-14 sm:px-12 md:px-16 md:py-20">
+              <div className="grid gap-12 lg:grid-cols-12 lg:items-end">
+                <div className="lg:col-span-6">
+                  <H2 className="md:text-6xl">Small batches. Big glow.</H2>
+                  <p className="mt-6 text-lg text-s-muted leading-relaxed max-w-[50ch]">
+                    We started Not Just Juice with one belief: what goes into your body should be simple and honest. Every
+                    can is cold-pressed from real fruit and boosted with high-protein collagen. No concentrate, no added
+                    sugar, no shortcuts.
+                  </p>
+                  <dl className="mt-10 grid grid-cols-3 gap-4 max-w-md">
+                    {[
+                      ["100%", "real fruit"],
+                      ["330 ml", "per can"],
+                      ["0 g", "added sugar"],
+                    ].map(([v, l]) => (
+                      <div key={l}>
+                        <dt className="sr-only">{l}</dt>
+                        <dd className="font-display text-3xl font-semibold tracking-[-0.03em] text-s-fg">{v}</dd>
+                        <dd className="text-sm text-s-muted">{l}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+                <ul className="lg:col-span-6 grid grid-cols-3 gap-3 sm:gap-5">
+                  {FLAVOURS.map((code, i) => {
+                    const art = flavorArt(code);
+                    return (
+                      <li key={code} className={i === 1 ? "lg:-translate-y-8" : ""}>
+                        <div className={`relative aspect-[3/5] rounded-[24px] bg-gradient-to-b ${art.gradient}`}>
+                          {art.can ? (
+                            <Image
+                              src={art.can}
+                              alt={`${FLAVOUR_NAMES[code]} can`}
+                              fill
+                              sizes="(max-width: 768px) 30vw, 200px"
+                              className="object-contain p-4 sm:p-6 drop-shadow-[0_20px_24px_rgb(18_18_18/0.22)]"
+                            />
+                          ) : null}
+                        </div>
+                        <p className="mt-3 text-sm font-semibold text-s-fg leading-snug">{FLAVOUR_NAMES[code]}</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          </Reveal>
+        </Container>
+      </section>
+
+      {/* Community: upcoming events on a horizontal rail */}
+      <section id="community" className="scroll-mt-28 py-24 md:py-32">
+        <Container>
+          <Reveal className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <H2>Come play with us.</H2>
+              <Lede className="mt-4">Community games every week. One pass is ₱250 for one sport.</Lede>
+            </div>
+            {events.length > 0 ? (
+              <Link href="/events" className="text-sm font-semibold text-s-fg underline underline-offset-4 decoration-s-line/30 hover:decoration-s-fg">
+                See all events
+              </Link>
+            ) : null}
+          </Reveal>
+        </Container>
+        {events.length > 0 ? (
+          <Reveal delay={120} className="mt-12">
+            <div className="njj-noscroll flex gap-5 overflow-x-auto snap-x snap-mandatory pb-4 px-5 sm:px-8 xl:px-[max(2rem,calc((100vw-1320px)/2+2rem))] scroll-px-5">
+              {events.map((e) => (
+                <div key={e.id} className="snap-start shrink-0 w-[82vw] sm:w-[380px]">
+                  <EventCard event={e} />
+                </div>
               ))}
             </div>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link
-                href="/shop"
-                className="group inline-flex items-center gap-2 rounded-full bg-berry text-white font-semibold px-7 py-3.5 hover:bg-berryLt transition shadow-lg shadow-berry/20"
-              >
-                Shop the juices
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition" />
-              </Link>
-              <Link
-                href="/#about"
-                className="inline-flex items-center rounded-full bg-cream text-ink font-semibold px-6 py-3.5 hover:bg-creamDk transition"
-              >
-                Our story
-              </Link>
-            </div>
-          </div>
-        </div>
+          </Reveal>
+        ) : (
+          <Container className="mt-10">
+            <p className="text-s-muted">New dates are being added. Check back soon.</p>
+          </Container>
+        )}
       </section>
 
-      {/* ── Product rail ─────────────────────────────────────── */}
-      {items.length > 0 ? (
-        <section className="py-14 sm:py-20">
-          <div className="max-w-7xl mx-auto px-6 flex items-end justify-between gap-4">
-            <div>
-              <h2 className="font-display font-semibold text-ink text-3xl sm:text-4xl">
-                Grab a pack
-              </h2>
-              <p className="text-inkSoft mt-1">Freshly pressed, delivered cold.</p>
-            </div>
-            <Link
-              href="/shop"
-              className="shrink-0 inline-flex items-center gap-1.5 text-sm font-semibold text-berry hover:underline"
-            >
-              View all <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="njj-noscroll mt-7 flex gap-5 overflow-x-auto snap-x snap-mandatory px-6 pb-2 scroll-px-6">
-            {items.map((item) => (
-              <div key={item.id} className="snap-start shrink-0 w-[68vw] sm:w-72">
-                <ProductCard item={item} />
+      {/* Partners: one brand-colour band */}
+      <section id="partners" className="scroll-mt-28">
+        <Container>
+          <Reveal>
+            <div className="relative overflow-hidden rounded-[36px] bg-s-brand text-s-brand-fg px-6 py-14 sm:px-12 md:px-16 md:py-20 grid gap-8 md:grid-cols-12 md:items-center">
+              <div className="md:col-span-8">
+                <h2 className="font-display font-semibold tracking-[-0.03em] leading-[1.02] text-4xl md:text-5xl [text-wrap:balance]">
+                  Stock Not Just Juice.
+                </h2>
+                <p className="mt-4 text-lg leading-relaxed max-w-[48ch] text-s-brand-fg/75">
+                  Cafés, studios and offices: bring cold-pressed juice to your space.
+                </p>
               </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {/* ── About ────────────────────────────────────────────── */}
-      <section id="about" className="scroll-mt-24 py-16 sm:py-24">
-        <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-          <div className="relative order-2 lg:order-1">
-            {/* Photo placeholder — swap for a real lifestyle shot */}
-            <div className="aspect-[4/5] rounded-[2.5rem] bg-gradient-to-br from-[#F7A9B0] via-[#FBE7A1] to-[#8FD3B6] shadow-xl ring-1 ring-white/40 flex items-center justify-center">
-              <span className="text-7xl" aria-hidden>🧃</span>
+              <div className="md:col-span-4 md:justify-self-end">
+                <a
+                  href={`mailto:${COMPANY.email}?subject=${encodeURIComponent("Stocking Not Just Juice")}`}
+                  className="group inline-flex items-center gap-3 rounded-full bg-[#121212] text-[#FAFAF8] pl-6 pr-1.5 py-1.5 font-semibold transition duration-300 ease-settle hover:bg-[#121212]/90 active:scale-[0.98]"
+                >
+                  Get in touch
+                  <span className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center transition duration-300 ease-settle group-hover:translate-x-0.5 group-hover:-translate-y-px">
+                    <ArrowUpRightLine className="w-4 h-4" />
+                  </span>
+                </a>
+              </div>
             </div>
-            <div className="njj-floaty absolute -bottom-6 -right-4 bg-white rounded-2xl shadow-xl px-5 py-4">
-              <div className="font-display font-bold text-2xl text-berry">100%</div>
-              <div className="text-xs text-inkSoft">real fruit, nothing else</div>
-            </div>
-          </div>
-          <div className="order-1 lg:order-2">
-            <span className="text-xs uppercase tracking-smallcaps font-semibold text-berry">
-              Our story
-            </span>
-            <h2 className="font-display font-semibold text-ink text-3xl sm:text-5xl leading-tight mt-3">
-              Small batches. Big glow.
-            </h2>
-            <p className="mt-5 text-lg text-inkSoft leading-relaxed">
-              We started Not Just Juice with one belief: what goes into your body
-              should be simple and honest. Every 330&nbsp;ml can is cold-pressed from
-              real fruit and boosted with{" "}
-              <span className="text-ink font-semibold">high-protein collagen</span> —
-              no concentrate, no added sugar, no shortcuts.
-            </p>
-            <p className="mt-4 text-inkSoft leading-relaxed">
-              Glow from within: collagen and protein in every can, pressed fresh and
-              delivered cold.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Upcoming events ──────────────────────────────────── */}
-      {events.length > 0 ? (
-        <section id="events" className="scroll-mt-24 pb-16 sm:pb-20">
-          <div className="max-w-7xl mx-auto px-6 flex items-end justify-between gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-smallcaps font-semibold text-berry">Events</span>
-              <h2 className="font-display font-semibold text-ink text-3xl sm:text-4xl mt-1">Come play with us</h2>
-              <p className="text-inkSoft mt-1">₱250 per pass. Grab a spot before they&apos;re gone.</p>
-            </div>
-            <Link href="/events" className="shrink-0 inline-flex items-center gap-1.5 text-sm font-semibold text-berry hover:underline">
-              All events <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="max-w-7xl mx-auto px-6 mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {events.map((e) => (
-              <EventCard key={e.id} event={e} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {/* ── Community / Partners ─────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-6 pb-20">
-        <div className={`grid gap-5 ${events.length === 0 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
-          {events.length === 0 ? (
-            <TeaserCard
-              id="events"
-              eyebrow="Events"
-              title="Catch us out there"
-              body="Community games, pop-ups and markets around the city."
-              gradient="from-[#FBE7A1] to-[#F7A9B0]"
-              cta={{ label: "See events", href: "/events" }}
-            />
-          ) : null}
-          <TeaserCard
-            id="community"
-            eyebrow="Community"
-            title="Join the glow"
-            body="Recipes, wellness tips, and the people behind the press. Be the first to know what's next."
-            gradient="from-[#E7B3C6] to-[#8FD3B6]"
-          />
-          <TeaserCard
-            id="partners"
-            eyebrow="Partners"
-            title="Stock Not Just Juice"
-            body="Cafés, studios, and offices — bring cold-pressed juice to your space. Let's talk."
-            gradient="from-[#8FD3B6] to-[#FBE7A1]"
-            cta={{ label: "Get in touch", href: "mailto:notjustgroup@gmail.com" }}
-          />
-        </div>
+          </Reveal>
+        </Container>
       </section>
     </>
-  );
-}
-
-function TeaserCard({
-  id,
-  eyebrow,
-  title,
-  body,
-  gradient,
-  cta,
-}: {
-  id: string;
-  eyebrow: string;
-  title: string;
-  body: string;
-  gradient: string;
-  cta?: { label: string; href: string };
-}) {
-  return (
-    <div
-      id={id}
-      className="scroll-mt-24 relative overflow-hidden rounded-3xl bg-white ring-1 ring-border p-6 flex flex-col"
-    >
-      <div className={`absolute -top-16 -right-16 w-40 h-40 rounded-full bg-gradient-to-br ${gradient} opacity-70 blur-2xl`} />
-      <span className="relative text-xs uppercase tracking-smallcaps font-semibold text-berry">
-        {eyebrow}
-      </span>
-      <h3 className="relative font-display font-semibold text-ink text-2xl mt-2">
-        {title}
-      </h3>
-      <p className="relative text-inkSoft mt-2 flex-1">{body}</p>
-      {cta ? (
-        <a
-          href={cta.href}
-          className="relative mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-berry hover:underline"
-        >
-          {cta.label} <ArrowRight className="w-4 h-4" />
-        </a>
-      ) : (
-        <span className="relative mt-4 text-sm font-semibold text-inkSoft/70">
-          Coming soon
-        </span>
-      )}
-    </div>
   );
 }

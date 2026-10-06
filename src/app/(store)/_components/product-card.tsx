@@ -1,7 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
-import { formatPHP } from "@/lib/utils";
-import { flavorArt, MIX_CANS, MIX_GRADIENT } from "./flavor";
+import { cn, formatPHP } from "@/lib/utils";
+import { flavorArt, MIX_CANS } from "./flavor";
+import { Bezel } from "./ui";
+import { ArrowUpRightLine } from "./icons";
 
 export type CatalogItem = {
   id: string;
@@ -20,82 +22,119 @@ export type CatalogItem = {
   delivery_fee: number | string;
 };
 
-export function ProductCard({ item }: { item: CatalogItem }) {
-  const isMix = !item.sku_code;
-  const art = flavorArt(item.sku_code);
+/** Pack tile: real can photography in a sunken well, details below. */
+export function ProductCard({ item, featured = false }: { item: CatalogItem; featured?: boolean }) {
   const soldOut = item.packs_available <= 0;
   const low = !soldOut && item.packs_available <= 5;
+  const perDelivery = item.cans_per_unit / (item.deliveries || 1);
 
   return (
-    <Link
-      href={`/shop/${item.slug}`}
-      className="group block rounded-2xl border border-border bg-white overflow-hidden shadow-card hover:shadow-lg transition"
-    >
-      <div className={`relative aspect-[4/5] bg-gradient-to-br ${isMix ? MIX_GRADIENT : art.gradient}`}>
-        {item.image_url ? (
-          <Image
-            src={item.image_url}
-            alt={item.name}
-            fill
-            sizes="(max-width: 640px) 70vw, 320px"
-            className="object-contain p-6 drop-shadow-[0_18px_28px_rgba(26,19,15,0.22)] transition duration-300 group-hover:scale-[1.04]"
-          />
-        ) : isMix ? (
-          <MixCans />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-6xl opacity-80">
-            <span aria-hidden>{art.emoji}</span>
-          </div>
-        )}
-        <span className="absolute bottom-3 left-3 rounded-full bg-white/90 text-ink text-sm font-bold px-3 py-1">
-          {item.cans_per_unit} cans
-        </span>
-        {item.badge ? (
-          <span className="absolute top-3 left-3 rounded-full bg-white/90 text-ink text-xs font-semibold px-2.5 py-1">
-            {item.badge}
-          </span>
-        ) : null}
-        {soldOut ? (
-          <span className="absolute top-3 right-3 rounded-full bg-ink/80 text-white text-xs font-semibold px-2.5 py-1">
-            Sold out
-          </span>
-        ) : low ? (
-          <span className="absolute top-3 right-3 rounded-full bg-coral text-white text-xs font-semibold px-2.5 py-1">
-            Only {item.packs_available} left
-          </span>
-        ) : null}
-      </div>
-      <div className="p-4 space-y-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <h3 className="font-display font-semibold text-ink leading-tight group-hover:text-berry transition">
-            {item.name}
-          </h3>
-          <span className="text-ink font-semibold tabular-nums shrink-0">{formatPHP(item.price)}</span>
+    <Link href={`/shop/${item.slug}`} className="group block h-full">
+      <Bezel className="h-full transition duration-500 ease-settle group-hover:-translate-y-1" innerClassName="h-full flex flex-col">
+        <div className={cn("relative bg-s-sunken/60 flex-1", featured ? "min-h-[340px] md:min-h-[460px]" : "min-h-[240px]")}>
+          {item.image_url ? (
+            <Image
+              src={item.image_url}
+              alt={item.name}
+              fill
+              sizes={featured ? "(max-width: 768px) 92vw, 720px" : "(max-width: 768px) 92vw, 420px"}
+              className="object-contain p-8 transition duration-700 ease-settle group-hover:scale-[1.03]"
+            />
+          ) : (
+            <MixCans large={featured} count={Math.min(item.cans_per_unit, featured ? 5 : 3)} />
+          )}
+          {soldOut || low ? (
+            <span className="absolute top-4 right-4 rounded-full bg-s-surface text-s-fg text-xs font-semibold px-3 py-1.5 ring-1 ring-s-line/10">
+              {soldOut ? "Sold out" : `Only ${item.packs_available} left`}
+            </span>
+          ) : null}
         </div>
-        <p className="text-sm text-inkSoft">
-          {isMix ? item.subtitle ?? "Mix your flavours" : [item.subtitle, item.flavor_name].filter(Boolean).join(" · ")}
-        </p>
-      </div>
+        <div className="flex items-end justify-between gap-4 px-6 py-5">
+          <div className="min-w-0">
+            <h3 className={cn("font-display font-semibold tracking-[-0.02em] text-s-fg", featured ? "text-3xl" : "text-2xl")}>
+              {item.name}
+            </h3>
+            <p className="text-sm text-s-muted mt-1">
+              {item.deliveries > 1 ? `${perDelivery} cans a week, ${item.deliveries} weeks` : `${item.cans_per_unit} cans, your mix`}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-lg font-semibold tabular-nums text-s-fg">{formatPHP(item.price)}</span>
+            <span className="w-10 h-10 rounded-full bg-s-line/[0.06] flex items-center justify-center transition duration-300 ease-settle group-hover:bg-s-invert group-hover:text-s-invert-fg">
+              <ArrowUpRightLine className="w-4 h-4" />
+            </span>
+          </div>
+        </div>
+      </Bezel>
     </Link>
   );
 }
 
-// Three cans fanned out — the art for any mix-your-own pack.
-export function MixCans({ large = false }: { large?: boolean }) {
-  const tilt = ["-rotate-[10deg] translate-x-[18%]", "z-10 -translate-y-[4%]", "rotate-[10deg] -translate-x-[18%]"];
+/** Asymmetric trio: the biggest pack leads, the other two stack beside it. */
+export function PackTrio({ items }: { items: CatalogItem[] }) {
+  if (items.length === 0) return null;
+  const sorted = [...items].sort((a, b) => b.cans_per_unit - a.cans_per_unit);
+  const [lead, ...rest] = sorted;
   return (
-    <div className="absolute inset-0 flex items-end justify-center pb-[12%]">
-      {MIX_CANS.map((src, i) => (
-        <div key={src} className={`relative ${large ? "w-[30%]" : "w-[32%]"} aspect-[1/2] ${tilt[i]} transition duration-300 group-hover:scale-[1.04]`}>
-          <Image
-            src={src}
-            alt=""
-            fill
-            sizes={large ? "160px" : "110px"}
-            className="object-contain drop-shadow-[0_18px_24px_rgba(26,19,15,0.25)]"
-          />
+    <div className="grid gap-5 md:grid-cols-12">
+      <div className="md:col-span-7 md:row-span-2">
+        <ProductCard item={lead} featured />
+      </div>
+      {rest.map((it) => (
+        <div key={it.id} className="md:col-span-5">
+          <ProductCard item={it} />
         </div>
       ))}
     </div>
+  );
+}
+
+// Fanned can cutouts, the art for any mix-your-own pack.
+export function MixCans({
+  large = false,
+  count = 3,
+  hero = false,
+}: {
+  large?: boolean;
+  count?: number;
+  /** Product-page well: cans centred and sized to the larger frame. */
+  hero?: boolean;
+}) {
+  const cans = Array.from({ length: count }, (_, i) => MIX_CANS[i % MIX_CANS.length]);
+  const mid = (count - 1) / 2;
+  return (
+    <div className={cn("absolute inset-0 flex justify-center", hero ? "items-center" : "items-end pb-[9%]")}>
+      {cans.map((src, i) => {
+        const off = i - mid;
+        return (
+          <div
+            key={i}
+            className={cn(
+              "relative aspect-[1/2] -mx-[3%] transition duration-700 ease-settle group-hover:-translate-y-1",
+              hero ? "w-[19%]" : large ? "w-[21%]" : "w-[17%]",
+            )}
+            style={{ transform: `rotate(${off * 7}deg) translateY(${Math.abs(off) * 6}%)`, zIndex: 10 - Math.abs(Math.round(off)) }}
+          >
+            <Image
+              src={src}
+              alt=""
+              fill
+              sizes={large ? "180px" : "120px"}
+              className="object-contain drop-shadow-[0_18px_22px_rgb(18_18_18/0.22)]"
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Small can thumbnail for a flavour (used in builders and summaries). */
+export function CanThumb({ code, className }: { code: string; className?: string }) {
+  const art = flavorArt(code);
+  return (
+    <span className={cn("relative inline-block w-7 h-12 shrink-0", className)}>
+      {art.can ? <Image src={art.can} alt="" fill sizes="28px" className="object-contain" /> : null}
+    </span>
   );
 }

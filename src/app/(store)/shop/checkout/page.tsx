@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
-import { cn, formatPHP } from "@/lib/utils";
+import { formatPHP } from "@/lib/utils";
 import { cartTotals, useCart } from "../../_components/cart";
 import { MixChips } from "../../_components/mix-chips";
 import { ConfirmingOverlay, newIdempotencyKey, PayPanels, submitWithProof } from "../../_components/pay-step";
+import { ArrowLeftLine } from "../../_components/icons";
+import { Btn, Container, Field, fieldCls, FormError, Panel } from "../../_components/ui";
+import { CheckoutSteps } from "../../_components/checkout-steps";
 
 function manilaDate(offsetDays: number): string {
   const d = new Date(Date.now() + offsetDays * 86_400_000);
@@ -28,9 +29,6 @@ function prettyDate(iso: string): string {
     timeZone: "UTC",
   });
 }
-
-const fieldCls =
-  "w-full rounded-xl bg-white ring-1 ring-border px-4 py-3 text-ink placeholder:text-inkSoft/60 focus:outline-none focus:ring-2 focus:ring-berry";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -54,15 +52,14 @@ export default function CheckoutPage() {
     idemKey.current = newIdempotencyKey();
   }, []);
 
-
   function toPay(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!name.trim() || !email.trim() || !phone.trim() || !address.trim()) {
-      return setError("Please fill in your name, email, mobile number and delivery address.");
+      return setError("Fill in your name, email, mobile number and delivery address.");
     }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setError("That email address doesn't look right.");
-    if (!date || date < minDate) return setError("Please choose a delivery date from tomorrow onwards.");
+    if (!date || date < minDate) return setError("Choose a delivery date from tomorrow onwards.");
     setStep("pay");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -70,7 +67,7 @@ export default function CheckoutPage() {
   async function submit() {
     if (submitting) return;
     setError(null);
-    if (!file) return setError("Please upload a screenshot of your payment.");
+    if (!file) return setError("Upload a screenshot of your payment.");
     setSubmitting(true);
     try {
       const token = await submitWithProof(
@@ -97,171 +94,143 @@ export default function CheckoutPage() {
 
   if (ready && lines.length === 0 && !submitting) {
     return (
-      <div className="max-w-xl mx-auto px-4 py-16 text-center">
-        <p className="text-inkSoft">Your cart is empty.</p>
-        <Link href="/shop" className="mt-5 inline-flex rounded-full bg-berry text-white font-semibold px-6 py-3">
-          Build a pack
-        </Link>
-      </div>
+      <Container className="pt-20 text-center">
+        <p className="font-display text-3xl font-semibold text-s-fg">Your cart is empty.</p>
+        <div className="mt-6">
+          <Btn href="/shop" arrow>
+            Build a pack
+          </Btn>
+        </div>
+      </Container>
     );
   }
 
   const schedule = Array.from({ length: Math.max(t.weeks, 1) }, (_, i) => addDays(date || minDate, i * 7));
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
+    <Container className="pt-8 md:pt-12">
       {submitting ? <ConfirmingOverlay /> : null}
 
       <button
         type="button"
         onClick={() => (step === "pay" ? setStep("details") : router.push("/shop/cart"))}
-        className="inline-flex items-center gap-1.5 text-sm text-inkSoft hover:text-ink mb-6"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-s-muted hover:text-s-fg transition"
       >
-        <ArrowLeft className="w-4 h-4" />
-        {step === "pay" ? "Back to details" : "Back to cart"}
+        <ArrowLeftLine className="w-4 h-4" />
+        {step === "pay" ? "Delivery details" : "Cart"}
       </button>
-      <h1 className="font-display text-3xl sm:text-4xl font-semibold text-ink">Checkout</h1>
-      <ol className="mt-3 flex gap-2 text-xs font-semibold">
-        <li className={cn("rounded-full px-3 py-1", step === "details" ? "bg-berry text-white" : "bg-berryBg text-berry")}>
-          1 · Delivery details
-        </li>
-        <li className={cn("rounded-full px-3 py-1", step === "pay" ? "bg-berry text-white" : "bg-ink/5 text-inkSoft")}>
-          2 · Pay
-        </li>
-      </ol>
+      <h1 className="mt-6 font-display font-semibold tracking-[-0.04em] text-5xl text-s-fg">Checkout</h1>
+      <CheckoutSteps step={step} labels={["Delivery details", "Pay"]} />
 
-      <div className="mt-8 grid gap-8 md:grid-cols-[1fr_340px] md:items-start">
-        <div>
+      <div className="mt-10 grid gap-8 md:grid-cols-12 md:items-start">
+        <div className="md:col-span-7">
           {step === "details" ? (
-            <form onSubmit={toPay} className="space-y-4">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <label className="block">
-                  <span className="text-sm font-semibold text-ink">Full name</span>
-                  <input className={cn(fieldCls, "mt-1")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-                </label>
-                <label className="block">
-                  <span className="text-sm font-semibold text-ink">Mobile number</span>
+            <form onSubmit={toPay} className="grid gap-5" noValidate>
+              <div className="grid sm:grid-cols-2 gap-5">
+                <Field label="Full name">
+                  <input className={fieldCls} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+                </Field>
+                <Field label="Mobile number">
                   <input
-                    className={cn(fieldCls, "mt-1")}
+                    className={fieldCls}
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     inputMode="tel"
                     autoComplete="tel"
-                    placeholder="09xx xxx xxxx"
+                    placeholder="0917 123 4567"
                   />
-                </label>
+                </Field>
               </div>
-              <label className="block">
-                <span className="text-sm font-semibold text-ink">Email</span>
+              <Field label="Email" hint="Your order confirmation goes here.">
                 <input
-                  className={cn(fieldCls, "mt-1")}
+                  className={fieldCls}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   type="email"
                   autoComplete="email"
+                  placeholder="you@gmail.com"
                 />
-                <span className="text-xs text-inkSoft">Your order confirmation goes here.</span>
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-ink">Delivery address</span>
+              </Field>
+              <Field label="Delivery address">
                 <textarea
-                  className={cn(fieldCls, "mt-1")}
+                  className={fieldCls}
                   rows={3}
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   autoComplete="street-address"
-                  placeholder="House / unit, street, barangay, city"
+                  placeholder="Unit 4B, 12 Osmeña Blvd, Barangay Kamputhaw, Cebu City"
                 />
-              </label>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <label className="block">
-                  <span className="text-sm font-semibold text-ink">
-                    {t.weeks > 1 ? "First delivery date" : "Delivery date"}
-                  </span>
+              </Field>
+              <div className="grid sm:grid-cols-2 gap-5">
+                <Field label={t.weeks > 1 ? "First delivery date" : "Delivery date"}>
+                  <input className={fieldCls} type="date" min={minDate} value={date} onChange={(e) => setDate(e.target.value)} />
+                </Field>
+                <Field label="Notes (optional)">
                   <input
-                    className={cn(fieldCls, "mt-1")}
-                    type="date"
-                    min={minDate}
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-sm font-semibold text-ink">Notes (optional)</span>
-                  <input
-                    className={cn(fieldCls, "mt-1")}
+                    className={fieldCls}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Gate code, landmark, best time…"
+                    placeholder="Gate code, landmark, best time"
                   />
-                </label>
+                </Field>
               </div>
               {t.weeks > 1 ? (
-                <div className="rounded-2xl bg-white ring-1 ring-border px-4 py-3 text-sm">
-                  <div className="font-semibold text-ink">Your deliveries</div>
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    {schedule.map((d, i) => (
-                      <span key={d} className="rounded-full bg-cream ring-1 ring-border px-2.5 py-0.5 text-xs">
-                        {i + 1}. {prettyDate(d)}
-                      </span>
+                <div className="rounded-[20px] bg-s-sunken px-5 py-4">
+                  <p className="text-sm font-semibold text-s-fg">Your deliveries</p>
+                  <ol className="mt-2 flex flex-wrap gap-2">
+                    {schedule.map((d) => (
+                      <li key={d} className="rounded-full bg-s-surface px-3 py-1 text-xs font-semibold text-s-fg">
+                        {prettyDate(d)}
+                      </li>
                     ))}
-                  </div>
+                  </ol>
                 </div>
               ) : null}
-              {error ? <p className="text-sm text-coral font-semibold">{error}</p> : null}
-              <button
-                type="submit"
-                className="w-full sm:w-auto inline-flex items-center justify-center rounded-full bg-berry text-white font-semibold px-8 py-3.5 hover:bg-berryLt transition shadow-lg shadow-berry/20"
-              >
-                Continue to payment
-              </button>
+              {error ? <FormError>{error}</FormError> : null}
+              <div>
+                <Btn type="submit" arrow>
+                  Continue to payment
+                </Btn>
+              </div>
             </form>
           ) : (
-            <div className="space-y-6">
+            <div className="grid gap-5">
               <PayPanels total={t.total} file={file} onFile={setFile} />
-
-              {error ? <p className="text-sm text-coral font-semibold">{error}</p> : null}
-              <button
-                type="button"
-                onClick={submit}
-                disabled={!file || submitting}
-                className={cn(
-                  "w-full inline-flex items-center justify-center rounded-full font-semibold px-8 py-3.5 transition",
-                  file ? "bg-berry text-white hover:bg-berryLt shadow-lg shadow-berry/20" : "bg-ink/10 text-inkSoft cursor-not-allowed",
-                )}
-              >
-                I&apos;ve paid — place my order
-              </button>
+              {error ? <FormError>{error}</FormError> : null}
+              <Btn onClick={submit} disabled={!file || submitting} arrow={!!file} className={file ? "w-full justify-between" : "w-full"}>
+                I&apos;ve paid, place my order
+              </Btn>
             </div>
           )}
         </div>
 
-        {/* Summary */}
-        <aside className="rounded-3xl bg-white ring-1 ring-border p-6 md:sticky md:top-24">
-          <div className="text-sm font-semibold text-ink">Order summary</div>
-          <ul className="mt-3 space-y-3">
-            {lines.map((l) => (
-              <li key={l.key} className="text-sm">
-                <div className="flex justify-between gap-3">
-                  <span className="font-semibold text-ink">{l.name}</span>
-                  <span className="tabular-nums">{formatPHP(l.price)}</span>
-                </div>
-                <MixChips mix={l.mix} />
-              </li>
-            ))}
-          </ul>
-          <dl className="mt-4 text-sm space-y-1.5 border-t border-border pt-3">
-            <div className="flex justify-between">
-              <dt className="text-inkSoft">Delivery{t.weeks > 1 ? ` (${t.weeks} drops)` : ""}</dt>
-              <dd className="tabular-nums">{formatPHP(t.delivery)}</dd>
-            </div>
-            <div className="flex justify-between text-base font-semibold">
-              <dt>Total</dt>
-              <dd className="tabular-nums">{formatPHP(t.total)}</dd>
-            </div>
-          </dl>
+        <aside className="md:col-span-5 md:sticky md:top-28">
+          <Panel>
+            <p className="text-sm font-semibold text-s-fg">Order summary</p>
+            <ul className="mt-4 grid gap-4">
+              {lines.map((l) => (
+                <li key={l.key} className="text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="font-semibold text-s-fg">{l.name}</span>
+                    <span className="tabular-nums text-s-fg">{formatPHP(l.price)}</span>
+                  </div>
+                  <MixChips mix={l.mix} />
+                </li>
+              ))}
+            </ul>
+            <dl className="mt-5 grid gap-2 text-sm border-t border-s-line/[0.08] pt-4">
+              <div className="flex justify-between">
+                <dt className="text-s-muted">Delivery{t.weeks > 1 ? ` (${t.weeks} drops)` : ""}</dt>
+                <dd className="tabular-nums text-s-fg">{formatPHP(t.delivery)}</dd>
+              </div>
+              <div className="flex justify-between text-base font-semibold text-s-fg">
+                <dt>Total</dt>
+                <dd className="tabular-nums">{formatPHP(t.total)}</dd>
+              </div>
+            </dl>
+          </Panel>
         </aside>
       </div>
-    </div>
+    </Container>
   );
 }
