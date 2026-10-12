@@ -62,6 +62,7 @@ const STATUS_LABEL: Record<string, string> = {
   approved: "Approved",
   revise: "Revise",
   scheduled: "Scheduled",
+  cancelled: "Cancelled",
 };
 
 function getPosition(): Promise<{ lat: number; lng: number; acc: number } | null> {

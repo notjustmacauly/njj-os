@@ -99,7 +99,7 @@ export default async function DashboardPage() {
         .eq("user_id", user.id),
     ]);
     myShift = (s as { id: string; clock_in_at: string } | null) ?? null;
-    myTasks = ((ts ?? []) as MyTask[]).filter((t) => t.status !== "done" && t.status !== "posted");
+    myTasks = ((ts ?? []) as MyTask[]).filter((t) => t.status !== "done" && t.status !== "posted" && t.status !== "cancelled");
     myChecklist = (cl ?? []) as ChecklistItem[];
     type EvJoin = { event: (MyEvent & { deleted_at: string | null }) | (MyEvent & { deleted_at: string | null })[] | null };
     myEvents = ((ev ?? []) as unknown as EvJoin[])

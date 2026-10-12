@@ -56,21 +56,24 @@ type Board = "admin" | "marketing";
 type Tab = "portfolio" | "operations" | "marketing";
 
 const STATUSES: Record<Board, string[]> = {
-  admin: ["pending", "in_progress", "blocked", "done"],
-  marketing: ["pending", "approved", "revise", "scheduled", "posted"],
+  admin: ["pending", "in_progress", "blocked", "done", "cancelled"],
+  marketing: ["pending", "approved", "revise", "scheduled", "posted", "cancelled"],
 };
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending", in_progress: "In progress", blocked: "Blocked", done: "Done",
   approved: "Approved", revise: "Revise", scheduled: "Scheduled", posted: "Posted",
+  cancelled: "Cancelled",
 };
 const STATUS_TONE: Record<string, string> = {
   pending: "bg-creamDk text-inkSoft", in_progress: "bg-periBg text-peri", blocked: "bg-salmonBg text-coral",
   done: "bg-greenBg text-green", approved: "bg-greenBg text-green", revise: "bg-salmonBg text-coral",
   scheduled: "bg-periBg text-peri", posted: "bg-berryBg text-berry",
+  cancelled: "bg-creamDk text-inkSoft line-through",
 };
 const PRIORITIES = ["low", "normal", "high", "urgent"];
 
-const isDone = (t: TaskRow) => t.status === "done" || t.status === "posted";
+// "Closed" = finished or cancelled — both drop out of the active list.
+const isClosed = (t: TaskRow) => t.status === "done" || t.status === "posted" || t.status === "cancelled";
 const dateOf = (t: TaskRow) => (t.board === "marketing" ? t.post_date : t.due_date);
 function phToday(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -237,8 +240,8 @@ function BoardSection({
   title: string; hint?: string; rows: TaskRow[]; mode: Mode; showAssignee: boolean;
   nameOf: (id: string | null) => string; onOpen: (t: TaskRow) => void; defaultOpen?: boolean; currentUserId?: string;
 }) {
-  const open = rows.filter((t) => !isDone(t));
-  const completed = rows.filter((t) => isDone(t));
+  const open = rows.filter((t) => !isClosed(t));
+  const completed = rows.filter((t) => isClosed(t));
   const [showDone, setShowDone] = React.useState(false);
 
   return (
@@ -256,7 +259,7 @@ function BoardSection({
         <div className="mt-2">
           <button type="button" onClick={() => setShowDone((v) => !v)} className="flex items-center gap-1.5 text-xs font-semibold text-inkSoft hover:text-ink">
             <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", showDone && "rotate-90")} />
-            Completed · {completed.length}
+            Completed / cancelled · {completed.length}
           </button>
           {showDone ? <div className="mt-1"><TaskTable rows={completed} mode={mode} showAssignee={showAssignee} nameOf={nameOf} onOpen={onOpen} dim /></div> : null}
         </div>
@@ -305,7 +308,7 @@ function TaskTable({
         <tbody className="divide-y divide-border">
           {rows.map((t) => {
             const d = dateOf(t);
-            const overdue = !!d && !isDone(t) && d < today;
+            const overdue = !!d && !isClosed(t) && d < today;
             return (
               <tr key={t.id} onClick={() => onOpen(t)} className="cursor-pointer hover:bg-cream/40 transition">
                 <td className="px-4 py-2.5">
