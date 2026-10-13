@@ -48,7 +48,7 @@ export default async function PayrollPage() {
     runIds.length
       ? supabase
           .from("payroll_items")
-          .select("id, run_id, user_id, person_id, name, pay_type, rate, hours, base_amount, overtime_pay, bonuses, tax, philhealth, sss, pagibig, absences, other_deductions, advance_repayment, advance_id, net_amount, account_code, breakdown, share_token, payslip_emailed_at, payslip_period_start, payslip_period_end")
+          .select("id, run_id, user_id, person_id, name, pay_type, rate, hours, base_amount, overtime_pay, bonuses, incentive, tax, philhealth, sss, pagibig, absences, other_deductions, advance_repayment, advance_id, net_amount, account_code, breakdown, share_token, payslip_emailed_at, payslip_period_start, payslip_period_end")
           .in("run_id", runIds)
       : Promise.resolve({ data: [] as Item[] }),
     supabase.rpc("list_cash_advances"),

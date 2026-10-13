@@ -40,6 +40,7 @@ export type Item = {
   base_amount: number;
   overtime_pay: number;
   bonuses: number;
+  incentive: number;
   tax: number;
   philhealth: number;
   sss: number;
@@ -923,7 +924,7 @@ function RunModal({
   const dayCount = (it: Item) => (Array.isArray(it.breakdown) ? it.breakdown.length : 0);
   const deductionsOf = (it: Item) =>
     Number(it.tax || 0) + Number(it.philhealth || 0) + Number(it.sss || 0) + Number(it.pagibig || 0) + Number(it.absences || 0) + Number(it.other_deductions || 0);
-  const extrasOf = (it: Item) => Number(it.overtime_pay || 0) + Number(it.bonuses || 0);
+  const extrasOf = (it: Item) => Number(it.overtime_pay || 0) + Number(it.bonuses || 0) + Number(it.incentive || 0);
 
   async function saveAccount(it: Item, code: string) {
     setRows((prev) => prev.map((x) => (x.id === it.id ? { ...x, account_code: code || null } : x)));
@@ -1193,6 +1194,7 @@ function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void })
   const toast = useToast();
   const [ot, setOt] = React.useState(String(item.overtime_pay ?? 0));
   const [bonus, setBonus] = React.useState(String(item.bonuses ?? 0));
+  const [incentive, setIncentive] = React.useState(String(item.incentive ?? 0));
   const [tax, setTax] = React.useState(String(item.tax ?? 0));
   const [ph, setPh] = React.useState(String(item.philhealth ?? 0));
   const [sss, setSss] = React.useState(String(item.sss ?? 0));
@@ -1203,7 +1205,7 @@ function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void })
   const n = (s: string) => Number(s) || 0;
   const base = Number(item.base_amount || 0);
   const advance = Number(item.advance_repayment || 0);
-  const gross = round2(base + n(ot) + n(bonus));
+  const gross = round2(base + n(ot) + n(bonus) + n(incentive));
   const totalDed = round2(n(tax) + n(ph) + n(sss) + n(pagibig) + n(absences) + n(other) + advance);
   const netPay = round2(gross - totalDed);
 
@@ -1211,7 +1213,7 @@ function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void })
     setBusy(true);
     const supabase = createClient();
     const { error } = await supabase.rpc("set_payroll_pay_details", {
-      p_item_id: item.id, p_overtime: n(ot), p_bonuses: n(bonus),
+      p_item_id: item.id, p_overtime: n(ot), p_bonuses: n(bonus), p_incentive: n(incentive),
       p_tax: n(tax), p_philhealth: n(ph), p_sss: n(sss), p_pagibig: n(pagibig),
       p_absences: n(absences), p_other: n(other),
     });
@@ -1242,6 +1244,7 @@ function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void })
             </div>
             {row("Overtime pay", ot, setOt)}
             {row("Bonuses", bonus, setBonus)}
+            {row("Incentive", incentive, setIncentive)}
             <div className="flex items-center justify-between border-t border-border pt-2 text-sm font-semibold">
               <span>Gross salary</span><span className="tabular-nums">{peso.format(gross)}</span>
             </div>

@@ -16,6 +16,7 @@ type Payslip = {
   base_amount: number | string;
   overtime_pay: number | string;
   bonuses: number | string;
+  incentive: number | string;
   tax: number | string;
   philhealth: number | string;
   sss: number | string;
@@ -50,12 +51,13 @@ export default async function PayslipPage({ params }: { params: { token: string 
     );
   }
 
-  const gross = n(p.base_amount) + n(p.overtime_pay) + n(p.bonuses);
+  const gross = n(p.base_amount) + n(p.overtime_pay) + n(p.bonuses) + n(p.incentive);
   const totalDed = n(p.tax) + n(p.philhealth) + n(p.sss) + n(p.pagibig) + n(p.absences) + n(p.other_deductions) + n(p.advance_repayment);
   const earnings: [string, number][] = [
     ["Base salary", n(p.base_amount)],
     ["Overtime pay", n(p.overtime_pay)],
     ["Bonuses", n(p.bonuses)],
+    ["Incentive", n(p.incentive)],
   ];
   const deductions: [string, number][] = [
     ["Withholding tax", n(p.tax)],
