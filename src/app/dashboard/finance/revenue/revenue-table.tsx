@@ -11,7 +11,35 @@ import { downloadCsv } from "../csv";
 import { refLinkFor, REVENUE_SOURCES, sourceLabelFor } from "../ref-link";
 import { VoidRevenueModal, type VoidTarget } from "./void-revenue-modal";
 
-export type StandaloneInfo = { voided_at: string | null; void_reason: string | null };
+export type StandaloneInfo = { voided_at: string | null; void_reason: string | null; description: string | null };
+
+// Clean, scannable description for a row — the Source column already says the
+// type, so we show just the identifier or the entered name (not the verbose
+// ledger text like "Bill BILL-… paid" or "Revenue REV-… — …").
+function cleanDesc(r: RevenueEntry, sa: StandaloneInfo | null): string {
+  const ext = r.ref_external_id ?? "";
+  switch (r.ref_type) {
+    case "revenue":
+      return (sa?.description && sa.description.trim()) || stripRevenuePrefix(r.description) || ext || "Revenue";
+    case "bill":
+    case "order":
+    case "receivable":
+      return ext || r.description || "—";
+    case "pos_shift":
+      return (r.description || "").replace(/^POS\s*·\s*/i, "") || ext || "POS";
+    case "reversal":
+      return (r.description || "").replace(/^Reversal:\s*/i, "") || "Adjustment";
+    default:
+      return r.description || ext || "—";
+  }
+}
+function stripRevenuePrefix(d: string | null): string {
+  if (!d) return "";
+  return d
+    .replace(/^Revenue\s+REV-\S+\s*[—–-]\s*/i, "") // drop "Revenue REV-… — "
+    .replace(/\s*\([^)]*\)\s*$/, "")               // drop a trailing "(…)"
+    .trim();
+}
 
 export type RevenueEntry = {
   id: string;
@@ -289,7 +317,7 @@ export function RevenueTable({
                         className={cn("hover:text-berry block truncate", voided ? "line-through" : "text-ink")}
                         title={r.description ?? ""}
                       >
-                        {r.description || r.ref_external_id || sourceLabelFor(r.ref_type)}
+                        {cleanDesc(r, sa)}
                       </Link>
                       {voided ? (
                         <div className="text-xs mt-0.5">Voided: {sa?.void_reason ?? "no reason given"}</div>

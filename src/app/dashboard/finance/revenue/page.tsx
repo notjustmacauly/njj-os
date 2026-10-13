@@ -74,8 +74,8 @@ export default async function RevenuePage() {
   // in the ledger with ref_type='revenue', ref_id = this entry's id). Map by id
   // so those rows can show voided status + a Void action.
   const standaloneById: Record<string, StandaloneInfo> = {};
-  for (const r of (standaloneRows ?? []) as Array<{ id: string; voided_at: string | null; void_reason: string | null }>) {
-    standaloneById[r.id] = { voided_at: r.voided_at, void_reason: r.void_reason };
+  for (const r of (standaloneRows ?? []) as Array<{ id: string; voided_at: string | null; void_reason: string | null; description: string | null }>) {
+    standaloneById[r.id] = { voided_at: r.voided_at, void_reason: r.void_reason, description: r.description };
   }
 
   return (
