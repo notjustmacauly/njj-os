@@ -35,10 +35,9 @@ function cleanDesc(r: RevenueEntry, sa: StandaloneInfo | null): string {
     case "receivable":
       return ext || r.description || "—";
     case "pos_shift":
-      // Drop the "POS ·" prefix and the trailing payment method (Cash/GCash/…) —
-      // the account is already shown in its own column.
+      // Keep the "POS · <market> · <date>" marking; just drop the trailing
+      // payment method (Cash/GCash/…) since the account is in its own column.
       return (r.description || "")
-        .replace(/^POS\s*·\s*/i, "")
         .replace(/\s*·\s*(cash|gcash|card|bank|online|xendit)\b.*$/i, "")
         .trim() || ext || "POS";
     case "reversal":
