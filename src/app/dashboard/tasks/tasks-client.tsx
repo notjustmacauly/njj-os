@@ -57,18 +57,18 @@ type Tab = "portfolio" | "operations" | "marketing";
 
 const STATUSES: Record<Board, string[]> = {
   admin: ["pending", "in_progress", "blocked", "done", "cancelled"],
-  marketing: ["pending", "approved", "revise", "scheduled", "posted", "cancelled"],
+  marketing: ["pending", "for_checking", "approved", "revise", "scheduled", "posted", "cancelled"],
 };
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending", in_progress: "In progress", blocked: "Blocked", done: "Done",
   approved: "Approved", revise: "Revise", scheduled: "Scheduled", posted: "Posted",
-  cancelled: "Cancelled",
+  for_checking: "For Checking", cancelled: "Cancelled",
 };
 const STATUS_TONE: Record<string, string> = {
   pending: "bg-creamDk text-inkSoft", in_progress: "bg-periBg text-peri", blocked: "bg-salmonBg text-coral",
   done: "bg-greenBg text-green", approved: "bg-greenBg text-green", revise: "bg-salmonBg text-coral",
   scheduled: "bg-periBg text-peri", posted: "bg-berryBg text-berry",
-  cancelled: "bg-creamDk text-inkSoft line-through",
+  for_checking: "bg-yellowBg text-yellow", cancelled: "bg-creamDk text-inkSoft line-through",
 };
 const PRIORITIES = ["low", "normal", "high", "urgent"];
 

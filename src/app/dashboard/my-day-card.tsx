@@ -62,6 +62,7 @@ const STATUS_LABEL: Record<string, string> = {
   approved: "Approved",
   revise: "Revise",
   scheduled: "Scheduled",
+  for_checking: "For Checking",
   cancelled: "Cancelled",
 };
 
