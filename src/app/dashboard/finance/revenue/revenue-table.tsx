@@ -11,7 +11,11 @@ import { downloadCsv } from "../csv";
 import { refLinkFor, REVENUE_SOURCES, sourceLabelFor } from "../ref-link";
 import { VoidRevenueModal, type VoidTarget } from "./void-revenue-modal";
 
-export type StandaloneInfo = { voided_at: string | null; void_reason: string | null; description: string | null };
+export type StandaloneInfo = { voided_at: string | null; void_reason: string | null; description: string | null; category: string | null };
+
+// Brand prefixes kept on the revenue description (the brand lives in the
+// category; e.g. a CSM entry's description is just "September 2026").
+const BRAND_LABEL: Record<string, string> = { njf: "NJF", csm: "CSM", tbm: "TBM" };
 
 // Clean, scannable description for a row — the Source column already says the
 // type, so we show just the identifier or the entered name (not the verbose
@@ -19,14 +23,24 @@ export type StandaloneInfo = { voided_at: string | null; void_reason: string | n
 function cleanDesc(r: RevenueEntry, sa: StandaloneInfo | null): string {
   const ext = r.ref_external_id ?? "";
   switch (r.ref_type) {
-    case "revenue":
-      return (sa?.description && sa.description.trim()) || stripRevenuePrefix(r.description) || ext || "Revenue";
+    case "revenue": {
+      let d = (sa?.description && sa.description.trim()) || stripRevenuePrefix(r.description) || ext || "Revenue";
+      const brand = sa?.category ? BRAND_LABEL[sa.category] : null;
+      // Prefix the brand when it isn't already in the text (CSM/TBM months).
+      if (brand && !new RegExp(`\\b${brand}\\b`, "i").test(d)) d = `${brand} · ${d}`;
+      return d;
+    }
     case "bill":
     case "order":
     case "receivable":
       return ext || r.description || "—";
     case "pos_shift":
-      return (r.description || "").replace(/^POS\s*·\s*/i, "") || ext || "POS";
+      // Drop the "POS ·" prefix and the trailing payment method (Cash/GCash/…) —
+      // the account is already shown in its own column.
+      return (r.description || "")
+        .replace(/^POS\s*·\s*/i, "")
+        .replace(/\s*·\s*(cash|gcash|card|bank|online|xendit)\b.*$/i, "")
+        .trim() || ext || "POS";
     case "reversal":
       return (r.description || "").replace(/^Reversal:\s*/i, "") || "Adjustment";
     default:
