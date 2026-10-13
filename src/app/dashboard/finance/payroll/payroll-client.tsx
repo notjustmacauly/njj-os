@@ -102,6 +102,25 @@ function phToday(): string {
 function lastDayOfMonth(y: number, m: number): number {
   return new Date(y, m, 0).getDate();
 }
+// Semi-monthly pay periods run 13–28 and 29–12 (the 29–12 one crosses the month
+// boundary). Returns the period containing `today` (YYYY-MM-DD). In a month with
+// no 29th (Feb), the 29→12 period starts on the 1st of the next month instead.
+function semiMonthlyPeriod(today: string): { start: string; end: string } {
+  const [y, m, d] = today.split("-").map(Number);
+  if (d >= 13 && d <= 28) {
+    return { start: `${y}-${pad(m)}-13`, end: `${y}-${pad(m)}-28` };
+  }
+  // The 29 → 12 period. Find its start month.
+  let sy = y, sm = m;
+  if (d <= 12) { // started last month
+    if (m === 1) { sy = y - 1; sm = 12; } else { sm = m - 1; }
+  }
+  // End = 12th of the month after the start month.
+  const ey = sm === 12 ? sy + 1 : sy;
+  const em = sm === 12 ? 1 : sm + 1;
+  const start = lastDayOfMonth(sy, sm) >= 29 ? `${sy}-${pad(sm)}-29` : `${ey}-${pad(em)}-01`;
+  return { start, end: `${ey}-${pad(em)}-12` };
+}
 function fmtDate(iso: string): string {
   return new Date(iso + "T00:00:00+08:00").toLocaleDateString("en-US", { timeZone: "Asia/Manila", month: "short", day: "numeric" });
 }
@@ -344,11 +363,7 @@ function TimesheetTab({
   onSaved: (runId: string) => void;
 }) {
   const toast = useToast();
-  const today = phToday();
-  const [ty, tmn, tdy] = today.split("-").map(Number);
-  const firstHalf = tdy <= 15;
-  const defStart = firstHalf ? `${ty}-${pad(tmn)}-01` : `${ty}-${pad(tmn)}-16`;
-  const defEnd = firstHalf ? `${ty}-${pad(tmn)}-15` : `${ty}-${pad(tmn)}-${pad(lastDayOfMonth(ty, tmn))}`;
+  const { start: defStart, end: defEnd } = semiMonthlyPeriod(phToday());
 
   const [subject, setSubject] = React.useState(preset?.subjectKey ?? "");
   const [adhoc, setAdhoc] = React.useState(preset?.adhocName ?? "");
@@ -591,11 +606,7 @@ function TimesheetTab({
 /* ------------------------------------------------------------------ New run */
 function NewRunModal({ onClose, onSaved }: { onClose: () => void; onSaved: (id: string) => void }) {
   const toast = useToast();
-  const today = phToday();
-  const [y, m, d] = today.split("-").map(Number);
-  const firstHalf = d <= 15;
-  const start = firstHalf ? `${y}-${pad(m)}-01` : `${y}-${pad(m)}-16`;
-  const end = firstHalf ? `${y}-${pad(m)}-15` : `${y}-${pad(m)}-${pad(lastDayOfMonth(y, m))}`;
+  const { start, end } = semiMonthlyPeriod(phToday());
 
   const [periodStart, setPeriodStart] = React.useState(start);
   const [periodEnd, setPeriodEnd] = React.useState(end);
