@@ -121,3 +121,39 @@ export function ratingDeltas(teamA: QueuePlayer[], teamB: QueuePlayer[], aWon: b
 export function minutesSince(iso: string, now = Date.now()) {
   return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000));
 }
+
+/** Team strength = average rating. Balance badge from the gap between teams. */
+export function teamAverage(team: Array<{ rating: number }>) {
+  return team.length ? team.reduce((a, p) => a + p.rating, 0) / team.length : 0;
+}
+
+export type Balance = { label: "Fair" | "Close" | "Uneven"; gap: number };
+export function balanceOf(a: Array<{ rating: number }>, b: Array<{ rating: number }>): Balance {
+  const gap = Math.abs(teamAverage(a) - teamAverage(b));
+  return { gap, label: gap <= 0.35 ? "Fair" : gap <= 0.8 ? "Close" : "Uneven" };
+}
+
+/** Rating tier for the coloured badge on each player token. */
+export function tierOf(rating: number): Skill {
+  return rating < 2.75 ? "beginner" : rating < 4.25 ? "intermediate" : rating < 5.75 ? "advanced" : "pro";
+}
+
+/** Every distinct team split of the same players, best first (for Reshuffle). */
+export function rankedSplits<T extends QueuePlayer>(players: T[], partners = new Map<string, number>()): Array<[T[], T[]]> {
+  if (players.length > 10) return [balanceTeams(players, partners)];
+  const half = players.length / 2;
+  const out: Array<{ s: number; split: [T[], T[]] }> = [];
+  const rest = players.slice(1);
+  const choose = (start: number, picked: T[]) => {
+    if (picked.length === half - 1) {
+      const a = [players[0], ...picked];
+      const b = players.filter((p) => !a.includes(p));
+      const s = Math.abs(sum(a) - sum(b)) + REPEAT_WEIGHT * (repeatCost(a, partners) + repeatCost(b, partners));
+      out.push({ s, split: [a, b] });
+      return;
+    }
+    for (let i = start; i < rest.length; i++) choose(i + 1, [...picked, rest[i]]);
+  };
+  choose(0, []);
+  return out.sort((x, y) => x.s - y.s).map((x) => x.split);
+}

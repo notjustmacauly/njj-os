@@ -50,7 +50,7 @@ export function GamesSidebar({ role, email }: { role: Role; email: string }) {
         <div className="font-serif font-bold text-2xl tracking-tight flex items-center gap-2">
           <Trophy className="w-5 h-5 text-salmon" /> Game Day
         </div>
-        <div className="mt-0.5 text-[10px] uppercase tracking-smallcaps text-white/50 font-semibold">Courts · queue · scores</div>
+        <div className="mt-0.5 text-[10px] uppercase tracking-smallcaps text-white/50 font-semibold">Courts · queue · results</div>
       </div>
 
       <div className="px-3 pt-4">
