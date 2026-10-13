@@ -9,6 +9,9 @@ import { cn, formatDate, formatPHP } from "@/lib/utils";
 import { accountEmoji } from "../account-icons";
 import { downloadCsv } from "../csv";
 import { refLinkFor, REVENUE_SOURCES, sourceLabelFor } from "../ref-link";
+import { VoidRevenueModal, type VoidTarget } from "./void-revenue-modal";
+
+export type StandaloneInfo = { voided_at: string | null; void_reason: string | null };
 
 export type RevenueEntry = {
   id: string;
@@ -59,10 +62,18 @@ const DEFAULT_RANGE = CHIPS[1].compute(); // this month
 export function RevenueTable({
   entries,
   accountNameByCode,
+  standaloneById = {},
+  canVoid = false,
 }: {
   entries: RevenueEntry[];
   accountNameByCode: Record<string, string>;
+  standaloneById?: Record<string, StandaloneInfo>;
+  canVoid?: boolean;
 }) {
+  const [voidTarget, setVoidTarget] = React.useState<VoidTarget | null>(null);
+  // A standalone (ref_type='revenue') row that has been voided.
+  const voidedOf = (r: RevenueEntry): StandaloneInfo | null =>
+    r.ref_type === "revenue" && r.ref_id ? (standaloneById[r.ref_id] ?? null) : null;
   const [from, setFrom] = React.useState(DEFAULT_RANGE.from);
   const [to, setTo] = React.useState(DEFAULT_RANGE.to);
   const [activeChip, setActiveChip] = React.useState("this_month");
@@ -110,7 +121,11 @@ export function RevenueTable({
     return true;
   });
 
-  const total = filtered.reduce((s, r) => s + Number(r.amount ?? 0), 0);
+  const total = filtered.reduce(
+    (s, r) => s + (voidedOf(r)?.voided_at ? 0 : Number(r.amount ?? 0)),
+    0,
+  );
+  const cols = canVoid ? 6 : 5;
 
   function handleExport() {
     const headers = ["Date", "Account", "Description", "Source", "Ref", "Amount"];
@@ -237,12 +252,13 @@ export function RevenueTable({
               <th className="px-4 py-2 font-semibold">Description</th>
               <th className="px-4 py-2 font-semibold w-24">Source</th>
               <th className="px-4 py-2 font-semibold w-28 text-right">Amount</th>
+              {canVoid ? <th className="px-4 py-2 font-semibold w-20 text-right">Actions</th> : null}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr className="border-t border-border">
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-inkSoft">
+                <td colSpan={cols} className="px-4 py-8 text-center text-sm text-inkSoft">
                   No revenue entries in this range.
                 </td>
               </tr>
@@ -253,8 +269,11 @@ export function RevenueTable({
                   ref_id: r.ref_id,
                   account_code: r.account_code,
                 });
+                const sa = voidedOf(r);
+                const voided = !!sa?.voided_at;
+                const isStandalone = r.ref_type === "revenue";
                 return (
-                  <tr key={r.id} className="border-t border-border hover:bg-cream/30">
+                  <tr key={r.id} className={cn("border-t border-border", voided ? "bg-cream/30 text-inkSoft" : "hover:bg-cream/30")}>
                     <td className="px-4 py-2.5 text-xs text-inkSoft whitespace-nowrap">
                       {formatDate(r.occurred_at)}
                     </td>
@@ -267,18 +286,36 @@ export function RevenueTable({
                     <td className="px-4 py-2.5">
                       <Link
                         href={href}
-                        className="text-ink hover:text-berry block truncate"
+                        className={cn("hover:text-berry block truncate", voided ? "line-through" : "text-ink")}
                         title={r.description ?? ""}
                       >
                         {r.description || r.ref_external_id || sourceLabelFor(r.ref_type)}
                       </Link>
+                      {voided ? (
+                        <div className="text-xs mt-0.5">Voided: {sa?.void_reason ?? "no reason given"}</div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-inkSoft">
                       {sourceLabelFor(r.ref_type)}
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono font-semibold text-berry tabular-nums">
+                    <td className={cn("px-4 py-2.5 text-right font-mono font-semibold tabular-nums", voided ? "text-inkSoft line-through" : "text-berry")}>
                       {formatPHP(r.amount)}
                     </td>
+                    {canVoid ? (
+                      <td className="px-4 py-2.5 text-right">
+                        {isStandalone && !voided ? (
+                          <button
+                            type="button"
+                            onClick={() => setVoidTarget({ id: r.ref_id!, description: r.description || "Revenue entry", amount: Number(r.amount ?? 0), account_code: r.account_code })}
+                            className="inline-flex items-center rounded-md border border-coral bg-white px-2 py-1 text-xs font-medium text-coral hover:bg-salmonBg"
+                          >
+                            Void
+                          </button>
+                        ) : (
+                          <span className="text-xs text-inkSoft">—</span>
+                        )}
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })
@@ -287,12 +324,13 @@ export function RevenueTable({
           {filtered.length > 0 ? (
             <tfoot className="bg-cream/40 border-t border-border">
               <tr>
-                <td colSpan={4} className="px-4 py-2.5 text-xs text-inkSoft text-right font-semibold">
-                  Total ({filtered.length} entries)
+                <td colSpan={canVoid ? cols - 2 : cols - 1} className="px-4 py-2.5 text-xs text-inkSoft text-right font-semibold">
+                  Total ({filtered.length} {filtered.length === 1 ? "entry" : "entries"}, excl. voided)
                 </td>
                 <td className="px-4 py-2.5 text-right font-mono text-berry font-semibold tabular-nums">
                   {formatPHP(total)}
                 </td>
+                {canVoid ? <td /> : null}
               </tr>
             </tfoot>
           ) : null}
@@ -300,8 +338,11 @@ export function RevenueTable({
       </div>
 
       <p className="text-[11px] text-inkSoft px-1">
+        Every inbound entry — POS, orders, receivables, bills, tickets, standalone and adjustments.
         Window: rolling 18 months. To see older data, ask Mac to widen the server query.
       </p>
+
+      <VoidRevenueModal target={voidTarget} onClose={() => setVoidTarget(null)} />
     </div>
   );
 }

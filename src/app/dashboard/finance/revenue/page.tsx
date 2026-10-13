@@ -2,12 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { RevenueTable, type RevenueEntry } from "./revenue-table";
+import { RevenueTable, type RevenueEntry, type StandaloneInfo } from "./revenue-table";
 import { LogRevenueLauncher } from "./log-revenue-launcher";
-import {
-  StandaloneRevenueEntries,
-  type StandaloneRevenueRow,
-} from "./standalone-entries";
 import { OWNER_ONLY, type Role } from "@/lib/roles";
 
 const FINANCE_ROLES = OWNER_ONLY;
@@ -74,31 +70,13 @@ export default async function RevenuePage() {
     accountNameByCode[a.code] = a.name;
   }
 
-  const standalone: StandaloneRevenueRow[] = ((standaloneRows ?? []) as Array<{
-    id: string;
-    external_id: string | null;
-    revenue_date: string;
-    category: StandaloneRevenueRow["category"];
-    description: string;
-    amount: number | string;
-    account_code: string;
-    notes: string | null;
-    logged_by_name: string | null;
-    voided_at: string | null;
-    void_reason: string | null;
-  }>).map((r) => ({
-    id: r.id,
-    external_id: r.external_id,
-    revenue_date: r.revenue_date,
-    category: r.category,
-    description: r.description,
-    amount: Number(r.amount ?? 0),
-    account_code: r.account_code,
-    notes: r.notes,
-    logged_by_name: r.logged_by_name,
-    voided_at: r.voided_at,
-    void_reason: r.void_reason,
-  }));
+  // Standalone revenue entries are shown inline in the main table (they appear
+  // in the ledger with ref_type='revenue', ref_id = this entry's id). Map by id
+  // so those rows can show voided status + a Void action.
+  const standaloneById: Record<string, StandaloneInfo> = {};
+  for (const r of (standaloneRows ?? []) as Array<{ id: string; voided_at: string | null; void_reason: string | null }>) {
+    standaloneById[r.id] = { voided_at: r.voided_at, void_reason: r.void_reason };
+  }
 
   return (
     <div className="space-y-6">
@@ -131,12 +109,8 @@ export default async function RevenuePage() {
       <RevenueTable
         entries={(entries ?? []) as RevenueEntry[]}
         accountNameByCode={accountNameByCode}
-      />
-
-      <StandaloneRevenueEntries
-        rows={standalone}
-        accountNameByCode={accountNameByCode}
-        role={role}
+        standaloneById={standaloneById}
+        canVoid={role === "owner"}
       />
     </div>
   );

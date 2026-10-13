@@ -42,6 +42,8 @@ export function sourceLabelFor(ref_type: string | null): string {
       return "Order";
     case "bill":
       return "Bill";
+    case "receivable":
+      return "Receivable";
     case "ticket_sale":
       return "Ticket";
     case "revenue":
@@ -66,8 +68,10 @@ export function sourceLabelFor(ref_type: string | null): string {
 export const REVENUE_SOURCES: { key: string; label: string; refTypes: string[] }[] = [
   { key: "pos", label: "POS", refTypes: ["pos_shift"] },
   { key: "orders", label: "Orders", refTypes: ["order"] },
+  { key: "receivables", label: "Receivables", refTypes: ["receivable"] },
   { key: "bills", label: "Bills", refTypes: ["bill"] },
   { key: "tickets", label: "Tickets", refTypes: ["ticket_sale"] },
   { key: "standalone", label: "Standalone", refTypes: ["revenue"] },
+  { key: "reversals", label: "Reversals", refTypes: ["reversal"] },
   { key: "manual", label: "Manual", refTypes: ["manual_in", "manual"] },
 ];
