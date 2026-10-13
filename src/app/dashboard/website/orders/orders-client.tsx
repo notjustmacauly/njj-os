@@ -56,7 +56,8 @@ const FLAG_LABEL: Record<string, string> = {
   high_value: "High value",
 };
 const FLAVOR: Record<string, string> = { PCL: "🍍 Pineapple", ACG: "🍇 Apple", WPM: "🍉 Watermelon" };
-const DEFAULT_ACCOUNT = "RCBC Main";
+// The website payment QR (public/pay-qr.jpg) pays into GCash "NotJust" = GCash Main.
+const DEFAULT_ACCOUNT = "GCash Main";
 
 function fmtDate(iso: string) {
   return new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso).toLocaleDateString("en-PH", {
