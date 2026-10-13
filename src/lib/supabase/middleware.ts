@@ -57,6 +57,7 @@ export async function updateSession(request: NextRequest) {
     // Public customer storefront (Wix replacement) — open to anyone.
     path.startsWith("/shop") ||
     path.startsWith("/events") ||
+    path.startsWith("/leaderboard") ||
     // Customer accounts: sign-in pages are public; /account itself checks the session.
     path.startsWith("/account");
 
@@ -67,8 +68,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && isAuthPage) {
+    // Already signed in: staff pick a workspace from the directory (the
+    // directory sends customers on to their own account).
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/hub";
     return NextResponse.redirect(url);
   }
 

@@ -150,11 +150,16 @@ export default async function StoreHome() {
               <H2>Come play with us.</H2>
               <Lede className="mt-4">Community games every week. One pass is ₱250 for one sport.</Lede>
             </div>
-            {events.length > 0 ? (
-              <Link href="/events" className="text-sm font-semibold text-s-fg underline underline-offset-4 decoration-s-line/30 hover:decoration-s-fg">
-                See all events
+            <div className="flex flex-wrap gap-5">
+              <Link href="/leaderboard" className="text-sm font-semibold text-s-fg underline underline-offset-4 decoration-s-line/30 hover:decoration-s-fg">
+                Leaderboard
               </Link>
-            ) : null}
+              {events.length > 0 ? (
+                <Link href="/events" className="text-sm font-semibold text-s-fg underline underline-offset-4 decoration-s-line/30 hover:decoration-s-fg">
+                  See all events
+                </Link>
+              ) : null}
+            </div>
           </Reveal>
         </Container>
         {events.length > 0 ? (

@@ -28,6 +28,7 @@ import {
   Clock,
   CalendarDays,
   HandCoins,
+  LayoutGrid,
 } from "lucide-react";
 
 import type { Role } from "@/lib/roles";
@@ -285,6 +286,13 @@ export function Sidebar({ role, email }: { role: Role; email: string }) {
             </div>
           </div>
         </div>
+        <Link
+          href="/hub"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-inkSoft hover:bg-cream hover:text-ink transition"
+        >
+          <LayoutGrid className="w-4 h-4" />
+          Directory
+        </Link>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-inkSoft hover:bg-cream hover:text-ink transition"

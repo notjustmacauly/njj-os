@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/roles";
 import { Sidebar } from "./sidebar";
 import { WebsiteSidebar } from "./website/website-sidebar";
+import { GamesSidebar } from "./games/games-sidebar";
 import { NotificationsBell } from "./notifications-bell";
 import { RegisterSW } from "./register-sw";
 import { VersionWatcher } from "./version-watcher";
@@ -72,6 +73,9 @@ export function AppShell({
   // The Website studio is its own workspace: it swaps the whole OS sidebar
   // for its own, with a "Back to Operations" exit.
   const websiteMode = pathname === "/dashboard/website" || pathname.startsWith("/dashboard/website/");
+  // Game Day is its own workspace too (no OS sidebar).
+  const gamesMode = pathname === "/dashboard/games" || pathname.startsWith("/dashboard/games/");
+  const darkMode = websiteMode || gamesMode;
 
   return (
     <div className="min-h-dvh flex flex-col lg:flex-row bg-cream">
@@ -89,10 +93,10 @@ export function AppShell({
           <Menu className="w-5 h-5" />
         </button>
         <Link
-          href={websiteMode ? "/dashboard/website" : "/dashboard"}
+          href={websiteMode ? "/dashboard/website" : gamesMode ? "/dashboard/games" : "/dashboard"}
           className="font-serif font-bold text-ink text-base tracking-tight"
         >
-          {websiteMode ? "NotJust Website" : "NJJ OS"}
+          {websiteMode ? "NotJust Website" : gamesMode ? "Game Day" : "NJJ OS"}
         </Link>
         <div className="ml-auto flex items-center gap-1">
           <NotificationsBell role={role} />
@@ -132,13 +136,15 @@ export function AppShell({
           aria-label="Close menu"
           className={cn(
             "lg:hidden absolute top-2 right-2 z-10 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-md touch-manipulation",
-            websiteMode ? "text-white/60 hover:bg-white/10" : "text-inkSoft hover:bg-cream",
+            darkMode ? "text-white/60 hover:bg-white/10" : "text-inkSoft hover:bg-cream",
           )}
         >
           <X className="w-4 h-4" />
         </button>
         {websiteMode ? (
           <WebsiteSidebar role={role} email={email} />
+        ) : gamesMode ? (
+          <GamesSidebar role={role} email={email} />
         ) : (
           <Sidebar role={role} email={email} />
         )}

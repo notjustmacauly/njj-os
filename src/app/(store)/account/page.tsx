@@ -7,6 +7,7 @@ import { fmtEventDate, timeRange } from "../_components/events";
 import { ArrowUpRightLine, PackageLine, TicketLine } from "../_components/icons";
 import { Btn, Container, Panel } from "../_components/ui";
 import { ProfileForm, SignOutButton } from "./account-client";
+import { currentSeasonKey, seasonLabel, SPORT_LABEL } from "../_components/seasons";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Your account", robots: { index: false } };
@@ -62,9 +63,15 @@ export default async function AccountPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/account/login");
 
-  const { data, error } = await supabase.rpc("member_me");
+  const [{ data, error }, { data: standingRows }] = await Promise.all([
+    supabase.rpc("member_me"),
+    supabase.rpc("member_standings"),
+  ]);
   if (error || !data) redirect("/account/login");
   const me = data as Me;
+  const season = currentSeasonKey();
+  const standings = ((standingRows ?? []) as Array<{ sport: string; season_key: number; rank: number; points: number; wins: number; losses: number; of: number }>)
+    .filter((s) => s.season_key === season);
 
   const t = today();
   const upcoming = me.passes.filter((p) => p.event_date >= t);
@@ -87,8 +94,8 @@ export default async function AccountPage() {
           <p className="mt-3 text-s-muted">{me.email}</p>
         </div>
         {me.is_staff ? (
-          <Btn href="/dashboard" variant="quiet">
-            Open NJJ OS
+          <Btn href="/hub" variant="quiet">
+            Staff directory
           </Btn>
         ) : null}
       </div>
@@ -151,6 +158,33 @@ export default async function AccountPage() {
                     </li>
                   );
                 })}
+              </ul>
+            )}
+          </section>
+
+          {/* Leaderboard standing */}
+          <section>
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="font-display text-3xl font-semibold tracking-[-0.03em] text-s-fg">Your standing</h2>
+              <Link href="/leaderboard" className="text-sm font-semibold text-s-fg underline underline-offset-4">
+                Full leaderboard
+              </Link>
+            </div>
+            {standings.length === 0 ? (
+              <Panel className="mt-5">
+                <p className="text-s-muted">No games yet in {seasonLabel(season)}. Play an event to get on the board.</p>
+              </Panel>
+            ) : (
+              <ul className="mt-5 grid gap-3 sm:grid-cols-3">
+                {standings.map((s) => (
+                  <li key={s.sport} className="rounded-[24px] bg-s-surface ring-1 ring-s-line/[0.07] p-5">
+                    <p className="text-sm font-semibold text-s-muted">{SPORT_LABEL[s.sport] ?? s.sport}</p>
+                    <p className="mt-2 font-display text-4xl font-semibold tracking-[-0.03em] text-s-fg tabular-nums">#{s.rank}</p>
+                    <p className="mt-1 text-sm text-s-muted tabular-nums">
+                      of {s.of}. {s.points} pts, {s.wins} won, {s.losses} lost
+                    </p>
+                  </li>
+                ))}
               </ul>
             )}
           </section>

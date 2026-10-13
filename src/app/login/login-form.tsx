@@ -36,7 +36,7 @@ export function LoginForm() {
       setLoading(false);
       return;
     }
-    router.push("/dashboard");
+    router.push("/hub");
     router.refresh();
   }
 

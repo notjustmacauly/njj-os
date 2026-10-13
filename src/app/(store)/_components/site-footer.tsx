@@ -9,6 +9,7 @@ const LINKS: Array<{ label: string; href: string }> = [
   { label: "Shop", href: "/shop" },
   { label: "Events", href: "/events" },
   { label: "Community", href: "/#community" },
+  { label: "Leaderboard", href: "/leaderboard" },
   { label: "Partners", href: "/#partners" },
 ];
 
