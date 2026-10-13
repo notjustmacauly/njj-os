@@ -56,7 +56,9 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/payslip/") ||
     // Public customer storefront (Wix replacement) — open to anyone.
     path.startsWith("/shop") ||
-    path.startsWith("/events");
+    path.startsWith("/events") ||
+    // Customer accounts: sign-in pages are public; /account itself checks the session.
+    path.startsWith("/account");
 
   if (!user && !isAuthPage && !isPublicAsset) {
     const url = request.nextUrl.clone();

@@ -24,3 +24,7 @@ export const TruckLine = w(L.Truck);
 export const SnowflakeLine = w(L.Snowflake);
 export const LeafLine = w(L.Leaf);
 export const ShoppingBagLine = w(L.ShoppingBag);
+export const UserLine = w(L.UserRound);
+export const MailLine = w(L.Mail);
+export const TicketLine = w(L.Ticket);
+export const PackageLine = w(L.Package);

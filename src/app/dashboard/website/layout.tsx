@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Globe } from "lucide-react";
+import { ExternalLink, Globe } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { hasRole, OWNER_PARTNER, type Role } from "@/lib/roles";
 
@@ -21,7 +21,7 @@ export default async function WebsiteLayout({ children }: { children: React.Reac
 
   return (
     <div className="space-y-6">
-      <header>
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-serif font-bold text-3xl text-ink flex items-center gap-2">
             <Globe className="w-7 h-7 text-berry" />
@@ -31,6 +31,15 @@ export default async function WebsiteLayout({ children }: { children: React.Reac
             Set up and control what the public NotJust site shows.
           </p>
         </div>
+        <a
+          href="/"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 rounded-lg bg-berry text-white px-4 py-2 text-sm font-semibold hover:bg-berry/90 transition"
+        >
+          View live site
+          <ExternalLink className="w-4 h-4" />
+        </a>
       </header>
       {children}
     </div>

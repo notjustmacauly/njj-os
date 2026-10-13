@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { COMPANY } from "@/lib/company";
 import { PackTrio, type CatalogItem } from "./_components/product-card";
@@ -22,16 +21,6 @@ const FLAVOUR_NAMES: Record<(typeof FLAVOURS)[number], string> = {
 
 export default async function StoreHome() {
   const supabase = await createClient();
-
-  // Staff (anyone with an OS role) who lands on the public home, e.g. after
-  // accepting a Supabase invite, goes to the dashboard.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) {
-    const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle();
-    if (roleRow?.role) redirect("/dashboard");
-  }
 
   const [{ data }, { data: eventRows }] = await Promise.all([
     supabase.from("web_catalog").select("*").order("sort_order", { ascending: true }),

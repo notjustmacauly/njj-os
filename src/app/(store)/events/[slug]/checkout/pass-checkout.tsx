@@ -9,6 +9,7 @@ import { ConfirmingOverlay, newIdempotencyKey, PayPanels, submitWithProof } from
 import { ArrowLeftLine, CalendarBlank, MapPinLine } from "../../../_components/icons";
 import { Btn, Container, Field, fieldCls, FormError, Panel } from "../../../_components/ui";
 import { CheckoutSteps } from "../../../_components/checkout-steps";
+import { useMemberPrefill } from "../../../account/account-client";
 
 export type PassLine = { sport_id: string; name: string; qty: number };
 
@@ -29,6 +30,12 @@ export function PassCheckout({ event, lines, paddles }: { event: PublicEvent; li
   React.useEffect(() => {
     idemKey.current = newIdempotencyKey();
   }, []);
+  // Signed-in customers: fill in anything they haven't typed yet.
+  useMemberPrefill((m) => {
+    setName((v) => v || m.name);
+    setEmail((v) => v || m.email);
+    setPhone((v) => v || m.phone);
+  });
 
   function toPay(e: React.FormEvent) {
     e.preventDefault();

@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { COMPANY } from "@/lib/company";
 import { cn } from "@/lib/utils";
 import { useCart } from "./cart";
-import { ShoppingBagLine } from "./icons";
+import { ShoppingBagLine, UserLine } from "./icons";
 
 const NAV: Array<{ label: string; href: string }> = [
   { label: "Home", href: "/" },
@@ -95,6 +95,14 @@ export function SiteHeader() {
         </ul>
 
         <div className="ml-auto md:ml-0 flex items-center gap-1">
+          <Link
+            href="/account"
+            aria-label="Your account"
+            aria-current={pathname.startsWith("/account") ? "page" : undefined}
+            className="inline-flex items-center justify-center w-11 h-11 rounded-full text-s-fg hover:bg-s-line/[0.06] transition duration-300 ease-settle active:scale-[0.96]"
+          >
+            <UserLine className="w-[18px] h-[18px]" />
+          </Link>
           <CartButton />
           <Link
             href="/shop"

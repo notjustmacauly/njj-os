@@ -9,6 +9,7 @@ import { ConfirmingOverlay, newIdempotencyKey, PayPanels, submitWithProof } from
 import { ArrowLeftLine } from "../../_components/icons";
 import { Btn, Container, Field, fieldCls, FormError, Panel } from "../../_components/ui";
 import { CheckoutSteps } from "../../_components/checkout-steps";
+import { useMemberPrefill } from "../../account/account-client";
 
 function manilaDate(offsetDays: number): string {
   const d = new Date(Date.now() + offsetDays * 86_400_000);
@@ -51,6 +52,12 @@ export default function CheckoutPage() {
   React.useEffect(() => {
     idemKey.current = newIdempotencyKey();
   }, []);
+  // Signed-in customers: fill in anything they haven't typed yet.
+  useMemberPrefill((m) => {
+    setName((v) => v || m.name);
+    setEmail((v) => v || m.email);
+    setPhone((v) => v || m.phone);
+  });
 
   function toPay(e: React.FormEvent) {
     e.preventDefault();
