@@ -402,8 +402,8 @@ export function GameBoard({ data }: { data: BoardData }) {
                       {(["a", "b"] as const).map((team) => {
                         const ids = team === "a" ? shown.team_a : shown.team_b;
                         return (
-                          <div key={team} className="relative flex flex-col items-center justify-center gap-2 px-3 py-3">
-                            <div className={cn("grid gap-x-2 gap-y-1 justify-items-center", ids.length > 3 ? "grid-cols-2" : "grid-cols-1")}>
+                          <div key={team} className="relative flex flex-col items-center justify-center gap-3 px-3 py-3">
+                            <div className={cn("grid gap-x-2 gap-y-4 justify-items-center", ids.length > 3 ? "grid-cols-2" : "grid-cols-1")}>
                               {ids.map((id, idx) => (
                                 <PlayerToken
                                   key={id}
@@ -529,10 +529,10 @@ export function GameBoard({ data }: { data: BoardData }) {
             {general.length === 0 ? (
               <p className="mt-3 text-sm text-inkSoft">Everyone is on a court or lined up next. Add players below.</p>
             ) : (
-              <ol className="mt-3 grid grid-cols-4 gap-x-1 gap-y-3">
+              <ol className="mt-3 flex flex-wrap gap-x-1 gap-y-2.5">
                 {general.map((r, i) => (
                   <li key={r.player_id} className="relative">
-                    <span className="absolute -top-1 left-1 z-10 rounded-full bg-ink px-1.5 text-[10px] font-bold leading-4 text-white tabular-nums">{i + 1}</span>
+                    <span className="absolute -top-1.5 -left-0.5 z-10 rounded-full bg-ink px-1.5 text-[10px] font-bold leading-4 text-white tabular-nums">{i + 1}</span>
                     <PlayerToken
                       {...tokenProps({ kind: "queue", playerId: r.player_id }, r.player_id, false)}
                       size="sm"

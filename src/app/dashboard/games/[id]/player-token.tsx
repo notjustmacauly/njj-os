@@ -18,11 +18,6 @@ export const TIER_STYLE: Record<string, { bg: string; fg: string; label: string 
   pro: { bg: "#FAC775", fg: "#633806", label: "Pro" },
 };
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
-}
-
 export function shortName(name: string) {
   const parts = name.trim().split(/\s+/);
   return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0];
@@ -36,7 +31,6 @@ export function PlayerToken({
   name,
   rating,
   selected,
-  onCourt,
   size = "md",
   meta,
   onSelect,
@@ -56,7 +50,7 @@ export function PlayerToken({
   disabled?: boolean;
 }) {
   const t = TIER_STYLE[tierOf(rating)];
-  const av = size === "sm" ? "w-9 h-9 text-xs" : "w-11 h-11 text-sm";
+  const pill = size === "sm" ? "h-8 pl-3 pr-1 text-xs gap-1.5" : "h-10 pl-3.5 pr-1.5 text-sm gap-2";
   return (
     <button
       type="button"
@@ -83,34 +77,26 @@ export function PlayerToken({
       title={`${name} · ${t.label} ${rating.toFixed(1)}`}
       aria-pressed={selected}
       className={cn(
-        "group relative flex flex-col items-center gap-0.5 rounded-2xl px-1 pt-1 pb-0.5 transition",
+        "group relative flex flex-col items-center gap-0.5 rounded-full p-0.5 transition",
         "cursor-grab active:cursor-grabbing active:scale-95 disabled:cursor-default",
         selected && "-translate-y-0.5",
       )}
     >
       <span
         className={cn(
-          "relative flex items-center justify-center rounded-full font-bold text-[#26215C] ring-2 ring-white shadow-[0_4px_10px_rgba(26,26,46,0.18)] transition",
-          av,
+          "inline-flex items-center rounded-full font-bold text-[#26215C] ring-2 ring-white shadow-[0_4px_10px_rgba(26,26,46,0.18)] transition",
+          pill,
           selected ? "outline outline-[3px] outline-offset-2 outline-[#EF9F27]" : "group-hover:scale-105",
         )}
         style={{ background: avatarColor(name) }}
       >
-        {initials(name)}
+        <span className={cn("truncate", size === "sm" ? "max-w-[76px]" : "max-w-[110px]")}>{shortName(name)}</span>
         <span
-          className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full px-1.5 text-[10px] font-bold leading-4 ring-[1.5px] ring-white tabular-nums"
+          className="shrink-0 rounded-full px-1.5 text-[10px] font-bold leading-5 ring-[1.5px] ring-white tabular-nums"
           style={{ background: t.bg, color: t.fg }}
         >
           {rating.toFixed(1)}
         </span>
-      </span>
-      <span
-        className={cn(
-          "mt-1.5 max-w-[84px] truncate rounded-full px-1.5 text-[11px] font-semibold leading-4",
-          onCourt ? "bg-black/35 text-white" : "text-ink",
-        )}
-      >
-        {shortName(name)}
       </span>
       {meta ? <span className="text-[10px] leading-3 text-inkSoft tabular-nums">{meta}</span> : null}
     </button>
