@@ -17,6 +17,7 @@ import { formatPHP } from "@/lib/utils";
 export type RevenueCategory =
   | "csm"
   | "tbm"
+  | "njf"
   | "catering_contract"
   | "event"
   | "sponsorship"
@@ -26,8 +27,9 @@ export type RevenueCategory =
 export const REVENUE_CATEGORY_LABELS: Record<RevenueCategory, string> = {
   csm: "CSM",
   tbm: "TBM (The Bay Markets)",
+  njf: "NJF (weekly events)",
   catering_contract: "Catering / contracts",
-  event: "Events",
+  event: "Events (big hosted events)",
   sponsorship: "Sponsorship",
   rent: "Rent",
   other: "Other",
@@ -36,6 +38,7 @@ export const REVENUE_CATEGORY_LABELS: Record<RevenueCategory, string> = {
 const CATEGORY_ORDER: RevenueCategory[] = [
   "csm",
   "tbm",
+  "njf",
   "catering_contract",
   "event",
   "sponsorship",

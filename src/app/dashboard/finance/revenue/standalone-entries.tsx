@@ -33,6 +33,7 @@ type FilterKey = RevenueCategory | "voided" | "all";
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "all", label: "All" },
+  { key: "njf", label: "NJF" },
   { key: "catering_contract", label: "Catering / contracts" },
   { key: "event", label: "Events" },
   { key: "sponsorship", label: "Sponsorship" },
