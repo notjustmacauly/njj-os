@@ -41,6 +41,7 @@ export type Item = {
   overtime_pay: number;
   bonuses: number;
   incentive: number;
+  incentive_account_code: string | null;
   tax: number;
   philhealth: number;
   sss: number;
@@ -1146,7 +1147,7 @@ function RunModal({
       {run.status === "void" && run.void_reason ? (
         <p className="mt-3 text-xs text-inkSoft">Voided: {run.void_reason}</p>
       ) : null}
-      {payItem ? <PayDetailsModal item={payItem} onClose={() => setPayItem(null)} /> : null}
+      {payItem ? <PayDetailsModal item={payItem} accounts={accounts} onClose={() => setPayItem(null)} /> : null}
       {periodItem ? <PeriodModal item={periodItem} runStart={run.period_start} runEnd={run.period_end} onClose={() => setPeriodItem(null)} /> : null}
       {advItem ? <AdvanceApplyModal item={advItem} advances={advancesFor(advItem)} onClose={() => setAdvItem(null)} /> : null}
     </Modal>
@@ -1189,12 +1190,13 @@ function PeriodModal({ item, runStart, runEnd, onClose }: { item: Item; runStart
   );
 }
 
-function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void }) {
+function PayDetailsModal({ item, accounts, onClose }: { item: Item; accounts: Array<{ code: string; name: string }>; onClose: () => void }) {
   const router = useRouter();
   const toast = useToast();
   const [ot, setOt] = React.useState(String(item.overtime_pay ?? 0));
   const [bonus, setBonus] = React.useState(String(item.bonuses ?? 0));
   const [incentive, setIncentive] = React.useState(String(item.incentive ?? 0));
+  const [incentiveAcct, setIncentiveAcct] = React.useState(item.incentive_account_code ?? "");
   const [tax, setTax] = React.useState(String(item.tax ?? 0));
   const [ph, setPh] = React.useState(String(item.philhealth ?? 0));
   const [sss, setSss] = React.useState(String(item.sss ?? 0));
@@ -1214,6 +1216,7 @@ function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void })
     const supabase = createClient();
     const { error } = await supabase.rpc("set_payroll_pay_details", {
       p_item_id: item.id, p_overtime: n(ot), p_bonuses: n(bonus), p_incentive: n(incentive),
+      p_incentive_account: n(incentive) > 0 ? (incentiveAcct || null) : null,
       p_tax: n(tax), p_philhealth: n(ph), p_sss: n(sss), p_pagibig: n(pagibig),
       p_absences: n(absences), p_other: n(other),
     });
@@ -1245,6 +1248,16 @@ function PayDetailsModal({ item, onClose }: { item: Item; onClose: () => void })
             {row("Overtime pay", ot, setOt)}
             {row("Bonuses", bonus, setBonus)}
             {row("Incentive", incentive, setIncentive)}
+            {n(incentive) > 0 ? (
+              <div className="flex items-center justify-between gap-2 -mt-1">
+                <Label className="mb-0 text-xs text-inkSoft">Incentive paid from</Label>
+                <Select value={incentiveAcct} onChange={(e) => setIncentiveAcct(e.target.value)} disabled={busy} className="w-48 h-8 text-xs">
+                  <option value="">Same as salary account</option>
+                  {accounts.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
+                  <option value="EXTERNAL">External — not on NJJ books</option>
+                </Select>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between border-t border-border pt-2 text-sm font-semibold">
               <span>Gross salary</span><span className="tabular-nums">{peso.format(gross)}</span>
             </div>
