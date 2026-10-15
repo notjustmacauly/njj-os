@@ -16,7 +16,7 @@ export default async function GameSessionPage({ params }: { params: { id: string
 
   const { data: session } = await supabase
     .from("game_sessions")
-    .select("id, sport, session_date, courts, team_size, status, ruleset, format, event_id, events(name)")
+    .select("id, sport, session_date, courts, team_size, status, ruleset, format, title, event_id, events(name)")
     .eq("id", params.id)
     .maybeSingle();
   if (!session) notFound();

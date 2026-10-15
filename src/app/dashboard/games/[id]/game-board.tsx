@@ -70,6 +70,7 @@ export type BoardData = {
     team_size: number;
     status: "open" | "closed" | "finalized";
     ruleset: "casual" | "rally_rank";
+    title: string | null;
     format: "classic" | "team" | "double" | "rivalry" | null;
     event_id: string | null;
     events: { name: string } | null;
@@ -530,7 +531,7 @@ export function GameBoard({ data }: { data: BoardData }) {
           <ArrowLeft className="w-4 h-4" /> Sessions
         </Link>
         <h1 className="font-serif font-bold text-2xl text-ink">
-          {sport?.label ?? session.sport}
+          {session.title ?? sport?.label ?? session.sport}
           {session.events?.name ? <span className="font-sans font-normal text-base text-inkSoft"> · {session.events.name}</span> : null}
         </h1>
         {ranked ? (

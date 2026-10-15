@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Trophy } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ALL_ROLES, hasRole, type Role } from "@/lib/roles";
-import { NewSessionForm } from "./new-session-form";
+import { StartPanel, type Template } from "./start-panel";
 import { formatLabel, SPORTS } from "./logic";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +17,7 @@ type Row = {
   status: string;
   ruleset: string;
   format: string | null;
+  title: string | null;
   events: { name: string } | null;
   game_session_players: Array<{ player_id: string }>;
   game_matches: Array<{ status: string }>;
@@ -38,10 +39,10 @@ export default async function GamesPage() {
     return x.toISOString().slice(0, 10);
   };
 
-  const [{ data: sessions }, { data: events }] = await Promise.all([
+  const [{ data: sessions }, { data: events }, { data: templates }] = await Promise.all([
     supabase
       .from("game_sessions")
-      .select("id, sport, session_date, courts, team_size, status, ruleset, format, events(name), game_session_players(player_id), game_matches(status)")
+      .select("id, sport, session_date, courts, team_size, status, ruleset, format, title, events(name), game_session_players(player_id), game_matches(status)")
       .order("session_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(30),
@@ -53,6 +54,12 @@ export default async function GamesPage() {
       .lte("event_date", shift(1))
       .order("event_date")
       .order("start_time"),
+    supabase
+      .from("game_templates")
+      .select("id, name, sport, ruleset, format, courts, team_size, blurb, sort")
+      .is("archived_at", null)
+      .order("sort")
+      .order("created_at"),
   ]);
   const rows = (sessions ?? []) as unknown as Row[];
   const label = (s: string) => SPORTS.find((x) => x.value === s)?.label ?? s;
@@ -67,7 +74,11 @@ export default async function GamesPage() {
         <p className="text-sm text-inkSoft mt-1">Run the courts, queue and scores. Finalized Rally &amp; Rank events feed the website leaderboard.</p>
       </header>
 
-      <NewSessionForm events={(events ?? []) as Array<{ id: string; name: string; event_date: string; start_time: string | null }>} />
+      <StartPanel
+        events={(events ?? []) as Array<{ id: string; name: string; event_date: string; start_time: string | null }>}
+        templates={(templates ?? []) as Template[]}
+        canEdit={["owner", "partner", "manager"].includes(String(roleRow?.role))}
+      />
 
       <section className="bg-white border border-border rounded-lg shadow-card">
         <h2 className="px-5 py-3 border-b border-border font-semibold text-ink">Sessions</h2>
@@ -80,7 +91,7 @@ export default async function GamesPage() {
                 <Link href={`/dashboard/games/${r.id}`} className="flex items-center gap-4 px-5 py-3 hover:bg-cream/60">
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-ink">
-                      {label(r.sport)}
+                      {r.title ?? label(r.sport)}
                       {r.events?.name ? <span className="font-normal text-inkSoft"> · {r.events.name}</span> : null}
                       {r.ruleset === "rally_rank" ? (
                         <span className="ml-2 align-middle rounded-full bg-berry px-2 py-0.5 text-[10px] font-bold text-white">R&amp;R · {formatLabel(r.format)}</span>
