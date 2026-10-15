@@ -30,6 +30,7 @@ export function shortName(name: string) {
 export function PlayerToken({
   name,
   rating,
+  provisional,
   selected,
   size = "md",
   meta,
@@ -40,6 +41,7 @@ export function PlayerToken({
 }: {
   name: string;
   rating: number;
+  provisional?: boolean;
   selected?: boolean;
   onCourt?: boolean;
   size?: "sm" | "md";
@@ -74,7 +76,7 @@ export function PlayerToken({
         const from = e.dataTransfer.getData("text/plain");
         if (from && from !== dragData) onDropData(from);
       }}
-      title={`${name} · ${t.label} ${rating.toFixed(1)}`}
+      title={`${name} · ${t.label} ${rating.toFixed(2)}${provisional ? " · Provisional" : ""}`}
       aria-pressed={selected}
       className={cn(
         "group relative flex flex-col items-center gap-0.5 rounded-full p-0.5 transition",
@@ -84,7 +86,7 @@ export function PlayerToken({
     >
       <span
         className={cn(
-          "inline-flex items-center rounded-full font-bold text-[#26215C] ring-2 ring-white shadow-[0_4px_10px_rgba(26,26,46,0.18)] transition",
+          "relative inline-flex items-center rounded-full font-bold text-[#26215C] ring-2 ring-white shadow-[0_4px_10px_rgba(26,26,46,0.18)] transition",
           pill,
           selected ? "outline outline-[3px] outline-offset-2 outline-[#EF9F27]" : "group-hover:scale-105",
         )}
@@ -95,8 +97,16 @@ export function PlayerToken({
           className="shrink-0 rounded-full px-1.5 text-[10px] font-bold leading-5 ring-[1.5px] ring-white tabular-nums"
           style={{ background: t.bg, color: t.fg }}
         >
-          {rating.toFixed(1)}
+          {rating.toFixed(2)}
         </span>
+        {provisional ? (
+          <span
+            className="absolute -top-1.5 -right-1 rounded-full bg-ink px-1 text-[8px] font-bold leading-[13px] text-white ring-[1.5px] ring-white"
+            aria-label="Provisional rating"
+          >
+            P
+          </span>
+        ) : null}
       </span>
       {meta ? <span className="text-[10px] leading-3 text-inkSoft tabular-nums">{meta}</span> : null}
     </button>

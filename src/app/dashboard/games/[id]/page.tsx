@@ -16,7 +16,7 @@ export default async function GameSessionPage({ params }: { params: { id: string
 
   const { data: session } = await supabase
     .from("game_sessions")
-    .select("id, sport, session_date, courts, team_size, status, event_id, events(name)")
+    .select("id, sport, session_date, courts, team_size, status, ruleset, format, event_id, events(name)")
     .eq("id", params.id)
     .maybeSingle();
   if (!session) notFound();
@@ -24,15 +24,15 @@ export default async function GameSessionPage({ params }: { params: { id: string
   const [{ data: roster }, { data: matches }, { data: master }, { data: passes }] = await Promise.all([
     supabase
       .from("game_session_players")
-      .select("player_id, active, waiting_since, joined_at, game_players(id, display_name, email, rating, skill_level)")
+      .select("player_id, active, waiting_since, joined_at, squad, pair_no, queue_offset, game_players(id, display_name, email, rating, skill_level, seed_rating)")
       .eq("session_id", session.id),
     supabase
       .from("game_matches")
-      .select("id, court, team_a, team_b, score_a, score_b, winner, status, started_at, finished_at")
+      .select("id, court, team_a, team_b, score_a, score_b, winner, finish, status, started_at, finished_at")
       .eq("session_id", session.id)
       .neq("status", "void")
       .order("started_at"),
-    supabase.from("game_players").select("id, display_name, email, rating, skill_level").order("display_name").limit(2000),
+    supabase.from("game_players").select("id, display_name, email, rating, skill_level, seed_rating").order("display_name").limit(2000),
     session.event_id
       ? supabase
           .from("tickets")
@@ -44,7 +44,14 @@ export default async function GameSessionPage({ params }: { params: { id: string
       : Promise.resolve({ data: [] }),
   ]);
 
+  const ids = ((roster ?? []) as Array<{ player_id: string }>).map((r) => r.player_id);
+  const { data: status } = ids.length
+    ? await supabase.from("rr_player_status").select("player_id, provisional, finalized_events").in("player_id", ids)
+    : { data: [] };
+
   const data = {
+    role: (roleRow?.role ?? "staff") as string,
+    provisional: Object.fromEntries(((status ?? []) as Array<{ player_id: string; provisional: boolean }>).map((x) => [x.player_id, x.provisional])),
     session: session as unknown as BoardData["session"],
     roster: (roster ?? []) as unknown as BoardData["roster"],
     matches: (matches ?? []) as BoardData["matches"],

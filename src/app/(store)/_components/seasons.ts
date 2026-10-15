@@ -1,17 +1,10 @@
-// Leaderboard seasons are calendar quarters, keyed year*10 + quarter (20264 =
-// Oct to Dec 2026). 0 = all time.
-const Q = ["Jan to Mar", "Apr to Jun", "Jul to Sep", "Oct to Dec"];
+// Rally & Rank seasons: Season 1 = Nov to Dec 2026, then calendar quarters
+// (same rule as rr_season_of() in the database).
+export { seasonName, seasonOf } from "@/app/dashboard/games/logic";
+import { seasonOf } from "@/app/dashboard/games/logic";
 
-export function currentSeasonKey(now = new Date()): number {
-  const d = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-  return d.getFullYear() * 10 + Math.floor(d.getMonth() / 3) + 1;
-}
-
-export function seasonLabel(key: number): string {
-  if (!key) return "All time";
-  const y = Math.floor(key / 10);
-  const q = key % 10;
-  return `${Q[q - 1] ?? `Q${q}`} ${y}`;
+export function currentSeason(now = new Date()): number {
+  return seasonOf(now.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" })) ?? 1;
 }
 
 export const SPORT_LABEL: Record<string, string> = { badminton: "Badminton", pickleball: "Pickleball", volleyball: "Volleyball" };

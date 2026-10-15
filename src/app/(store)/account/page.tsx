@@ -7,7 +7,7 @@ import { fmtEventDate, timeRange } from "../_components/events";
 import { ArrowUpRightLine, PackageLine, TicketLine } from "../_components/icons";
 import { Btn, Container, Panel } from "../_components/ui";
 import { ProfileForm, SignOutButton } from "./account-client";
-import { currentSeasonKey, seasonLabel, SPORT_LABEL } from "../_components/seasons";
+import { currentSeason, seasonName, SPORT_LABEL } from "../_components/seasons";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Your account", robots: { index: false } };
@@ -69,9 +69,10 @@ export default async function AccountPage() {
   ]);
   if (error || !data) redirect("/account/login");
   const me = data as Me;
-  const season = currentSeasonKey();
-  const standings = ((standingRows ?? []) as Array<{ sport: string; season_key: number; rank: number; points: number; wins: number; losses: number; of: number }>)
-    .filter((s) => s.season_key === season);
+  const season = currentSeason();
+  const standings = (
+    (standingRows ?? []) as Array<{ sport: string; season: number; rank: number; lp: number; wins: number; matches: number; rating: number; provisional: boolean; of: number }>
+  ).filter((s) => s.season === season);
 
   const t = today();
   const upcoming = me.passes.filter((p) => p.event_date >= t);
@@ -172,7 +173,7 @@ export default async function AccountPage() {
             </div>
             {standings.length === 0 ? (
               <Panel className="mt-5">
-                <p className="text-s-muted">No games yet in {seasonLabel(season)}. Play an event to get on the board.</p>
+                <p className="text-s-muted">No Rally &amp; Rank games yet in {seasonName(season)}. Play an event to get on the board.</p>
               </Panel>
             ) : (
               <ul className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -181,7 +182,8 @@ export default async function AccountPage() {
                     <p className="text-sm font-semibold text-s-muted">{SPORT_LABEL[s.sport] ?? s.sport}</p>
                     <p className="mt-2 font-display text-4xl font-semibold tracking-[-0.03em] text-s-fg tabular-nums">#{s.rank}</p>
                     <p className="mt-1 text-sm text-s-muted tabular-nums">
-                      of {s.of}. {s.points} pts, {s.wins} won, {s.losses} lost
+                      of {s.of}. {Number(s.lp).toFixed(2)} LP, {s.wins} won of {s.matches}. Rating {Number(s.rating).toFixed(2)}
+                      {s.provisional ? " (provisional)" : ""}
                     </p>
                   </li>
                 ))}

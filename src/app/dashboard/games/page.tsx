@@ -4,7 +4,7 @@ import { Trophy } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ALL_ROLES, hasRole, type Role } from "@/lib/roles";
 import { NewSessionForm } from "./new-session-form";
-import { SPORTS } from "./logic";
+import { formatLabel, SPORTS } from "./logic";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,8 @@ type Row = {
   courts: number;
   team_size: number;
   status: string;
+  ruleset: string;
+  format: string | null;
   events: { name: string } | null;
   game_session_players: Array<{ player_id: string }>;
   game_matches: Array<{ status: string }>;
@@ -39,7 +41,7 @@ export default async function GamesPage() {
   const [{ data: sessions }, { data: events }] = await Promise.all([
     supabase
       .from("game_sessions")
-      .select("id, sport, session_date, courts, team_size, status, events(name), game_session_players(player_id), game_matches(status)")
+      .select("id, sport, session_date, courts, team_size, status, ruleset, format, events(name), game_session_players(player_id), game_matches(status)")
       .order("session_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(30),
@@ -62,7 +64,7 @@ export default async function GamesPage() {
           <Trophy className="w-7 h-7 text-berry" />
           Game Day
         </h1>
-        <p className="text-sm text-inkSoft mt-1">Run the courts, queue and scores. Results feed the website leaderboard.</p>
+        <p className="text-sm text-inkSoft mt-1">Run the courts, queue and scores. Finalized Rally &amp; Rank events feed the website leaderboard.</p>
       </header>
 
       <NewSessionForm events={(events ?? []) as Array<{ id: string; name: string; event_date: string; start_time: string | null }>} />
@@ -80,6 +82,9 @@ export default async function GamesPage() {
                     <div className="font-semibold text-ink">
                       {label(r.sport)}
                       {r.events?.name ? <span className="font-normal text-inkSoft"> · {r.events.name}</span> : null}
+                      {r.ruleset === "rally_rank" ? (
+                        <span className="ml-2 align-middle rounded-full bg-berry px-2 py-0.5 text-[10px] font-bold text-white">R&amp;R · {formatLabel(r.format)}</span>
+                      ) : null}
                     </div>
                     <div className="text-xs text-inkSoft">
                       {new Date(`${r.session_date}T00:00:00Z`).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
@@ -95,10 +100,12 @@ export default async function GamesPage() {
                     className={
                       r.status === "open"
                         ? "text-[11px] font-semibold rounded-full bg-greenBg text-green px-2 py-0.5"
-                        : "text-[11px] font-semibold rounded-full bg-cream text-inkSoft px-2 py-0.5"
+                        : r.status === "finalized"
+                          ? "text-[11px] font-semibold rounded-full bg-berryBg text-berry px-2 py-0.5"
+                          : "text-[11px] font-semibold rounded-full bg-cream text-inkSoft px-2 py-0.5"
                     }
                   >
-                    {r.status === "open" ? "Live" : "Closed"}
+                    {r.status === "open" ? "Live" : r.status === "finalized" ? "Finalized" : "Closed"}
                   </span>
                 </Link>
               </li>

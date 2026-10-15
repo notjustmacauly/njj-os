@@ -1,8 +1,7 @@
-// Game-day matchmaking + rating maths (pure functions, unit-testable).
-//
-// Queue: longest-waiting first. When a court frees up the next 2 × teamSize
-// players by waiting_since go on, split into the fairest teams by rating
-// (avoiding people who already partnered tonight where it costs little).
+// Game-day matchmaking + Rally & Rank maths (pure functions, unit-testable).
+// Rules: docs/specs/RALLY_AND_RANK_2_SPEC.txt. The database is the source of
+// truth for ratings and LP (rr_* functions and views); these mirror it for the
+// live board.
 
 export type Sport = "badminton" | "pickleball" | "volleyball";
 export const SPORTS: Array<{ value: Sport; label: string; teamSize: number | null }> = [
@@ -11,16 +10,85 @@ export const SPORTS: Array<{ value: Sport; label: string; teamSize: number | nul
   { value: "volleyball", label: "Volleyball", teamSize: null }, // 4–6, chosen per session
 ];
 
-export const SKILL_RATING = { beginner: 2.0, intermediate: 3.5, advanced: 5.0, pro: 6.5 } as const;
+export type Format = "classic" | "team" | "double" | "rivalry";
+export const FORMATS: Array<{ value: Format; label: string; blurb: string; ready: boolean }> = [
+  { value: "classic", label: "Classic", blurb: "Rotating partners. LP up to 100.", ready: true },
+  { value: "team", label: "Team", blurb: "Three squads, A v B, B v C, C v A. Top squad +10, second +5.", ready: true },
+  { value: "double", label: "Double Points", blurb: "Classic rules, LP doubled (up to 200).", ready: true },
+  { value: "rivalry", label: "Rivalry", blurb: "Fixed pairs and a bracket. Coming in December.", ready: false },
+];
+export const formatLabel = (f: string | null | undefined) => FORMATS.find((x) => x.value === f)?.label ?? "Casual";
+
+/** Monthly rotation: wk1 Classic, wk2 Team, wk3 Classic, wk4 special (Double Points Nov 2026, then alternating with Rivalry). */
+export function suggestedFormat(isoDate: string): Format | null {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const week = Math.ceil(d / 7);
+  if (week === 1 || week === 3) return "classic";
+  if (week === 2) return "team";
+  if (week === 4) return ((y - 2026) * 12 + (m - 11)) % 2 === 0 ? "double" : "rivalry";
+  return null; // fifth week: no ranked event by default
+}
+
+// Levels are staff-only. Picking one sets the starting rating (centre of the range).
+export const SKILL_RATING = { beginner: 1.5, intermediate: 2.6, advanced: 3.85, pro: 5.25 } as const;
 export type Skill = keyof typeof SKILL_RATING;
+export const SKILLS: Array<{ value: Skill; label: string }> = [
+  { value: "beginner", label: "Beginner" },
+  { value: "intermediate", label: "Intermediate" },
+  { value: "advanced", label: "Advanced" },
+  { value: "pro", label: "Pro" },
+];
 
+/** Division from the stored rating (full precision, no rounding first). */
+export function tierOf(rating: number): Skill {
+  return rating < 2 ? "beginner" : rating < 3.2 ? "intermediate" : rating < 4.5 ? "advanced" : "pro";
+}
+
+// ---------------------------------------------------------------- scores
+/** Badminton: 21, win by 2, cap 30. "Timed" = time called, any lead counts. */
+export function validScore(winner: number, loser: number, finish: "target" | "timed"): boolean {
+  if (!Number.isInteger(winner) || !Number.isInteger(loser) || loser < 0 || winner <= loser || winner > 30) return false;
+  if (finish === "timed") return true;
+  return (winner === 21 && loser <= 19) || (winner >= 22 && winner <= 30 && loser === winner - 2) || (winner === 30 && loser === 29);
+}
+
+// ---------------------------------------------------------------- league points
+export function placementBonus(format: string | null, place: number | null) {
+  if (format === "team") return place === 1 ? 10 : place === 2 ? 5 : 0;
+  if (format === "rivalry") return place === 1 ? 20 : place === 2 ? 10 : 0;
+  return 0;
+}
+
+/** LP = q × [M × (20 + 80 × W/N) + B], q = min(1, N/4), rounded half up to 2 dp. */
+export function leaguePoints(n: number, w: number, format: string | null, bonus = 0): number {
+  if (n <= 0) return 0;
+  const q = Math.min(1, n / 4);
+  const m = format === "double" ? 2 : 1;
+  const raw = q * (m * (20 + (80 * w) / n) + bonus);
+  // Half-up at 2 dp; nudge guards binary float (62.4999… → 62.50).
+  return Math.round((raw + 1e-9) * 100) / 100;
+}
+
+// ---------------------------------------------------------------- queue
 export type QueuePlayer = { id: string; rating: number; waiting_since: string };
+export type FairPlayer = QueuePlayer & { joined_at: string; opportunities: number };
 
-/** The next players off the queue for one court (oldest wait first). */
-export function nextUp<T extends QueuePlayer>(waiting: T[], teamSize: number): T[] | null {
+/** Fairness order: fewest games tonight (plus late-arrival offset), longest since last game, earliest check-in, id. */
+export function fairOrder<T extends FairPlayer>(players: T[]): T[] {
+  return [...players].sort(
+    (a, b) =>
+      a.opportunities - b.opportunities ||
+      a.waiting_since.localeCompare(b.waiting_since) ||
+      a.joined_at.localeCompare(b.joined_at) ||
+      a.id.localeCompare(b.id),
+  );
+}
+
+/** The next players off the queue for one court. */
+export function nextUp<T extends FairPlayer>(waiting: T[], teamSize: number): T[] | null {
   const need = teamSize * 2;
   if (waiting.length < need) return null;
-  return [...waiting].sort((a, b) => a.waiting_since.localeCompare(b.waiting_since)).slice(0, need);
+  return fairOrder(waiting).slice(0, need);
 }
 
 const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
@@ -40,120 +108,111 @@ export function partnerCounts(matches: Array<{ team_a: string[]; team_b: string[
   return m;
 }
 
-function repeatCost(team: QueuePlayer[], partners: Map<string, number>) {
+function repeatCount(team: QueuePlayer[], partners: Map<string, number>) {
   let c = 0;
   for (let i = 0; i < team.length; i++)
     for (let j = i + 1; j < team.length; j++) c += partners.get(pairKey(team[i].id, team[j].id)) ?? 0;
   return c;
 }
 
-// Cost of reusing a partnership, in rating points. 1.5 ≈ "rotate partners
-// unless that makes the match more than ~1.5 rating points lopsided".
-const REPEAT_WEIGHT = 1.5;
+const sum = (t: Array<{ rating: number }>) => t.reduce((a, p) => a + p.rating, 0);
 
-const sum = (t: QueuePlayer[]) => t.reduce((a, p) => a + p.rating, 0);
-
-/** Split players into two balanced teams. Exhaustive for small groups, snake + swaps for big ones. */
-export function balanceTeams<T extends QueuePlayer>(players: T[], partners = new Map<string, number>()): [T[], T[]] {
-  const n = players.length;
-  const half = n / 2;
-  const score = (a: T[], b: T[]) => Math.abs(sum(a) - sum(b)) + REPEAT_WEIGHT * (repeatCost(a, partners) + repeatCost(b, partners));
-
-  if (n <= 10) {
-    // Try every split that puts player 0 on team A (avoids mirror duplicates).
-    let best: [T[], T[]] | null = null;
-    let bestScore = Infinity;
-    const rest = players.slice(1);
-    const choose = (start: number, picked: T[]) => {
-      if (picked.length === half - 1) {
-        const a = [players[0], ...picked];
-        const b = players.filter((p) => !a.includes(p));
-        const s = score(a, b);
-        if (s < bestScore) {
-          bestScore = s;
-          best = [a, b];
-        }
-        return;
-      }
-      for (let i = start; i < rest.length; i++) choose(i + 1, [...picked, rest[i]]);
-    };
-    choose(0, []);
-    return best!;
-  }
-
-  // Snake draft by rating, then greedy swaps that improve the score.
-  const sorted = [...players].sort((x, y) => y.rating - x.rating);
-  let a: T[] = [];
-  let b: T[] = [];
-  sorted.forEach((p, i) => ((i % 4 === 0 || i % 4 === 3 ? a : b).push(p)));
-  let improved = true;
-  while (improved) {
-    improved = false;
-    for (let i = 0; i < a.length; i++)
-      for (let j = 0; j < b.length; j++) {
-        const na = [...a];
-        const nb = [...b];
-        [na[i], nb[j]] = [nb[j], na[i]];
-        if (score(na, nb) + 1e-9 < score(a, b)) {
-          a = na;
-          b = nb;
-          improved = true;
-        }
-      }
-  }
-  return [a, b];
+/** Team strength = average rating. */
+export function teamAverage(team: Array<{ rating: number }>) {
+  return team.length ? sum(team) / team.length : 0;
 }
 
-/** Small Elo-style nudge on a 1–8 scale; used only for fair teams, not ranking. */
-export function ratingDeltas(teamA: QueuePlayer[], teamB: QueuePlayer[], aWon: boolean) {
-  const ra = sum(teamA) / teamA.length;
-  const rb = sum(teamB) / teamB.length;
-  const expectedA = 1 / (1 + Math.pow(10, (rb - ra) / 1.5));
-  const k = 0.12;
-  const dA = k * ((aWon ? 1 : 0) - expectedA);
-  const clamp = (r: number) => Math.min(8, Math.max(1, Math.round(r * 100) / 100));
-  return [
-    ...teamA.map((p) => ({ id: p.id, rating: clamp(p.rating + dA) })),
-    ...teamB.map((p) => ({ id: p.id, rating: clamp(p.rating - dA) })),
-  ];
+/**
+ * Every distinct split of the same players, best first: fewest repeat partners
+ * tonight, then the smallest gap between side averages (spec section 5).
+ */
+export function rankedSplits<T extends QueuePlayer>(players: T[], partners = new Map<string, number>()): Array<[T[], T[]]> {
+  const half = players.length / 2;
+  const out: Array<{ rep: number; gap: number; split: [T[], T[]] }> = [];
+  const rest = players.slice(1);
+  const choose = (start: number, picked: T[]) => {
+    if (picked.length === half - 1) {
+      const a = [players[0], ...picked];
+      const b = players.filter((p) => !a.includes(p));
+      out.push({ rep: repeatCount(a, partners) + repeatCount(b, partners), gap: Math.abs(teamAverage(a) - teamAverage(b)), split: [a, b] });
+      return;
+    }
+    for (let i = start; i < rest.length; i++) choose(i + 1, [...picked, rest[i]]);
+  };
+  if (players.length <= 12) choose(0, []);
+  else out.push({ rep: 0, gap: 0, split: [players.slice(0, half), players.slice(half)] });
+  return out.sort((x, y) => x.rep - y.rep || x.gap - y.gap).map((x) => x.split);
+}
+
+export type Balance = { label: "Fair" | "Close" | "Uneven"; gap: number };
+/** Spec: preferred side-average gap ≤ 0.35. */
+export function balanceOf(a: Array<{ rating: number }>, b: Array<{ rating: number }>): Balance {
+  const gap = Math.abs(teamAverage(a) - teamAverage(b));
+  return { gap, label: gap <= 0.35 ? "Fair" : gap <= 0.7 ? "Close" : "Uneven" };
+}
+
+// ---------------------------------------------------------------- team nights
+export type Squad = "A" | "B" | "C";
+export const SQUADS: Squad[] = ["A", "B", "C"];
+export const MATCHUPS: Array<[Squad, Squad]> = [
+  ["A", "B"],
+  ["B", "C"],
+  ["C", "A"],
+];
+
+/** Three squads, sizes within one: snake by rating (A B C C B A), then swaps that shrink the average gap. */
+export function makeSquads<T extends { id: string; rating: number }>(players: T[]): Record<Squad, T[]> {
+  const sorted = [...players].sort((a, b) => b.rating - a.rating || a.id.localeCompare(b.id));
+  const sq: Record<Squad, T[]> = { A: [], B: [], C: [] };
+  const snake: Squad[] = ["A", "B", "C", "C", "B", "A"];
+  sorted.forEach((p, i) => sq[snake[i % 6]].push(p));
+  const spread = () => {
+    const avgs = SQUADS.map((s) => teamAverage(sq[s]));
+    return Math.max(...avgs) - Math.min(...avgs);
+  };
+  let improved = true;
+  let guard = 0;
+  while (improved && guard++ < 200) {
+    improved = false;
+    for (const x of SQUADS)
+      for (const y of SQUADS) {
+        if (x >= y) continue;
+        for (let i = 0; i < sq[x].length; i++)
+          for (let j = 0; j < sq[y].length; j++) {
+            const before = spread();
+            [sq[x][i], sq[y][j]] = [sq[y][j], sq[x][i]];
+            if (spread() + 1e-9 < before) improved = true;
+            else [sq[x][i], sq[y][j]] = [sq[y][j], sq[x][i]];
+          }
+      }
+  }
+  return sq;
+}
+
+/** Pairs inside a squad: strongest with weakest, so pairs are even. Odd one out gets null. */
+export function makePairs<T extends { id: string; rating: number }>(members: T[]): Array<[T, T | null]> {
+  const s = [...members].sort((a, b) => b.rating - a.rating || a.id.localeCompare(b.id));
+  const out: Array<[T, T | null]> = [];
+  while (s.length > 1) out.push([s.shift()!, s.pop()!]);
+  if (s.length) out.push([s[0], null]);
+  return out;
 }
 
 export function minutesSince(iso: string, now = Date.now()) {
   return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 60000));
 }
 
-/** Team strength = average rating. Balance badge from the gap between teams. */
-export function teamAverage(team: Array<{ rating: number }>) {
-  return team.length ? team.reduce((a, p) => a + p.rating, 0) / team.length : 0;
+// ---------------------------------------------------------------- seasons
+const Q = ["Jan to Mar", "Apr to Jun", "Jul to Sep", "Oct to Dec"];
+/** Season 1 = Nov–Dec 2026, then calendar quarters (Season 2 = Jan–Mar 2027). Mirrors rr_season_of(). */
+export function seasonOf(isoDate: string): number | null {
+  if (isoDate < "2026-11-01") return null;
+  if (isoDate < "2027-01-01") return 1;
+  const [y, m] = isoDate.split("-").map(Number);
+  return 2 + (y - 2027) * 4 + Math.floor((m - 1) / 3);
 }
-
-export type Balance = { label: "Fair" | "Close" | "Uneven"; gap: number };
-export function balanceOf(a: Array<{ rating: number }>, b: Array<{ rating: number }>): Balance {
-  const gap = Math.abs(teamAverage(a) - teamAverage(b));
-  return { gap, label: gap <= 0.35 ? "Fair" : gap <= 0.8 ? "Close" : "Uneven" };
-}
-
-/** Rating tier for the coloured badge on each player token. */
-export function tierOf(rating: number): Skill {
-  return rating < 2.75 ? "beginner" : rating < 4.25 ? "intermediate" : rating < 5.75 ? "advanced" : "pro";
-}
-
-/** Every distinct team split of the same players, best first (for Reshuffle). */
-export function rankedSplits<T extends QueuePlayer>(players: T[], partners = new Map<string, number>()): Array<[T[], T[]]> {
-  if (players.length > 10) return [balanceTeams(players, partners)];
-  const half = players.length / 2;
-  const out: Array<{ s: number; split: [T[], T[]] }> = [];
-  const rest = players.slice(1);
-  const choose = (start: number, picked: T[]) => {
-    if (picked.length === half - 1) {
-      const a = [players[0], ...picked];
-      const b = players.filter((p) => !a.includes(p));
-      const s = Math.abs(sum(a) - sum(b)) + REPEAT_WEIGHT * (repeatCost(a, partners) + repeatCost(b, partners));
-      out.push({ s, split: [a, b] });
-      return;
-    }
-    for (let i = start; i < rest.length; i++) choose(i + 1, [...picked, rest[i]]);
-  };
-  choose(0, []);
-  return out.sort((x, y) => x.s - y.s).map((x) => x.split);
+export function seasonName(n: number) {
+  if (n === 1) return "Season 1 · Nov to Dec 2026";
+  const i = n - 2;
+  return `Season ${n} · ${Q[i % 4]} ${2027 + Math.floor(i / 4)}`;
 }
