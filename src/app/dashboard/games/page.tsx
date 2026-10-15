@@ -113,10 +113,12 @@ export default async function GamesPage() {
                         ? "text-[11px] font-semibold rounded-full bg-greenBg text-green px-2 py-0.5"
                         : r.status === "finalized"
                           ? "text-[11px] font-semibold rounded-full bg-berryBg text-berry px-2 py-0.5"
-                          : "text-[11px] font-semibold rounded-full bg-cream text-inkSoft px-2 py-0.5"
+                          : r.status === "cancelled"
+                            ? "text-[11px] font-semibold rounded-full bg-salmonBg text-coral px-2 py-0.5"
+                            : "text-[11px] font-semibold rounded-full bg-cream text-inkSoft px-2 py-0.5"
                     }
                   >
-                    {r.status === "open" ? "Live" : r.status === "finalized" ? "Finalized" : "Closed"}
+                    {r.status === "open" ? "Live" : r.status === "finalized" ? "Finalized" : r.status === "cancelled" ? "Cancelled" : "Closed"}
                   </span>
                 </Link>
               </li>

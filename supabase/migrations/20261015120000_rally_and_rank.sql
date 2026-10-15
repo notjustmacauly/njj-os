@@ -139,7 +139,7 @@ begin
       where gm.status = 'done' and gm.winner is not null
     ) x;
 
-  delete from rr_rating_ledger;
+  delete from rr_rating_ledger where true;
 
   for m in
     select gm.id, gm.session_id, gm.team_a, gm.team_b, gm.winner

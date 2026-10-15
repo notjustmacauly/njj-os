@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Coffee, Flag, Pencil, Play, RotateCcw, Shuffle, Trophy, X } from "lucide-react";
+import { ArrowLeft, Ban, Coffee, Flag, Minus, Pencil, Play, Plus, RotateCcw, Shuffle, Trophy, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -68,7 +68,7 @@ export type BoardData = {
     session_date: string;
     courts: number;
     team_size: number;
-    status: "open" | "closed" | "finalized";
+    status: "open" | "closed" | "finalized" | "cancelled";
     ruleset: "casual" | "rally_rank";
     title: string | null;
     format: "classic" | "team" | "double" | "rivalry" | null;
@@ -184,12 +184,12 @@ export function GameBoard({ data }: { data: BoardData }) {
   }, [needsFill]);
 
   // ---------------------------------------------------------------- actions
-  async function run(fn: () => Promise<void>, ok?: string) {
+  async function run(fn: () => Promise<void>, ok?: string, opts?: { noRefill?: boolean }) {
     if (busy) return;
     setBusy(true);
     try {
       await fn();
-      await refill();
+      if (!opts?.noRefill) await refill();
       if (ok) toast.push(ok, "success");
     } catch (e) {
       toast.push((e as Error).message, "error");
@@ -201,7 +201,7 @@ export function GameBoard({ data }: { data: BoardData }) {
   }
 
   /** Give every court without a "next" lineup one, in fairness order (spec section 5). */
-  async function refill() {
+  async function refill(courts = session.courts) {
     if (!open) return;
     const supabase = createClient();
     const [{ data: ms }, { data: rs }] = await Promise.all([
@@ -240,7 +240,7 @@ export function GameBoard({ data }: { data: BoardData }) {
       return [first, mate ?? f[1]];
     };
 
-    for (let court = 1; court <= session.courts; court++) {
+    for (let court = 1; court <= courts; court++) {
       if (matches.some((m) => m.court === court && m.status === "queued")) continue;
       let lineup: [typeof pool, typeof pool] | null = null;
       if (isTeam) {
@@ -484,6 +484,25 @@ export function GameBoard({ data }: { data: BoardData }) {
     setFinalizing(false);
   }
 
+  /** Add or drop a court mid-session. A court with a game on can't be dropped. */
+  async function setCourts(n: number) {
+    if (n < 1 || n > 8) return;
+    const supabase = createClient();
+    if (n < session.courts) {
+      if (playing.some((m) => m.court > n)) throw new Error(`Court ${session.courts} has a game on. Finish it first.`);
+      await supabase.from("game_matches").delete().eq("session_id", session.id).eq("status", "queued").gt("court", n);
+    }
+    const { error } = await supabase.from("game_sessions").update({ courts: n }).eq("id", session.id);
+    if (error) throw new Error(error.message);
+    await refill(n);
+  }
+
+  async function cancelEvent() {
+    const { data: res, error } = await createClient().rpc("rr_cancel_session", { p_session: session.id });
+    if (error) throw new Error(error.message);
+    if (res === "deleted") router.push("/dashboard/games");
+  }
+
   async function reopen() {
     const { error } = await createClient().rpc("rr_reopen_session", { p_session: session.id });
     if (error) throw new Error(error.message);
@@ -544,7 +563,47 @@ export function GameBoard({ data }: { data: BoardData }) {
             Games to 21 · LP = {session.format === "double" ? "2 × " : ""}(20 + 80 × win rate)
           </span>
         ) : null}
+        {open ? (
+          <div className="inline-flex items-center rounded-full bg-white ring-1 ring-border">
+            <button
+              type="button"
+              aria-label="Remove a court"
+              disabled={busy || session.courts <= 1}
+              onClick={() => run(() => setCourts(session.courts - 1), `${session.courts - 1} court${session.courts - 1 === 1 ? "" : "s"}`, { noRefill: true })}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-inkSoft hover:text-ink disabled:opacity-30"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+            <span className="px-1 text-xs font-semibold text-ink tabular-nums">
+              {session.courts} court{session.courts === 1 ? "" : "s"}
+            </span>
+            <button
+              type="button"
+              aria-label="Add a court"
+              disabled={busy || session.courts >= 8}
+              onClick={() => run(() => setCourts(session.courts + 1), `${session.courts + 1} courts`, { noRefill: true })}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-inkSoft hover:text-ink disabled:opacity-30"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : null}
         <div className="ml-auto flex items-center gap-2">
+          {open ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                const msg = done.length
+                  ? `Cancel this event? All ${done.length} result${done.length === 1 ? "" : "s"} will be voided, ratings recalculated without them, and nothing counts toward the leaderboard.`
+                  : "Cancel this event? Nothing has been played, so it will be deleted.";
+                if (window.confirm(msg)) run(cancelEvent, done.length ? "Event cancelled" : "Event deleted", { noRefill: true });
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-inkSoft hover:bg-salmonBg hover:text-coral disabled:opacity-50"
+            >
+              <Ban className="w-4 h-4" /> Cancel event
+            </button>
+          ) : null}
           {session.status === "finalized" ? (
             <>
               <span className="text-xs font-semibold rounded-full bg-greenBg text-green px-2.5 py-1">Finalized · LP counts toward the season</span>
@@ -559,6 +618,8 @@ export function GameBoard({ data }: { data: BoardData }) {
                 </Button>
               ) : null}
             </>
+          ) : session.status === "cancelled" ? (
+            <span className="text-xs font-semibold rounded-full bg-salmonBg text-coral px-2.5 py-1">Cancelled · results voided, nothing counts</span>
           ) : open ? (
             ranked ? (
               <Button onClick={() => setFinalizing(true)} disabled={busy}>
@@ -963,7 +1024,7 @@ export function GameBoard({ data }: { data: BoardData }) {
           squads={isTeam ? squadRecord : null}
           busy={busy}
           onClose={() => setFinalizing(false)}
-          onConfirm={() => run(finalize, "Event finalized. LP is on the season table.")}
+          onConfirm={() => run(finalize, "Event finalized. LP is on the season table.", { noRefill: true })}
         />
       ) : null}
     </div>
