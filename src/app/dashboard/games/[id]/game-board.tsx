@@ -67,6 +67,8 @@ const dec = (s: string): Loc | null => {
   return null;
 };
 
+const fmtMins = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)}h ${m % 60}m`);
+
 const BALANCE_STYLE = {
   Fair: "bg-greenBg text-green",
   Close: "bg-yellowBg text-[#854F0B]",
@@ -373,21 +375,27 @@ export function GameBoard({ data }: { data: BoardData }) {
         </div>
       ) : null}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div
+        className={cn(
+          "grid gap-5",
+          // Three courts need room: the side panel moves beside them only on wide screens.
+          session.courts >= 3 ? "2xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[minmax(0,1fr)_360px]",
+        )}
+      >
         {/* Courts */}
-        <div className="grid gap-5 2xl:grid-cols-2 content-start">
+        <div className={cn("grid gap-4 content-start sm:grid-cols-2", session.courts >= 3 ? "lg:grid-cols-3" : "")}>
           {Array.from({ length: session.courts }, (_, i) => i + 1).map((court) => {
             const live = playing.find((m) => m.court === court);
             const next = queued.find((m) => m.court === court);
             const shown = live ?? next;
             const waitingFor = Math.max(0, need - general.length);
             return (
-              <section key={court} className="rounded-3xl bg-white ring-1 ring-border shadow-card p-3">
+              <section key={court} className="min-w-0 rounded-3xl bg-white ring-1 ring-border shadow-card p-3">
                 <div className="flex items-center justify-between px-1.5 pb-2">
                   <span className="font-serif font-bold text-lg text-ink">Court {court}</span>
                   {live ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-greenBg text-green px-2.5 py-0.5 text-xs font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green animate-pulse motion-reduce:animate-none" /> Playing · {minutesSince(live.started_at)} min
+                      <span className="w-1.5 h-1.5 rounded-full bg-green animate-pulse motion-reduce:animate-none" /> Playing · {fmtMins(minutesSince(live.started_at))}
                     </span>
                   ) : (
                     <span className="rounded-full bg-cream text-inkSoft px-2.5 py-0.5 text-xs font-semibold">Free</span>
@@ -395,19 +403,22 @@ export function GameBoard({ data }: { data: BoardData }) {
                 </div>
 
                 {/* The court */}
-                <div className="relative aspect-[5/2] min-h-[200px] overflow-hidden rounded-2xl">
+                <div className="relative mx-auto aspect-[3/4] w-full max-w-[400px] overflow-hidden rounded-2xl">
                   <CourtArt sport={session.sport} />
                   {shown ? (
-                    <div className={cn("absolute inset-0 grid grid-cols-2", !live && "bg-white/25")}>
+                    <div className={cn("absolute inset-0 grid grid-rows-2", !live && "bg-white/25")}>
                       {(["a", "b"] as const).map((team) => {
                         const ids = team === "a" ? shown.team_a : shown.team_b;
                         return (
-                          <div key={team} className="relative flex flex-col items-center justify-center gap-3 px-3 py-3">
-                            <div className={cn("grid gap-x-2 gap-y-4 justify-items-center", ids.length > 3 ? "grid-cols-2" : "grid-cols-1")}>
+                          <div
+                            key={team}
+                            className={cn("relative flex items-center justify-center gap-3 px-2 py-4", team === "a" ? "flex-col" : "flex-col-reverse")}
+                          >
+                            <div className="flex flex-wrap justify-center gap-x-1.5 gap-y-3">
                               {ids.map((id, idx) => (
                                 <PlayerToken
                                   key={id}
-                                  size={ids.length > 3 ? "sm" : "md"}
+                                  size={ids.length > 2 ? "sm" : "md"}
                                   {...tokenProps({ kind: "match", matchId: shown.id, team, idx }, id, true)}
                                 />
                               ))}
@@ -415,7 +426,7 @@ export function GameBoard({ data }: { data: BoardData }) {
                             {live && open ? (
                               <button
                                 type="button"
-                                onClick={() => run(() => win(live, team), `Court ${court}: ${team === "a" ? "left" : "right"} side won`)}
+                                onClick={() => run(() => win(live, team), `Court ${court}: ${team === "a" ? "top" : "bottom"} team won`)}
                                 disabled={busy}
                                 className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-4 py-1.5 text-sm font-bold text-ink shadow-md transition hover:scale-105 active:scale-95"
                               >
@@ -426,7 +437,7 @@ export function GameBoard({ data }: { data: BoardData }) {
                         );
                       })}
                       {!live ? (
-                        <div className="absolute inset-x-0 bottom-3 flex justify-center">
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none [&>*]:pointer-events-auto">
                           {open ? (
                             <button
                               type="button"
@@ -469,14 +480,18 @@ export function GameBoard({ data }: { data: BoardData }) {
                     </div>
                     {next ? (
                       <>
-                        <div className="mt-1.5 flex items-center justify-center gap-2 flex-wrap">
-                          {next.team_a.map((id, idx) => (
-                            <PlayerToken key={id} size="sm" {...tokenProps({ kind: "match", matchId: next.id, team: "a", idx }, id, false)} />
-                          ))}
-                          <span className="px-1 text-xs font-bold text-inkSoft">vs</span>
-                          {next.team_b.map((id, idx) => (
-                            <PlayerToken key={id} size="sm" {...tokenProps({ kind: "match", matchId: next.id, team: "b", idx }, id, false)} />
-                          ))}
+                        <div className="mt-1.5 flex flex-col items-center gap-0.5">
+                          <div className="flex flex-wrap justify-center gap-1">
+                            {next.team_a.map((id, idx) => (
+                              <PlayerToken key={id} size="sm" {...tokenProps({ kind: "match", matchId: next.id, team: "a", idx }, id, false)} />
+                            ))}
+                          </div>
+                          <span className="text-[10px] font-bold uppercase text-inkSoft">vs</span>
+                          <div className="flex flex-wrap justify-center gap-1">
+                            {next.team_b.map((id, idx) => (
+                              <PlayerToken key={id} size="sm" {...tokenProps({ kind: "match", matchId: next.id, team: "b", idx }, id, false)} />
+                            ))}
+                          </div>
                         </div>
                         <BalanceRow a={next.team_a.map(P)} b={next.team_b.map(P)} compact />
                       </>
@@ -519,8 +534,13 @@ export function GameBoard({ data }: { data: BoardData }) {
           })}
         </div>
 
-        {/* Side panel */}
-        <div className="space-y-4">
+        {/* Side panel (a row of cards under the courts on narrower screens) */}
+        <div
+          className={cn(
+            "grid gap-4 content-start md:grid-cols-2",
+            session.courts >= 3 ? "xl:grid-cols-3 2xl:grid-cols-1" : "xl:grid-cols-1",
+          )}
+        >
           <section className="rounded-3xl bg-white ring-1 ring-border shadow-card p-4">
             <div className="flex items-baseline justify-between">
               <h2 className="font-serif font-bold text-lg text-ink">Queue</h2>

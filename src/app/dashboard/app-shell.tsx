@@ -155,7 +155,7 @@ export function AppShell({
         <div className="hidden lg:flex sticky top-0 z-20 items-center justify-end px-6 h-12 bg-cream/85 backdrop-blur border-b border-border/60">
           <NotificationsBell role={role} />
         </div>
-        <main className="w-full max-w-6xl mx-auto px-4 pt-20 pb-8 lg:px-6 lg:py-8 lg:pt-8">
+        <main className={cn("w-full mx-auto px-4 pt-20 pb-8 lg:px-6 lg:py-8 lg:pt-8", gamesMode ? "max-w-[1800px]" : "max-w-6xl")}>
           {children}
         </main>
       </div>

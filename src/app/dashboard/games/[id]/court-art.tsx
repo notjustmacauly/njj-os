@@ -1,5 +1,5 @@
-// Top-down court drawings (net runs vertically through the middle; team A on
-// the left half, team B on the right). Proportions are stylised, not to scale.
+// Top-down court drawings, long side up: the net runs across the middle, team A
+// on the top half, team B on the bottom. Drawn landscape and rotated 90deg. Proportions are stylised, not to scale.
 
 const LINE = "#ffffff";
 
@@ -22,7 +22,8 @@ function Net() {
 
 function Badminton() {
   return (
-    <svg viewBox="0 0 600 240" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+    <svg viewBox="0 0 240 600" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+      <g transform="translate(240 0) rotate(90)">
       <rect width="600" height="240" rx="18" fill="#3E8E5A" />
       <rect x="18" y="16" width="564" height="208" rx="4" fill="#4FA56B" stroke={LINE} strokeWidth="3" />
       {/* singles side lines */}
@@ -38,13 +39,15 @@ function Badminton() {
       <line x1="18" y1="120" x2="232" y2="120" stroke={LINE} strokeWidth="2" />
       <line x1="368" y1="120" x2="582" y2="120" stroke={LINE} strokeWidth="2" />
       <Net />
+      </g>
     </svg>
   );
 }
 
 function Pickleball() {
   return (
-    <svg viewBox="0 0 600 240" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+    <svg viewBox="0 0 240 600" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+      <g transform="translate(240 0) rotate(90)">
       <rect width="600" height="240" rx="18" fill="#2F6FA8" />
       <rect x="22" y="18" width="556" height="204" rx="4" fill="#3C86C6" stroke={LINE} strokeWidth="3" />
       {/* kitchen (non-volley zone) */}
@@ -53,19 +56,22 @@ function Pickleball() {
       <line x1="22" y1="120" x2="226" y2="120" stroke={LINE} strokeWidth="3" />
       <line x1="374" y1="120" x2="578" y2="120" stroke={LINE} strokeWidth="3" />
       <Net />
+      </g>
     </svg>
   );
 }
 
 function Volleyball() {
   return (
-    <svg viewBox="0 0 600 240" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+    <svg viewBox="0 0 240 600" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+      <g transform="translate(240 0) rotate(90)">
       <rect width="600" height="240" rx="18" fill="#D9A15E" />
       <rect x="20" y="16" width="560" height="208" rx="4" fill="#E9B979" stroke={LINE} strokeWidth="3" />
       {/* attack lines */}
       <line x1="208" y1="16" x2="208" y2="224" stroke={LINE} strokeWidth="3" />
       <line x1="392" y1="16" x2="392" y2="224" stroke={LINE} strokeWidth="3" />
       <Net />
+      </g>
     </svg>
   );
 }
