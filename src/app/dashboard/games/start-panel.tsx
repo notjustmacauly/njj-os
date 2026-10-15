@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Pencil, Plus, Settings2 } from "lucide-react";
+import { ArrowRight, CalendarDays, Pencil, Plus, Settings2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { FORMATS, formatLabel, seasonName, seasonOf, SPORTS, suggestedFormat, type Format, type Sport } from "./logic";
+import { FORMAT_THEME, GameToken } from "./game-token";
 import { NewSessionForm } from "./new-session-form";
 
 export type Template = {
@@ -26,14 +27,6 @@ export type Template = {
   sort: number;
 };
 type EventOpt = { id: string; name: string; event_date: string; start_time: string | null };
-
-const CARD_STYLE: Record<string, string> = {
-  classic: "from-[#3E8E5A] to-[#4FA56B]",
-  team: "from-[#2F6FA8] to-[#3C86C6]",
-  double: "from-[#C2410C] to-[#E07856]",
-  rivalry: "from-[#5B21B6] to-[#7C3AED]",
-  casual: "from-[#6B7280] to-[#9CA3AF]",
-};
 
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00Z`).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
@@ -138,33 +131,59 @@ export function StartPanel({ events, templates, canEdit }: { events: EventOpt[];
           {templates.map((t) => {
             const ready = t.ruleset === "casual" || FORMATS.find((f) => f.value === t.format)?.ready !== false;
             const sportLabel = SPORTS.find((s) => s.value === t.sport)?.label ?? t.sport;
+            const tokenFormat = t.ruleset === "casual" ? "casual" : t.format ?? "classic";
+            const theme = FORMAT_THEME[tokenFormat];
+            const thisWeek = !!suggested && t.format === suggested && t.ruleset === "rally_rank";
             return (
               <div key={t.id} className="relative h-full">
                 <button
                   type="button"
                   disabled={!ready || !!busy || manage}
                   onClick={() => start(t)}
+                  style={{
+                    backgroundColor: theme.surface,
+                    // Faint court lines: a centre line and two service lines.
+                    backgroundImage:
+                      "radial-gradient(circle at 82% 30%, rgba(255,255,255,0.22), transparent 42%), linear-gradient(90deg, transparent calc(62% - 1px), rgba(255,255,255,0.12) calc(62% - 1px), rgba(255,255,255,0.12) calc(62% + 1px), transparent calc(62% + 1px)), linear-gradient(0deg, transparent calc(30% - 1px), rgba(255,255,255,0.1) calc(30% - 1px), rgba(255,255,255,0.1) calc(30% + 1px), transparent calc(30% + 1px)), linear-gradient(0deg, transparent calc(70% - 1px), rgba(255,255,255,0.1) calc(70% - 1px), rgba(255,255,255,0.1) calc(70% + 1px), transparent calc(70% + 1px))",
+                  }}
                   className={cn(
-                    "group relative flex h-full w-full flex-col overflow-hidden rounded-3xl bg-gradient-to-br p-5 text-left text-white shadow-card transition",
-                    CARD_STYLE[t.ruleset === "casual" ? "casual" : t.format ?? "classic"],
-                    ready && !manage ? "hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.99]" : "opacity-60",
+                    "group relative flex h-full min-h-[230px] w-full flex-col overflow-hidden rounded-3xl p-5 text-left text-white shadow-card ring-1 ring-black/5 transition duration-300 ease-out",
+                    ready && !manage ? "hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:scale-[0.99]" : "cursor-default",
                   )}
                 >
-                  <div className="text-[11px] font-bold uppercase tracking-smallcaps text-white/75">{sportLabel}</div>
-                  <div className="mt-1 font-serif text-2xl font-bold leading-tight">{t.name}</div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 pt-1">
+                      <span className="inline-flex rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white/90">{sportLabel}</span>
+                      <div className="mt-2 font-serif text-[26px] font-bold leading-[1.05]">{t.name}</div>
+                    </div>
+                    <GameToken
+                      format={tokenFormat}
+                      size={92}
+                      className={cn(
+                        "-mr-1 -mt-1 transition duration-500 ease-out motion-safe:group-hover:-rotate-12 motion-safe:group-hover:scale-105",
+                        !ready && "grayscale opacity-70",
+                      )}
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-black/20 px-2 py-0.5 text-[11px] font-semibold">
                       {t.ruleset === "rally_rank" ? formatLabel(t.format) : "Casual"}
                     </span>
-                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold">
+                    <span className="rounded-full bg-black/20 px-2 py-0.5 text-[11px] font-semibold">
                       {t.courts} court{t.courts === 1 ? "" : "s"}
                     </span>
-                    {suggested && t.format === suggested && t.ruleset === "rally_rank" ? (
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-ink">This week</span>
-                    ) : null}
+                    {thisWeek ? <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-ink">This week</span> : null}
                   </div>
-                  {t.blurb ? <p className="mt-3 text-sm text-white/85">{t.blurb}</p> : null}
-                  <div className="mt-auto pt-4 text-sm font-bold">{!ready ? "Coming in December" : busy === t.id ? "Opening…" : "Start queue →"}</div>
+                  {t.blurb ? <p className="mt-3 max-w-[30ch] text-sm leading-snug text-white/80">{t.blurb}</p> : null}
+                  <div className="mt-auto pt-5">
+                    {ready ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-bold transition group-hover:gap-2.5" style={{ color: theme.surface }}>
+                        {busy === t.id ? "Opening" : "Start queue"} <ArrowRight className="w-4 h-4" />
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-white/15 px-3.5 py-1.5 text-sm font-semibold text-white/80">Coming in December</span>
+                    )}
+                  </div>
                 </button>
                 {manage ? (
                   <button
