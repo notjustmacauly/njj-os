@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Ban, Coffee, Flag, Pencil, Play, RotateCcw, Shuffle, Undo2, Users } from "lucide-react";
+import { ArrowLeft, Ban, Flag, LogIn, LogOut, Pencil, Play, RotateCcw, Shuffle, Undo2, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -622,6 +622,15 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
                       })}
                     </div>
                   </div>
+                  {current.status === "scheduled" && (present(current, "a").length < 6 || present(current, "b").length < 6) ? (
+                    <p className="mt-3 rounded-xl bg-yellowBg px-3 py-2 text-center text-sm text-[#854F0B]">
+                      {[["a", current.label_a], ["b", current.label_b]]
+                        .filter(([side]) => present(current, side as "a" | "b").length < 6)
+                        .map(([side, label]) => `Team ${label} has ${present(current, side as "a" | "b").length} here`)
+                        .join(" and ")}
+                      . A team needs 6 to play: place a late arrival on the team, or record a forfeit.
+                    </p>
+                  ) : null}
                   {open ? (
                     <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                       {current.status === "scheduled" ? (
@@ -765,7 +774,10 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
                     return (
                       <li key={r.player_id} className={cn("rounded-xl px-2 py-1.5", r.active ? "bg-cream/50" : "bg-cream/20 opacity-60")}>
                         <div className="flex items-center gap-2">
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{nameOf(r.player_id)}</span>
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+                            {nameOf(r.player_id)}
+                            {!r.active ? <span className="ml-1.5 text-[10px] font-bold uppercase text-coral">left</span> : null}
+                          </span>
                           <span
                             className="rounded-full px-1.5 text-[10px] font-bold leading-4 tabular-nums"
                             style={{ background: DIV_STYLE[vbDivision(rating(r.player_id))].bg, color: DIV_STYLE[vbDivision(rating(r.player_id))].fg }}
@@ -777,12 +789,22 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
                           {open ? (
                             <button
                               type="button"
-                              title={r.active ? "Mark away" : "Mark here"}
+                              title={r.active ? "Left early: skip their remaining games" : "Back: include them again"}
                               disabled={busy}
-                              onClick={() => run(async () => { const { error } = await updRoster(r.player_id, { active: !r.active }); if (error) throw new Error(error.message); })}
-                              className="text-inkSoft hover:text-ink"
+                              onClick={() => {
+                                if (r.active && !window.confirm(`${nameOf(r.player_id)} left? They're taken out of every game that hasn't started. Results already played still count.`)) return;
+                                run(async () => {
+                                  const { error } = await updRoster(r.player_id, { active: !r.active });
+                                  if (error) throw new Error(error.message);
+                                }, r.active ? `${shortName(nameOf(r.player_id))} marked as left` : `${shortName(nameOf(r.player_id))} is back`);
+                              }}
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold transition",
+                                r.active ? "text-inkSoft ring-1 ring-border hover:bg-salmonBg hover:text-coral hover:ring-coral/40" : "bg-greenBg text-green",
+                              )}
                             >
-                              <Coffee className="w-3.5 h-3.5" />
+                              {r.active ? <LogOut className="w-3 h-3" /> : <LogIn className="w-3 h-3" />}
+                              {r.active ? "Left" : "Back"}
                             </button>
                           ) : null}
                         </div>
@@ -809,7 +831,7 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
                   })}
               </ul>
             )}
-            <p className="mt-2 text-[11px] text-inkSoft">S setter · M middle · OH outside · OP opposite · D defensive. P = provisional (first 5 games).</p>
+            <p className="mt-2 text-[11px] text-inkSoft">S setter · M middle · OH outside · OP opposite · D defensive. P = provisional (first 5 games). Left = skipped from games not yet started.</p>
           </section>
 
 
