@@ -665,17 +665,32 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
 
         {/* Side panel */}
         <div className="space-y-4">
+          {open ? (
+            <AddPlayers
+              master={data.master}
+              passes={data.passes}
+              inSession={new Set(data.roster.map((r) => r.player_id))}
+              hasEvent={!!session.event_id}
+              busy={busy}
+              levels={VB_LEVELS}
+              isSeeded={(p) => rmap.has(p.id)}
+              ratingOf={(p) => rating(p.id)}
+              onAdd={(id, level) => run(() => addToSession(id, level))}
+              onCreate={(n, e, l) => run(() => addNew(n, e, l), `${n} added`)}
+            />
+          ) : null}
           <section className="rounded-3xl bg-white ring-1 ring-border shadow-card p-4">
             <div className="flex items-baseline justify-between">
               <h2 className="font-serif font-bold text-lg text-ink">Players</h2>
-              <span className="text-xs text-inkSoft">{checkedIn} here · tap positions to set them</span>
+              <span className="text-xs text-inkSoft">{checkedIn} here · newest first · tap positions</span>
             </div>
             {data.roster.length === 0 ? (
               <p className="mt-2 text-sm text-inkSoft">No one checked in yet. Add players below.</p>
             ) : (
               <ul className="mt-2 max-h-[420px] space-y-1 overflow-y-auto pr-1">
                 {[...data.roster]
-                  .sort((a, b) => nameOf(a.player_id).localeCompare(nameOf(b.player_id)))
+                  // Newest first, so a player just added is right there to tag.
+                  .sort((a, b) => b.joined_at.localeCompare(a.joined_at) || nameOf(a.player_id).localeCompare(nameOf(b.player_id)))
                   .map((r) => {
                     const tags = tagsOf(r.player_id);
                     return (
@@ -728,20 +743,6 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
             <p className="mt-2 text-[11px] text-inkSoft">S setter · M middle · OH outside · OP opposite · D defensive. P = provisional (first 5 games).</p>
           </section>
 
-          {open ? (
-            <AddPlayers
-              master={data.master}
-              passes={data.passes}
-              inSession={new Set(data.roster.map((r) => r.player_id))}
-              hasEvent={!!session.event_id}
-              busy={busy}
-              levels={VB_LEVELS}
-              isSeeded={(p) => rmap.has(p.id)}
-              ratingOf={(p) => rating(p.id)}
-              onAdd={(id, level) => run(() => addToSession(id, level))}
-              onCreate={(n, e, l) => run(() => addNew(n, e, l), `${n} added`)}
-            />
-          ) : null}
 
           <section className="rounded-3xl bg-white ring-1 ring-border shadow-card p-4">
             <div className="flex items-baseline justify-between">

@@ -852,6 +852,17 @@ export function GameBoard({ data }: { data: BoardData }) {
 
         {/* Side panel (a row of cards under the courts on narrower screens) */}
         <div className={cn("grid gap-4 content-start md:grid-cols-2", session.courts >= 3 ? "xl:grid-cols-3 2xl:grid-cols-1" : "xl:grid-cols-1")}>
+          {open ? (
+            <AddPlayers
+              master={data.master}
+              passes={data.passes}
+              inSession={new Set(data.roster.map((r) => r.player_id))}
+              hasEvent={!!session.event_id}
+              busy={busy}
+              onAdd={(id, level) => run(() => addToSession(id, level as Skill | null))}
+              onCreate={(n, e, s) => run(() => addNewPlayer(n, e, s as Skill), `${n} added`)}
+            />
+          ) : null}
           <section className="rounded-3xl bg-white ring-1 ring-border shadow-card p-4">
             <div className="flex items-baseline justify-between">
               <h2 className="font-serif font-bold text-lg text-ink">Queue</h2>
@@ -900,17 +911,6 @@ export function GameBoard({ data }: { data: BoardData }) {
             </div>
           </section>
 
-          {open ? (
-            <AddPlayers
-              master={data.master}
-              passes={data.passes}
-              inSession={new Set(data.roster.map((r) => r.player_id))}
-              hasEvent={!!session.event_id}
-              busy={busy}
-              onAdd={(id, level) => run(() => addToSession(id, level as Skill | null))}
-              onCreate={(n, e, s) => run(() => addNewPlayer(n, e, s as Skill), `${n} added`)}
-            />
-          ) : null}
 
           <section className="rounded-3xl bg-white ring-1 ring-border shadow-card p-4">
             <div className="flex items-baseline justify-between">
