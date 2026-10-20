@@ -213,8 +213,11 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
     await updRoster(b, { [col]: teamOf(ra, block) });
   }
 
+  // Once a round has started, teams are locked except for placing late arrivals.
+  const unassigned = (block: 1 | 2, id: string) => !teamOf(data.roster.find((r) => r.player_id === id)!, block);
   function pick(block: 1 | 2, id: string) {
-    if (!open || busy || blockStarted(block)) return;
+    if (!open || busy) return;
+    if (blockStarted(block) && !unassigned(block, id)) return;
     if (!selected || selected.block !== block) return setSelected({ block, id });
     if (selected.id === id) return setSelected(null);
     const from = selected.id;
@@ -379,7 +382,7 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
           size={opts.size ?? "sm"}
           onCourt={opts.onCourt}
           selected={!!opts.block && selected?.block === opts.block && selected.id === id}
-          disabled={!opts.block || !open || busy || blockStarted(opts.block)}
+          disabled={!opts.block || !open || busy || (blockStarted(opts.block) && !unassigned(opts.block, id))}
           onSelect={opts.block ? () => pick(opts.block!, id) : undefined}
         />
       </div>
@@ -537,7 +540,7 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
                       <React.Fragment key={r.player_id}>{tokenFor(r.player_id, { block: tab, dim: !r.active })}</React.Fragment>
                     ))}
                   </div>
-                  {selected && selected.block === tab && !blockStarted(tab) && teamOf(data.roster.find((r) => r.player_id === selected.id)!, tab) !== label ? (
+                  {selected && selected.block === tab && (!blockStarted(tab) || unassigned(tab, selected.id)) && teamOf(data.roster.find((r) => r.player_id === selected.id)!, tab) !== label ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -567,7 +570,13 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
             <p className="mt-1 text-xs text-inkSoft">Tap a player, then Move here on a team.</p>
           </div>
         ) : null}
-        {hasBlock(tab) && open && !blockStarted(tab) ? <p className="mt-2 text-xs text-inkSoft">Tap two players to swap them. Teams lock when the round&apos;s first game starts.</p> : null}
+        {hasBlock(tab) && open ? (
+          <p className="mt-2 text-xs text-inkSoft">
+            {blockStarted(tab)
+              ? "Round under way: teams are locked, but late arrivals can still be placed. They join from their team's next game."
+              : "Tap two players to swap them. Teams lock when the round's first game starts."}
+          </p>
+        ) : null}
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
