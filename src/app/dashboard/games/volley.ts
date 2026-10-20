@@ -24,25 +24,61 @@ export const VB_TAGS: Array<{ value: VbTag; short: string; label: string }> = [
 
 export const BLOCK1 = ["A", "B", "C", "D"] as const;
 export const BLOCK2 = ["E", "F", "G", "H"] as const;
-const PAIRS: Array<[number, number]> = [
-  [0, 1],
-  [2, 3],
-  [0, 2],
-  [1, 3],
-  [0, 3],
-  [1, 2],
-];
-/** The fixed 12-game schedule: two round robins, every pair once per block. */
-export const SCHEDULE = [1, 2].flatMap((block) => {
-  const L = block === 1 ? BLOCK1 : BLOCK2;
-  return PAIRS.map(([x, y], i) => ({
+/** Team labels for a round: round 1 uses A-D, round 2 E-H. */
+export const blockLabels = (block: number, teams: number) => (block === 1 ? BLOCK1 : BLOCK2).slice(0, teams) as string[];
+
+// Each round is 6 games. 4 teams: every pair once. 3 teams: every pair twice.
+// 2 teams: the same matchup six times.
+const ROUND_PAIRS: Record<number, Array<[number, number]>> = {
+  4: [
+    [0, 1],
+    [2, 3],
+    [0, 2],
+    [1, 3],
+    [0, 3],
+    [1, 2],
+  ],
+  3: [
+    [0, 1],
+    [1, 2],
+    [0, 2],
+    [0, 1],
+    [1, 2],
+    [0, 2],
+  ],
+  2: [
+    [0, 1],
+    [0, 1],
+    [0, 1],
+    [0, 1],
+    [0, 1],
+    [0, 1],
+  ],
+};
+export type Slot = { game_no: number; block: number; a: string; b: string; rest: string[] };
+export function roundSchedule(block: number, teams: number): Slot[] {
+  const L = blockLabels(block, teams);
+  return (ROUND_PAIRS[teams] ?? ROUND_PAIRS[4]).map(([x, y], i) => ({
     game_no: (block - 1) * 6 + i + 1,
     block,
-    a: L[x] as string,
-    b: L[y] as string,
-    rest: L.filter((_, j) => j !== x && j !== y) as string[],
+    a: L[x],
+    b: L[y],
+    rest: L.filter((_, j) => j !== x && j !== y),
   }));
-});
+}
+/** The standard 28-player night (4 teams both rounds). */
+export const SCHEDULE = [...roundSchedule(1, 4), ...roundSchedule(2, 4)];
+
+/** Suggested team count for the players here: 24+ four, 18-23 three, 12-17 two. */
+export function suggestedTeams(n: number): number {
+  return n >= 24 ? 4 : n >= 18 ? 3 : 2;
+}
+/** Even team sizes, largest first (e.g. 20 into 3 = 7, 7, 6). */
+export function teamSizes(n: number, teams: number): number[] {
+  return Array.from({ length: teams }, (_, i) => Math.floor(n / teams) + (i < n % teams ? 1 : 0));
+}
+/** A team count works when every team can put 6 on court. */
+export const teamsFit = (n: number, teams: number) => teams >= 2 && teams <= 4 && Math.floor(n / teams) >= 6;
 
 // ---------------------------------------------------------------- results + LP
 export type VbOutcome = "played" | "timed" | "forfeit" | "no_contest";

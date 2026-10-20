@@ -11,11 +11,13 @@ import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { formatLabel } from "../logic";
 import {
-  BLOCK1,
-  BLOCK2,
+  blockLabels,
   deficits,
   generateTeams,
-  SCHEDULE,
+  roundSchedule,
+  suggestedTeams,
+  teamSizes,
+  teamsFit,
   VB_LEVELS,
   VB_TAGS,
   vbDivision,
@@ -118,6 +120,15 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
   const hasBlock = (b: 1 | 2) => data.roster.some((r) => teamOf(r, b));
   const blockStarted = (b: 1 | 2) => matches.some((m) => m.block === b && m.status !== "scheduled");
   const current = matches.find((m) => m.status === "playing") ?? matches.find((m) => m.status === "scheduled");
+  // Teams in a round (the count can differ between rounds if attendance changes).
+  const labelsOf = (b: number) =>
+    Array.from(new Set([...data.roster.map((r) => teamOf(r, b as 1 | 2)), ...matches.filter((m) => m.block === b).flatMap((m) => [m.label_a, m.label_b])]))
+      .filter((x): x is string => !!x)
+      .sort();
+  const needRound2 = matches.length > 0 && matches.every((m) => m.block === 1 && m.status === "done");
+  const checkedInCount = data.roster.filter((r) => r.active).length;
+  const [teamPick, setTeamPick] = React.useState<Record<number, number | null>>({ 1: null, 2: null });
+  const teamsFor = (b: 1 | 2) => teamPick[b] ?? (hasBlock(b) ? labelsOf(b).length : suggestedTeams(checkedInCount));
   const nextUp = current ? matches.find((m) => m.game_no > current.game_no && m.status === "scheduled") : undefined;
 
   React.useEffect(() => {
@@ -142,10 +153,10 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
   const updRoster = (id: string, v: Record<string, unknown>) => sb().from("game_session_players").update(v).eq("session_id", session.id).eq("player_id", id);
 
   // ---------------------------------------------------------------- teams
-  async function generate(block: 1 | 2) {
-    const labels = block === 1 ? BLOCK1 : BLOCK2;
+  async function generate(block: 1 | 2, k: number) {
+    const labels = blockLabels(block, k);
     const pool = data.roster.filter((r) => r.active);
-    if (pool.length < 24 && !window.confirm(`Only ${pool.length} players are here. Four teams need at least 6 each (24). Make teams anyway?`)) return;
+    if (!teamsFit(pool.length, k)) throw new Error(`${pool.length} players can't make ${k} teams of 6. Pick fewer teams.`);
     // Round 2 balances on the ratings players had before tonight's first game (frozen).
     let frozen = new Map<string, number>();
     if (block === 2) {
@@ -168,11 +179,24 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
       const { error } = await updRoster(r.player_id, { [col]: label });
       if (error) throw new Error(error.message);
     }
-    // The fixed 12-game schedule is created with round 1.
-    if (block === 1 && matches.length === 0) {
+    // Each round's 6 games are (re)built for its team count.
+    await sb().from("game_matches").delete().eq("session_id", session.id).eq("block", block).eq("status", "scheduled");
+    {
       const { error } = await sb()
         .from("game_matches")
-        .insert(SCHEDULE.map((g) => ({ session_id: session.id, court: 1, status: "scheduled", game_no: g.game_no, block: g.block, label_a: g.a, label_b: g.b, team_a: [], team_b: [] })));
+        .insert(
+          roundSchedule(block, k).map((g) => ({
+            session_id: session.id,
+            court: 1,
+            status: "scheduled",
+            game_no: g.game_no,
+            block: g.block,
+            label_a: g.a,
+            label_b: g.b,
+            team_a: [],
+            team_b: [],
+          })),
+        );
       if (error) throw new Error(error.message);
     }
     toast.push(
@@ -292,7 +316,7 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
   // ---------------------------------------------------------------- tonight (preview, same rules as vb_event_player)
   const blockTable = (block: number) => {
     const pts = new Map<string, { pts: number; w: number; d: number; l: number }>();
-    const labels = block === 1 ? BLOCK1 : BLOCK2;
+    const labels = labelsOf(block);
     labels.forEach((l) => pts.set(l, { pts: 0, w: 0, d: 0, l: 0 }));
     for (const m of done.filter((x) => x.block === block && x.outcome !== "no_contest")) {
       const A = pts.get(m.label_a)!;
@@ -362,7 +386,7 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
     );
   };
 
-  const checkedIn = data.roster.filter((r) => r.active).length;
+  const checkedIn = checkedInCount;
 
   // ---------------------------------------------------------------- render
   return (
@@ -433,29 +457,55 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
             ))}
           </div>
           <span className="text-xs text-inkSoft">
-            {checkedIn} of 28 here{tab === 2 ? " · round 2 reshuffles everyone, fewest repeat teammates" : ""}
+            {checkedIn} here{tab === 2 ? " · round 2 reshuffles everyone, fewest repeat teammates" : ""}
           </span>
           {open && !blockStarted(tab) && (tab === 1 || hasBlock(1)) ? (
-            <button
-              type="button"
-              disabled={busy || checkedIn < 4}
-              onClick={() => (!hasBlock(tab) || window.confirm(`Regenerate round ${tab} teams?`)) && run(() => generate(tab))}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-ink px-3.5 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-            >
-              <Shuffle className="w-3.5 h-3.5" /> {hasBlock(tab) ? `Regenerate round ${tab}` : `Generate round ${tab} teams`}
-            </button>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {/* How many teams: suggested from who's here, any option with 6+ per team. */}
+              <div className="flex gap-1 rounded-full bg-cream p-1">
+                {[2, 3, 4].map((k) => {
+                  const fits = teamsFit(checkedIn, k);
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      disabled={!fits || busy}
+                      title={fits ? `Teams of ${teamSizes(checkedIn, k).join(", ")}` : `Needs ${k * 6}+ players`}
+                      onClick={() => setTeamPick((x) => ({ ...x, [tab]: k }))}
+                      className={cn(
+                        "rounded-full px-2.5 py-1 text-xs font-bold transition disabled:opacity-30",
+                        teamsFor(tab) === k ? "bg-white text-ink shadow-card" : "text-inkSoft hover:text-ink",
+                      )}
+                    >
+                      {k} teams{fits ? ` · ${teamSizes(checkedIn, k)[0]}${teamSizes(checkedIn, k)[k - 1] !== teamSizes(checkedIn, k)[0] ? `/${teamSizes(checkedIn, k)[k - 1]}` : ""}` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                disabled={busy || !teamsFit(checkedIn, teamsFor(tab))}
+                onClick={() => (!hasBlock(tab) || window.confirm(`Regenerate round ${tab} teams?`)) && run(() => generate(tab, teamsFor(tab)))}
+                className="inline-flex items-center gap-1.5 rounded-full bg-ink px-3.5 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+              >
+                <Shuffle className="w-3.5 h-3.5" /> {hasBlock(tab) ? `Regenerate round ${tab}` : `Generate round ${tab} teams`}
+              </button>
+            </div>
           ) : null}
         </div>
+        {open && !blockStarted(tab) && checkedIn < 12 ? (
+          <p className="mt-2 text-xs text-coral">At least 12 players are needed for two teams of 6.</p>
+        ) : null}
 
         {!hasBlock(tab) ? (
           <p className="mt-3 text-sm text-inkSoft">
             {tab === 1
-              ? "Check everyone in below (with a level and positions), then generate four balanced teams."
+              ? "Check everyone in below (with a level and positions), then generate balanced teams. 24+ players makes 4 teams, 18 to 23 makes 3, 12 to 17 makes 2."
               : "Generate round 2 near the end of game 6. Everyone is reshuffled into new balanced teams."}
           </p>
         ) : (
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {(tab === 1 ? BLOCK1 : BLOCK2).map((label) => {
+          <div className={cn("mt-3 grid gap-3 md:grid-cols-2", labelsOf(tab).length === 4 ? "xl:grid-cols-4" : labelsOf(tab).length === 3 ? "xl:grid-cols-3" : "")}>
+            {labelsOf(tab).map((label) => {
               const members = data.roster.filter((r) => teamOf(r, tab) === label);
               const ps = members.map((r) => ({ id: r.player_id, rating: rating(r.player_id), tags: tagsOf(r.player_id) }));
               const def = deficits(ps);
@@ -588,12 +638,16 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
                       </button>
                     </div>
                   ) : null}
-                  <p className="mt-2 text-center text-xs text-inkSoft">6 on court, 1 rolling sub. At every side out both teams swap the P1 player with their sub.</p>
+                  <p className="mt-2 text-center text-xs text-inkSoft">6 on court, everyone else rotates in. At every side out both teams swap the P1 player with their next sub.</p>
                 </>
               )}
             </section>
+          ) : needRound2 ? (
+            <section className="rounded-3xl bg-yellowBg p-5 text-sm text-[#854F0B]">
+              Round 1 is done. Open the Round 2 tab in Teams and generate new teams to schedule games 7 to 12 (or finalize now).
+            </section>
           ) : matches.length ? (
-            <section className="rounded-3xl bg-white ring-1 ring-border shadow-card p-5 text-sm text-inkSoft">All 12 games have a result. Finalize the event to post LP.</section>
+            <section className="rounded-3xl bg-white ring-1 ring-border shadow-card p-5 text-sm text-inkSoft">Every game has a result. Finalize the event to post LP.</section>
           ) : null}
 
           {/* Schedule */}
@@ -603,11 +657,17 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
               <div className="mt-2 grid gap-3 lg:grid-cols-2">
                 {[1, 2].map((block) => (
                   <ol key={block} className="space-y-1.5">
-                    <li className="text-xs font-bold text-inkSoft">Round {block} · teams {block === 1 ? "A-D" : "E-H"}</li>
+                    <li className="text-xs font-bold text-inkSoft">
+                      Round {block}
+                      {labelsOf(block).length ? ` · teams ${labelsOf(block).join(", ")}` : ""}
+                    </li>
+                    {!matches.some((m) => m.block === block) ? (
+                      <li className="rounded-xl bg-cream/60 px-3 py-3 text-xs text-inkSoft">Games {block === 1 ? "1 to 6" : "7 to 12"} appear when round {block} teams are made.</li>
+                    ) : null}
                     {matches
                       .filter((m) => m.block === block)
                       .map((m) => {
-                        const g = SCHEDULE.find((x) => x.game_no === m.game_no)!;
+                        const rest = labelsOf(m.block).filter((l) => l !== m.label_a && l !== m.label_b);
                         const res =
                           m.status !== "done"
                             ? null
@@ -629,7 +689,7 @@ export function VolleyBoard({ data }: { data: VolleyData }) {
                               <span className={cn(m.status === "done" && !m.is_draw && m.winner === "a" && "underline decoration-2 underline-offset-4")}>{m.label_a}</span> vs{" "}
                               <span className={cn(m.status === "done" && !m.is_draw && m.winner === "b" && "underline decoration-2 underline-offset-4")}>{m.label_b}</span>
                             </span>
-                            <span className="text-xs opacity-60">rest {g.rest.join(", ")}</span>
+                            {rest.length ? <span className="text-xs opacity-60">rest {rest.join(", ")}</span> : null}
                             <span className="ml-auto text-xs font-semibold tabular-nums">{res ?? (m.status === "playing" ? "On court" : "")}</span>
                             {m.status === "done" && open ? (
                               <span className="flex gap-1.5">
