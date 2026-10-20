@@ -95,12 +95,14 @@ export default async function GamesPage() {
                       {r.events?.name ? <span className="font-normal text-inkSoft"> · {r.events.name}</span> : null}
                       {r.ruleset === "rally_rank" ? (
                         <span className="ml-2 align-middle rounded-full bg-berry px-2 py-0.5 text-[10px] font-bold text-white">R&amp;R · {formatLabel(r.format)}</span>
+                      ) : r.ruleset === "spike_chill" ? (
+                        <span className="ml-2 align-middle rounded-full bg-[#B4471D] px-2 py-0.5 text-[10px] font-bold text-white">S&amp;C · {formatLabel(r.format)}</span>
                       ) : null}
                     </div>
                     <div className="text-xs text-inkSoft">
                       {new Date(`${r.session_date}T00:00:00Z`).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
                       {" · "}
-                      {r.courts} court{r.courts === 1 ? "" : "s"} · {r.team_size} a side
+                      {r.courts} court{r.courts === 1 ? "" : "s"} · {r.ruleset === "spike_chill" ? "teams of 7" : `${r.team_size} a side`}
                     </div>
                   </div>
                   <div className="text-right text-sm">

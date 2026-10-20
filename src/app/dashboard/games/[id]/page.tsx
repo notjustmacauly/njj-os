@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ALL_ROLES, hasRole, type Role } from "@/lib/roles";
 import { GameBoard, type BoardData } from "./game-board";
+import { VolleyBoard, type VolleyData } from "./volley-board";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function GameSessionPage({ params }: { params: { id: string
 
   const { data: session } = await supabase
     .from("game_sessions")
-    .select("id, sport, session_date, courts, team_size, status, ruleset, format, title, event_id, events(name)")
+    .select("id, sport, session_date, courts, team_size, status, ruleset, format, title, event_id, rivalry_games, events(name)")
     .eq("id", params.id)
     .maybeSingle();
   if (!session) notFound();
@@ -43,6 +44,32 @@ export default async function GameSessionPage({ params }: { params: { id: string
           .not("checked_in_at", "is", null)
       : Promise.resolve({ data: [] }),
   ]);
+
+  if (session.ruleset === "spike_chill") {
+    const [{ data: vbRoster }, { data: vbMatches }, { data: ratings }] = await Promise.all([
+      supabase
+        .from("game_session_players")
+        .select("player_id, active, joined_at, block1_team, block2_team, game_players(id, display_name, email, rating, seed_rating)")
+        .eq("session_id", session.id),
+      supabase
+        .from("game_matches")
+        .select("id, game_no, block, label_a, label_b, team_a, team_b, score_a, score_b, winner, outcome, is_draw, status")
+        .eq("session_id", session.id)
+        .not("game_no", "is", null)
+        .order("game_no"),
+      supabase.from("game_sport_ratings").select("player_id, rating, rated_count, level, tags").eq("sport", "volleyball").limit(5000),
+    ]);
+    const vb: VolleyData = {
+      role: (roleRow?.role ?? "staff") as string,
+      session: session as unknown as VolleyData["session"],
+      roster: (vbRoster ?? []) as unknown as VolleyData["roster"],
+      matches: (vbMatches ?? []) as unknown as VolleyData["matches"],
+      master: (master ?? []) as unknown as VolleyData["master"],
+      ratings: (ratings ?? []) as unknown as VolleyData["ratings"],
+      passes: (passes ?? []) as VolleyData["passes"],
+    };
+    return <VolleyBoard data={vb} />;
+  }
 
   const ids = ((roster ?? []) as Array<{ player_id: string }>).map((r) => r.player_id);
   const { data: status } = ids.length

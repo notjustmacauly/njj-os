@@ -38,6 +38,7 @@ export function PlayerToken({
   dragData,
   onDropData,
   disabled,
+  tier,
 }: {
   name: string;
   rating: number;
@@ -50,8 +51,10 @@ export function PlayerToken({
   dragData?: string;
   onDropData?: (from: string) => void;
   disabled?: boolean;
+  /** Override the rating-badge colour (e.g. volleyball divisions). */
+  tier?: { bg: string; fg: string; label: string };
 }) {
-  const t = TIER_STYLE[tierOf(rating)];
+  const t = tier ?? TIER_STYLE[tierOf(rating)];
   const pill = size === "sm" ? "h-8 pl-3 pr-1 text-xs gap-1.5" : "h-10 pl-3.5 pr-1.5 text-sm gap-2";
   return (
     <button

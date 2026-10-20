@@ -907,8 +907,8 @@ export function GameBoard({ data }: { data: BoardData }) {
               inSession={new Set(data.roster.map((r) => r.player_id))}
               hasEvent={!!session.event_id}
               busy={busy}
-              onAdd={(id, level) => run(() => addToSession(id, level))}
-              onCreate={(n, e, s) => run(() => addNewPlayer(n, e, s), `${n} added`)}
+              onAdd={(id, level) => run(() => addToSession(id, level as Skill | null))}
+              onCreate={(n, e, s) => run(() => addNewPlayer(n, e, s as Skill), `${n} added`)}
             />
           ) : null}
 

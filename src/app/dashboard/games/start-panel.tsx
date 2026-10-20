@@ -2,7 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CalendarDays, Pencil, Plus, Settings2 } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarDays,
+  Pencil,
+  Plus,
+  Settings2,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,32 +17,63 @@ import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { FORMATS, formatLabel, seasonName, seasonOf, SPORTS, suggestedFormat, type Format, type Sport } from "./logic";
-import { FORMAT_THEME, GameToken } from "./game-token";
+import {
+  FORMATS,
+  formatLabel,
+  seasonName,
+  seasonOf,
+  SPORTS,
+  suggestedFormat,
+  type Format,
+  type Sport,
+} from "./logic";
+import { FORMAT_THEME, GameToken, themeKey } from "./game-token";
 import { NewSessionForm } from "./new-session-form";
 
 export type Template = {
   id: string;
   name: string;
   sport: Sport;
-  ruleset: "casual" | "rally_rank";
+  ruleset: "casual" | "rally_rank" | "spike_chill";
   format: Format | null;
   courts: number;
   team_size: number;
   blurb: string | null;
   sort: number;
 };
-type EventOpt = { id: string; name: string; event_date: string; start_time: string | null };
+type EventOpt = {
+  id: string;
+  name: string;
+  event_date: string;
+  start_time: string | null;
+};
 
 const fmtDate = (d: string) =>
-  new Date(`${d}T00:00:00Z`).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  new Date(`${d}T00:00:00Z`).toLocaleDateString("en-PH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 
 /** Step 1: which event. Step 2: tap a saved card to open the queue. */
-export function StartPanel({ events, templates, canEdit }: { events: EventOpt[]; templates: Template[]; canEdit: boolean }) {
+export function StartPanel({
+  events,
+  templates,
+  canEdit,
+}: {
+  events: EventOpt[];
+  templates: Template[];
+  canEdit: boolean;
+}) {
   const router = useRouter();
   const toast = useToast();
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
-  const [eventId, setEventId] = React.useState(events.find((e) => e.event_date === today)?.id ?? events[0]?.id ?? "");
+  const today = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Asia/Manila",
+  });
+  const [eventId, setEventId] = React.useState(
+    events.find((e) => e.event_date === today)?.id ?? events[0]?.id ?? "",
+  );
   const [busy, setBusy] = React.useState<string | null>(null);
   const [custom, setCustom] = React.useState(false);
   const [editing, setEditing] = React.useState<Template | "new" | null>(null);
@@ -50,7 +87,8 @@ export function StartPanel({ events, templates, canEdit }: { events: EventOpt[];
     setBusy(t.id);
     const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
-    const sportLabel = SPORTS.find((s) => s.value === t.sport)?.label ?? t.sport;
+    const sportLabel =
+      SPORTS.find((s) => s.value === t.sport)?.label ?? t.sport;
     const { data, error } = await supabase
       .from("game_sessions")
       .insert({
@@ -59,7 +97,7 @@ export function StartPanel({ events, templates, canEdit }: { events: EventOpt[];
         courts: t.courts,
         team_size: t.team_size,
         ruleset: t.ruleset,
-        format: t.ruleset === "rally_rank" ? t.format : null,
+        format: t.ruleset === "casual" ? null : t.format,
         session_date: date,
         template_id: t.id,
         title: `${sportLabel}: ${t.name}`,
@@ -76,7 +114,10 @@ export function StartPanel({ events, templates, canEdit }: { events: EventOpt[];
     <section className="space-y-5">
       <div className="bg-white border border-border rounded-lg shadow-card p-5">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-smallcaps text-inkSoft">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-[11px] text-white">1</span> Choose the event
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-[11px] text-white">
+            1
+          </span>{" "}
+          Choose the event
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {events.map((e) => (
@@ -86,11 +127,18 @@ export function StartPanel({ events, templates, canEdit }: { events: EventOpt[];
               onClick={() => setEventId(e.id)}
               className={cn(
                 "rounded-xl px-4 py-2.5 text-left ring-1 transition",
-                eventId === e.id ? "bg-ink text-white ring-ink" : "bg-white text-ink ring-border hover:ring-ink/40",
+                eventId === e.id
+                  ? "bg-ink text-white ring-ink"
+                  : "bg-white text-ink ring-border hover:ring-ink/40",
               )}
             >
               <span className="block text-sm font-semibold">{e.name}</span>
-              <span className={cn("flex items-center gap-1 text-xs", eventId === e.id ? "text-white/70" : "text-inkSoft")}>
+              <span
+                className={cn(
+                  "flex items-center gap-1 text-xs",
+                  eventId === e.id ? "text-white/70" : "text-inkSoft",
+                )}
+              >
                 <CalendarDays className="w-3 h-3" /> {fmtDate(e.event_date)}
                 {e.start_time ? ` · ${e.start_time.slice(0, 5)}` : ""}
               </span>
@@ -101,135 +149,229 @@ export function StartPanel({ events, templates, canEdit }: { events: EventOpt[];
             onClick={() => setEventId("")}
             className={cn(
               "rounded-xl px-4 py-2.5 text-left ring-1 transition",
-              eventId === "" ? "bg-ink text-white ring-ink" : "bg-white text-ink ring-border hover:ring-ink/40",
+              eventId === ""
+                ? "bg-ink text-white ring-ink"
+                : "bg-white text-ink ring-border hover:ring-ink/40",
             )}
           >
             <span className="block text-sm font-semibold">No event</span>
-            <span className={cn("block text-xs", eventId === "" ? "text-white/70" : "text-inkSoft")}>Practice or one-off · {fmtDate(today)}</span>
+            <span
+              className={cn(
+                "block text-xs",
+                eventId === "" ? "text-white/70" : "text-inkSoft",
+              )}
+            >
+              Practice or one-off · {fmtDate(today)}
+            </span>
           </button>
         </div>
-        {events.length === 0 ? <p className="mt-2 text-xs text-inkSoft">No events today or tomorrow. Add one in Website studio, or start without one.</p> : null}
+        {events.length === 0 ? (
+          <p className="mt-2 text-xs text-inkSoft">
+            No events today or tomorrow. Add one in Website studio, or start
+            without one.
+          </p>
+        ) : null}
       </div>
 
       <div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-smallcaps text-inkSoft">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-[11px] text-white">2</span> Tap a card to open the queue
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-[11px] text-white">
+              2
+            </span>{" "}
+            Tap a card to open the queue
           </div>
-          <span className="text-xs text-inkSoft">{season ? `Counts toward ${seasonName(season)} once finalized.` : "Before 1 Nov: practice, won't count toward a season."}</span>
+          <span className="text-xs text-inkSoft">
+            {season
+              ? `Counts toward ${seasonName(season)} once finalized.`
+              : "Before 1 Nov: practice, won't count toward a season."}
+          </span>
           {canEdit ? (
             <button
               type="button"
               onClick={() => setManage((m) => !m)}
-              className={cn("ml-auto inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold", manage ? "bg-ink text-white" : "text-inkSoft hover:text-ink")}
+              className={cn(
+                "ml-auto inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold",
+                manage ? "bg-ink text-white" : "text-inkSoft hover:text-ink",
+              )}
             >
-              <Settings2 className="w-3.5 h-3.5" /> {manage ? "Done editing" : "Edit cards"}
+              <Settings2 className="w-3.5 h-3.5" />{" "}
+              {manage ? "Done editing" : "Edit cards"}
             </button>
           ) : null}
         </div>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {templates.map((t) => {
-            const ready = t.ruleset === "casual" || FORMATS.find((f) => f.value === t.format)?.ready !== false;
-            const sportLabel = SPORTS.find((s) => s.value === t.sport)?.label ?? t.sport;
-            const tokenFormat = t.ruleset === "casual" ? "casual" : t.format ?? "classic";
-            const theme = FORMAT_THEME[tokenFormat];
-            const thisWeek = !!suggested && t.format === suggested && t.ruleset === "rally_rank";
-            return (
-              <div key={t.id} className="relative h-full">
-                <button
-                  type="button"
-                  disabled={!ready || !!busy || manage}
-                  onClick={() => start(t)}
-                  style={{
-                    backgroundColor: theme.surface,
-                    // Faint court lines: a centre line and two service lines.
-                    backgroundImage:
-                      "radial-gradient(circle at 82% 30%, rgba(255,255,255,0.22), transparent 42%), linear-gradient(90deg, transparent calc(62% - 1px), rgba(255,255,255,0.12) calc(62% - 1px), rgba(255,255,255,0.12) calc(62% + 1px), transparent calc(62% + 1px)), linear-gradient(0deg, transparent calc(30% - 1px), rgba(255,255,255,0.1) calc(30% - 1px), rgba(255,255,255,0.1) calc(30% + 1px), transparent calc(30% + 1px)), linear-gradient(0deg, transparent calc(70% - 1px), rgba(255,255,255,0.1) calc(70% - 1px), rgba(255,255,255,0.1) calc(70% + 1px), transparent calc(70% + 1px))",
-                  }}
-                  className={cn(
-                    "group relative flex h-full min-h-[230px] w-full flex-col overflow-hidden rounded-3xl p-5 text-left text-white shadow-card ring-1 ring-black/5 transition duration-300 ease-out",
-                    ready && !manage ? "hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:scale-[0.99]" : "cursor-default",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 pt-1">
-                      <span className="inline-flex rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white/90">{sportLabel}</span>
-                      <div className="mt-2 font-serif text-[26px] font-bold leading-[1.05]">{t.name}</div>
-                    </div>
-                    <GameToken
-                      format={tokenFormat}
-                      size={92}
-                      className={cn(
-                        "-mr-1 -mt-1 transition duration-500 ease-out motion-safe:group-hover:-rotate-12 motion-safe:group-hover:scale-105",
-                        !ready && "grayscale opacity-70",
-                      )}
-                    />
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    <span className="rounded-full bg-black/20 px-2 py-0.5 text-[11px] font-semibold">
-                      {t.ruleset === "rally_rank" ? formatLabel(t.format) : "Casual"}
-                    </span>
-                    <span className="rounded-full bg-black/20 px-2 py-0.5 text-[11px] font-semibold">
-                      {t.courts} court{t.courts === 1 ? "" : "s"}
-                    </span>
-                    {thisWeek ? <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-ink">This week</span> : null}
-                  </div>
-                  {t.blurb ? <p className="mt-3 max-w-[30ch] text-sm leading-snug text-white/80">{t.blurb}</p> : null}
-                  <div className="mt-auto pt-5">
-                    {ready ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-bold transition group-hover:gap-2.5" style={{ color: theme.surface }}>
-                        {busy === t.id ? "Opening" : "Start queue"} <ArrowRight className="w-4 h-4" />
-                      </span>
-                    ) : (
-                      <span className="inline-flex rounded-full bg-white/15 px-3.5 py-1.5 text-sm font-semibold text-white/80">Coming in December</span>
-                    )}
-                  </div>
-                </button>
-                {manage ? (
+        {Array.from(new Set(templates.map((t) => t.sport))).map(
+          (sp, gi, all) => (
+            <div key={sp} className="mt-4">
+              <div className="mb-2 text-sm font-semibold text-ink">
+                {SPORTS.find((s) => s.value === sp)?.label ?? sp}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {templates
+                  .filter((t) => t.sport === sp)
+                  .map((t) => {
+                    // Badminton Rivalry is Phase 2; volleyball Rivalry Night works now.
+                    const ready =
+                      t.ruleset !== "rally_rank" ||
+                      FORMATS.find((f) => f.value === t.format)?.ready !==
+                        false;
+                    const sportLabel =
+                      SPORTS.find((s) => s.value === t.sport)?.label ?? t.sport;
+                    const tokenFormat = themeKey(t.sport, t.ruleset, t.format);
+                    const theme = FORMAT_THEME[tokenFormat];
+                    const thisWeek =
+                      !!suggested &&
+                      t.format === suggested &&
+                      t.ruleset !== "casual";
+                    return (
+                      <div key={t.id} className="relative h-full">
+                        <button
+                          type="button"
+                          disabled={!ready || !!busy || manage}
+                          onClick={() => start(t)}
+                          style={{
+                            backgroundColor: theme.surface,
+                            // Faint court lines: a centre line and two service lines.
+                            backgroundImage:
+                              "radial-gradient(circle at 82% 30%, rgba(255,255,255,0.22), transparent 42%), linear-gradient(90deg, transparent calc(62% - 1px), rgba(255,255,255,0.12) calc(62% - 1px), rgba(255,255,255,0.12) calc(62% + 1px), transparent calc(62% + 1px)), linear-gradient(0deg, transparent calc(30% - 1px), rgba(255,255,255,0.1) calc(30% - 1px), rgba(255,255,255,0.1) calc(30% + 1px), transparent calc(30% + 1px)), linear-gradient(0deg, transparent calc(70% - 1px), rgba(255,255,255,0.1) calc(70% - 1px), rgba(255,255,255,0.1) calc(70% + 1px), transparent calc(70% + 1px))",
+                          }}
+                          className={cn(
+                            "group relative flex h-full min-h-[230px] w-full flex-col overflow-hidden rounded-3xl p-5 text-left text-white shadow-card ring-1 ring-black/5 transition duration-300 ease-out",
+                            ready && !manage
+                              ? "hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:scale-[0.99]"
+                              : "cursor-default",
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 pt-1">
+                              <span className="inline-flex rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white/90">
+                                {sportLabel}
+                              </span>
+                              <div className="mt-2 font-serif text-[26px] font-bold leading-[1.05]">
+                                {t.name}
+                              </div>
+                            </div>
+                            <GameToken
+                              format={tokenFormat}
+                              size={92}
+                              className={cn(
+                                "-mr-1 -mt-1 transition duration-500 ease-out motion-safe:group-hover:-rotate-12 motion-safe:group-hover:scale-105",
+                                !ready && "grayscale opacity-70",
+                              )}
+                            />
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            <span className="rounded-full bg-black/20 px-2 py-0.5 text-[11px] font-semibold">
+                              {t.ruleset === "casual"
+                                ? "Casual"
+                                : formatLabel(t.format)}
+                            </span>
+                            <span className="rounded-full bg-black/20 px-2 py-0.5 text-[11px] font-semibold">
+                              {t.courts} court{t.courts === 1 ? "" : "s"}
+                            </span>
+                            {thisWeek ? (
+                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-ink">
+                                This week
+                              </span>
+                            ) : null}
+                          </div>
+                          {t.blurb ? (
+                            <p className="mt-3 max-w-[30ch] text-sm leading-snug text-white/80">
+                              {t.blurb}
+                            </p>
+                          ) : null}
+                          <div className="mt-auto pt-5">
+                            {ready ? (
+                              <span
+                                className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-bold transition group-hover:gap-2.5"
+                                style={{ color: theme.surface }}
+                              >
+                                {busy === t.id ? "Opening" : "Start queue"}{" "}
+                                <ArrowRight className="w-4 h-4" />
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-white/15 px-3.5 py-1.5 text-sm font-semibold text-white/80">
+                                Coming in December
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                        {manage ? (
+                          <button
+                            type="button"
+                            onClick={() => setEditing(t)}
+                            className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-ink shadow"
+                          >
+                            <Pencil className="w-3 h-3" /> Edit
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                {manage && gi === all.length - 1 ? (
                   <button
                     type="button"
-                    onClick={() => setEditing(t)}
-                    className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-ink shadow"
+                    onClick={() => setEditing("new")}
+                    className="flex min-h-[180px] items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-border text-sm font-semibold text-inkSoft hover:text-ink"
                   >
-                    <Pencil className="w-3 h-3" /> Edit
+                    <Plus className="w-4 h-4" /> New card
                   </button>
                 ) : null}
               </div>
-            );
-          })}
-          {manage ? (
-            <button
-              type="button"
-              onClick={() => setEditing("new")}
-              className="flex min-h-[180px] items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-border text-sm font-semibold text-inkSoft hover:text-ink"
-            >
-              <Plus className="w-4 h-4" /> New card
-            </button>
-          ) : null}
-        </div>
-        <button type="button" onClick={() => setCustom((c) => !c)} className="mt-3 text-xs font-semibold text-inkSoft underline underline-offset-4 hover:text-ink">
+            </div>
+          ),
+        )}
+        <button
+          type="button"
+          onClick={() => setCustom((c) => !c)}
+          className="mt-3 text-xs font-semibold text-inkSoft underline underline-offset-4 hover:text-ink"
+        >
           {custom ? "Hide custom session" : "Or start a custom session"}
         </button>
       </div>
 
       {custom ? <NewSessionForm events={events} /> : null}
-      {editing ? <TemplateEditor template={editing === "new" ? null : editing} nextSort={templates.length + 1} onClose={() => setEditing(null)} /> : null}
+      {editing ? (
+        <TemplateEditor
+          template={editing === "new" ? null : editing}
+          nextSort={templates.length + 1}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
     </section>
   );
 }
 
-function TemplateEditor({ template, nextSort, onClose }: { template: Template | null; nextSort: number; onClose: () => void }) {
+function TemplateEditor({
+  template,
+  nextSort,
+  onClose,
+}: {
+  template: Template | null;
+  nextSort: number;
+  onClose: () => void;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [name, setName] = React.useState(template?.name ?? "");
-  const [sport, setSport] = React.useState<Sport>(template?.sport ?? "badminton");
-  const [ruleset, setRuleset] = React.useState(template?.ruleset ?? "rally_rank");
-  const [format, setFormat] = React.useState<Format>(template?.format ?? "classic");
+  const [sport, setSport] = React.useState<Sport>(
+    template?.sport ?? "badminton",
+  );
+  const [ruleset, setRuleset] = React.useState<Template["ruleset"]>(
+    template?.ruleset ?? "rally_rank",
+  );
+  const [format, setFormat] = React.useState<Format>(
+    template?.format ?? "classic",
+  );
   const [courts, setCourts] = React.useState(String(template?.courts ?? 3));
   const [blurb, setBlurb] = React.useState(template?.blurb ?? "");
   const [busy, setBusy] = React.useState(false);
-  const teamSize = SPORTS.find((s) => s.value === sport)?.teamSize ?? 6;
-  const ranked = ruleset === "rally_rank" && teamSize === 2;
+  // Ranked rules per sport: badminton/pickleball doubles = Rally & Rank,
+  // volleyball = Spike & Chill (teams of 7). Anything else is casual.
+  const rankedRules: Template["ruleset"] | null =
+    sport === "volleyball" ? "spike_chill" : SPORTS.find((s) => s.value === sport)?.teamSize === 2 ? "rally_rank" : null;
+  const ranked = !!rankedRules && ruleset !== "casual";
+  const teamSize = sport === "volleyball" ? (ranked ? 7 : 6) : SPORTS.find((s) => s.value === sport)?.teamSize ?? 6;
 
   async function save(archive = false) {
     if (!name.trim() && !archive) return;
@@ -240,7 +382,7 @@ function TemplateEditor({ template, nextSort, onClose }: { template: Template | 
       : {
           name: name.trim(),
           sport,
-          ruleset: ranked ? "rally_rank" : "casual",
+          ruleset: ranked ? rankedRules : "casual",
           format: ranked ? format : null,
           courts: Number(courts),
           team_size: teamSize,
@@ -248,7 +390,9 @@ function TemplateEditor({ template, nextSort, onClose }: { template: Template | 
         };
     const { error } = template
       ? await supabase.from("game_templates").update(row).eq("id", template.id)
-      : await supabase.from("game_templates").insert({ ...row, sort: nextSort });
+      : await supabase
+          .from("game_templates")
+          .insert({ ...row, sort: nextSort });
     setBusy(false);
     if (error) return toast.push(error.message, "error");
     onClose();
@@ -263,7 +407,15 @@ function TemplateEditor({ template, nextSort, onClose }: { template: Template | 
       footer={
         <div className="flex items-center gap-2">
           {template ? (
-            <Button variant="dangerGhost" onClick={() => window.confirm(`Remove "${template.name}"? Past sessions keep their results.`) && save(true)} disabled={busy}>
+            <Button
+              variant="dangerGhost"
+              onClick={() =>
+                window.confirm(
+                  `Remove "${template.name}"? Past sessions keep their results.`,
+                ) && save(true)
+              }
+              disabled={busy}
+            >
               Remove
             </Button>
           ) : null}
@@ -283,12 +435,21 @@ function TemplateEditor({ template, nextSort, onClose }: { template: Template | 
           <Label htmlFor="tp_name" required>
             Name
           </Label>
-          <Input id="tp_name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Double Damage" />
+          <Input
+            id="tp_name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Double Damage"
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label htmlFor="tp_sport">Sport</Label>
-            <Select id="tp_sport" value={sport} onChange={(e) => setSport(e.target.value as Sport)}>
+            <Select
+              id="tp_sport"
+              value={sport}
+              onChange={(e) => setSport(e.target.value as Sport)}
+            >
               {SPORTS.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
@@ -298,7 +459,11 @@ function TemplateEditor({ template, nextSort, onClose }: { template: Template | 
           </div>
           <div className="space-y-1">
             <Label htmlFor="tp_courts">Courts</Label>
-            <Select id="tp_courts" value={courts} onChange={(e) => setCourts(e.target.value)}>
+            <Select
+              id="tp_courts"
+              value={courts}
+              onChange={(e) => setCourts(e.target.value)}
+            >
               {[1, 2, 3, 4, 5, 6].map((n) => (
                 <option key={n} value={n}>
                   {n}
@@ -310,14 +475,24 @@ function TemplateEditor({ template, nextSort, onClose }: { template: Template | 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label htmlFor="tp_rules">Rules</Label>
-            <Select id="tp_rules" value={ranked ? "rally_rank" : "casual"} disabled={teamSize !== 2} onChange={(e) => setRuleset(e.target.value as "casual" | "rally_rank")}>
-              <option value="rally_rank">Rally &amp; Rank (ranked)</option>
+            <Select
+              id="tp_rules"
+              value={ranked ? "ranked" : "casual"}
+              disabled={!rankedRules}
+              onChange={(e) => setRuleset(e.target.value === "ranked" && rankedRules ? rankedRules : "casual")}
+            >
+              <option value="ranked">{sport === "volleyball" ? "Spike & Chill (ranked)" : "Rally & Rank (ranked)"}</option>
               <option value="casual">Casual</option>
             </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="tp_format">Format</Label>
-            <Select id="tp_format" value={format} disabled={!ranked} onChange={(e) => setFormat(e.target.value as Format)}>
+            <Select
+              id="tp_format"
+              value={format}
+              disabled={!ranked}
+              onChange={(e) => setFormat(e.target.value as Format)}
+            >
               {FORMATS.map((f) => (
                 <option key={f.value} value={f.value}>
                   {f.label}
@@ -328,7 +503,12 @@ function TemplateEditor({ template, nextSort, onClose }: { template: Template | 
         </div>
         <div className="space-y-1">
           <Label htmlFor="tp_blurb">Card text</Label>
-          <Input id="tp_blurb" value={blurb} onChange={(e) => setBlurb(e.target.value)} placeholder="One line shown on the card" />
+          <Input
+            id="tp_blurb"
+            value={blurb}
+            onChange={(e) => setBlurb(e.target.value)}
+            placeholder="One line shown on the card"
+          />
         </div>
       </div>
     </Modal>

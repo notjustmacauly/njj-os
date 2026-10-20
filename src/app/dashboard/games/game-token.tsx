@@ -1,4 +1,4 @@
-import { Feather, Shield, Swords, Zap, type LucideIcon } from "lucide-react";
+import { Feather, Shield, Swords, Users, Volleyball, Zap, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,7 +14,15 @@ export const FORMAT_THEME: Record<
   double: { surface: "#B4471D", rimA: "#FFD27A", rimB: "#E09A32", face: "#FFF1D9", ink: "#B4471D", Icon: Zap, mark: "x2" },
   rivalry: { surface: "#2A2D3A", rimA: "#E8A0B4", rimB: "#B8657E", face: "#FCEFF3", ink: "#8E2F4E", Icon: Swords },
   casual: { surface: "#5B6170", rimA: "#E5E7EB", rimB: "#B8BDC7", face: "#FFFFFF", ink: "#5B6170", Icon: Feather },
+  // Volleyball (Spike & Chill): sand, sea and sunset tones.
+  "vb-classic": { surface: "#B8662B", rimA: "#FFE08A", rimB: "#E3A93A", face: "#FFF6DD", ink: "#B8662B", Icon: Volleyball },
+  "vb-team": { surface: "#1D6B73", rimA: "#E3F2F1", rimB: "#A5CFCC", face: "#FFFFFF", ink: "#1D6B73", Icon: Users, mark: "4x7" },
+  "vb-double": { surface: "#9C3A20", rimA: "#FFD27A", rimB: "#E09A32", face: "#FFF1D9", ink: "#9C3A20", Icon: Zap, mark: "x2" },
+  "vb-rivalry": { surface: "#263241", rimA: "#F2B8A0", rimB: "#C9826A", face: "#FDF0EA", ink: "#9A4A33", Icon: Swords },
 };
+/** Theme key for a card: volleyball cards get their own set. */
+export const themeKey = (sport: string, ruleset: string, format: string | null) =>
+  ruleset === "casual" ? "casual" : sport === "volleyball" ? `vb-${format ?? "classic"}` : format ?? "classic";
 
 export function GameToken({ format, size = 96, className }: { format: string; size?: number; className?: string }) {
   const t = FORMAT_THEME[format] ?? FORMAT_THEME.casual;

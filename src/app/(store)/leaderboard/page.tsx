@@ -26,7 +26,8 @@ type SeasonRow = {
   wins: number;
   win_rate: number;
   events: number;
-  eligible: boolean;
+  eligible?: boolean;
+  draws?: number;
 };
 type EventRow = {
   session_id: string;
@@ -44,7 +45,9 @@ type EventRow = {
   matches: number;
   wins: number;
   win_rate: number | null;
-  prorated: boolean;
+  prorated?: boolean;
+  draws?: number;
+  rating_change?: number;
 };
 
 const shortDate = (d: string) =>
@@ -64,10 +67,10 @@ function Pill({ href, active, children }: { href: string; active: boolean; child
   );
 }
 
-function Rating({ value, provisional }: { value: number; provisional: boolean }) {
+function Rating({ value, provisional, digits = 2 }: { value: number; provisional: boolean; digits?: number }) {
   return (
     <span className="tabular-nums">
-      {Number(value).toFixed(2)}
+      {Number(value).toFixed(digits)}
       {provisional ? <span className="ml-1.5 rounded-full bg-s-sunken px-1.5 py-0.5 text-[10px] font-semibold text-s-muted align-middle">Provisional</span> : null}
     </span>
   );
@@ -79,15 +82,25 @@ export default async function LeaderboardPage({
   searchParams: { view?: string; sport?: string; season?: string; event?: string; eligible?: string };
 }) {
   const supabase = await createClient();
-  const [{ data: seasonData }, { data: eventData }] = await Promise.all([
+  const [{ data: seasonData }, { data: eventData }, { data: vbSeason }, { data: vbEvent }] = await Promise.all([
     supabase.from("web_rr_season").select("*").order("rank").limit(5000),
     supabase.from("web_rr_event").select("*").order("session_date", { ascending: false }).order("rank").limit(5000),
+    supabase.from("web_vb_season").select("*").order("rank").limit(5000),
+    supabase.from("web_vb_event").select("*").order("session_date", { ascending: false }).order("rank").limit(5000),
   ]);
-  const seasonRows = (seasonData ?? []) as SeasonRow[];
-  const eventRows = (eventData ?? []) as EventRow[];
+  // Volleyball rows use the current (after) rating; both sports share one table shape.
+  const seasonRows = [...((seasonData ?? []) as SeasonRow[]), ...((vbSeason ?? []) as SeasonRow[])];
+  const eventRows = [
+    ...((eventData ?? []) as EventRow[]),
+    ...((vbEvent ?? []) as Array<EventRow & { rating_after: number }>).map((r) => ({ ...r, rating: r.rating_after })),
+  ];
 
   const view = searchParams.view === "event" ? "event" : "season";
-  const sportsWithData = SPORT_ORDER.filter((s) => seasonRows.some((r) => r.sport === s) || eventRows.some((r) => r.sport === s));
+  // Badminton (Rally & Rank) and volleyball (Spike & Chill) always show; other sports once they have data.
+  const sportsWithData = SPORT_ORDER.filter(
+    (s) => s === "badminton" || s === "volleyball" || seasonRows.some((r) => r.sport === s) || eventRows.some((r) => r.sport === s),
+  );
+  const isVb = (searchParams.sport ?? "") === "volleyball";
   const sport = searchParams.sport && SPORT_ORDER.includes(searchParams.sport) ? searchParams.sport : sportsWithData[0] ?? "badminton";
   const now = currentSeason();
   const seasons = Array.from(new Set([now, ...seasonRows.filter((r) => r.sport === sport).map((r) => r.season)])).sort((a, b) => b - a);
@@ -117,9 +130,13 @@ export default async function LeaderboardPage({
   return (
     <Container className="pt-14 md:pt-20">
       <Reveal className="max-w-2xl">
-        <h1 className="font-display font-semibold tracking-[-0.04em] leading-[0.98] text-5xl md:text-6xl text-s-fg">Rally &amp; Rank</h1>
+        <h1 className="font-display font-semibold tracking-[-0.04em] leading-[0.98] text-5xl md:text-6xl text-s-fg">
+          {isVb ? "Spike & Chill" : "Rally & Rank"}
+        </h1>
         <Lede className="mt-5">
-          Every ranked event earns League Points: 20 for showing up and playing, plus up to 80 more for your win rate. Play at least 4 games for full points.
+          {isVb
+            ? "Every volleyball night earns League Points: 20 for playing, plus up to 80 more for your win rate. Draws count as half a win. Up to 100 a night."
+            : "Every ranked event earns League Points: 20 for showing up and playing, plus up to 80 more for your win rate. Play at least 4 games for full points."}
         </Lede>
       </Reveal>
 
@@ -154,7 +171,7 @@ export default async function LeaderboardPage({
                 {seasonName(k)}
               </Link>
             ))}
-            <Link
+            {isVb ? null : <Link
               href={q({ eligible: eligibleOnly ? undefined : "1" })}
               className={cn(
                 "ml-auto rounded-full px-3.5 py-1.5 text-sm ring-1 transition",
@@ -162,7 +179,7 @@ export default async function LeaderboardPage({
               )}
             >
               Eligible for awards
-            </Link>
+            </Link>}
           </div>
 
           {seasonTable.length === 0 ? (
@@ -190,12 +207,14 @@ export default async function LeaderboardPage({
                   </li>
                 ))}
               </ol>
-              <SeasonTable rows={seasonTable} />
+              <SeasonTable rows={seasonTable} draws={isVb} />
             </>
           )}
-          <p className="mt-4 text-sm text-s-muted">
-            Awards go to the top 3 players with at least 4 events and 16 matches in the season. The full ranking includes everyone.
-          </p>
+          {isVb ? null : (
+            <p className="mt-4 text-sm text-s-muted">
+              Awards go to the top 3 players with at least 4 events and 16 matches in the season. The full ranking includes everyone.
+            </p>
+          )}
         </>
       ) : (
         <>
@@ -233,7 +252,7 @@ export default async function LeaderboardPage({
                   {event.final ? "Final results." : "In progress. Points are provisional until the event is finalized, and team bonuses are added then."}
                 </p>
               ) : null}
-              <EventTable rows={eventTable} />
+              <EventTable rows={eventTable} draws={isVb} />
             </>
           )}
         </>
@@ -243,13 +262,17 @@ export default async function LeaderboardPage({
         <div className="rounded-[24px] bg-s-surface ring-1 ring-s-line/[0.07] p-6">
           <p className="font-display text-xl font-semibold text-s-fg">League Points</p>
           <p className="mt-2 text-sm text-s-muted">
-            20 + 80 × your win rate each event. Fewer than 4 games earns a share (2 games, half). Double Points nights count twice. Team nights add +10 for the top squad and +5 for second.
+            {isVb
+              ? "20 + 80 × your win rate each night, draws count half. Double Points doubles it, Team Night adds +5 for each round your team wins, Rivalry Night +5 for winning your rivalry game. Capped at 100."
+              : "20 + 80 × your win rate each event. Fewer than 4 games earns a share (2 games, half). Double Points nights count twice. Team nights add +10 for the top squad and +5 for second."}
           </p>
         </div>
         <div className="rounded-[24px] bg-s-surface ring-1 ring-s-line/[0.07] p-6">
           <p className="font-display text-xl font-semibold text-s-fg">Rating</p>
           <p className="mt-2 text-sm text-s-muted">
-            A skill estimate from 1.00 to 6.00 that moves after every game, more when you beat a stronger side. It is separate from League Points. Provisional for your first 2 events.
+            {isVb
+              ? "A volleyball skill estimate from 1.00 to 5.00 based on your team's results against stronger or weaker teams. Separate from League Points and from badminton. Provisional for your first 5 games."
+              : "A skill estimate from 1.00 to 6.00 that moves after every game, more when you beat a stronger side. It is separate from League Points. Provisional for your first 2 events."}
           </p>
         </div>
         <div className="rounded-[24px] bg-s-surface ring-1 ring-s-line/[0.07] p-6">
@@ -266,7 +289,7 @@ export default async function LeaderboardPage({
   );
 }
 
-function SeasonTable({ rows }: { rows: SeasonRow[] }) {
+function SeasonTable({ rows, draws }: { rows: SeasonRow[]; draws?: boolean }) {
   return (
     <div className="mt-4 rounded-[28px] bg-s-surface ring-1 ring-s-line/[0.07] overflow-x-auto">
       <table className="w-full min-w-[620px] text-sm">
@@ -278,6 +301,7 @@ function SeasonTable({ rows }: { rows: SeasonRow[] }) {
             <th className="px-5 py-3 font-semibold text-right">LP</th>
             <th className="px-5 py-3 font-semibold text-right">Total matches</th>
             <th className="px-5 py-3 font-semibold text-right">Wins</th>
+            {draws ? <th className="px-5 py-3 font-semibold text-right">Draws</th> : null}
             <th className="px-5 py-3 font-semibold text-right">Win rate</th>
           </tr>
         </thead>
@@ -287,14 +311,15 @@ function SeasonTable({ rows }: { rows: SeasonRow[] }) {
               <td className="px-5 py-3 tabular-nums text-s-muted">{r.rank}</td>
               <td className="px-5 py-3 font-semibold text-s-fg">
                 {r.name}
-                {r.eligible ? <span className="ml-2 text-[10px] font-semibold uppercase text-s-muted">Award eligible</span> : null}
+                {r.eligible && !draws ? <span className="ml-2 text-[10px] font-semibold uppercase text-s-muted">Award eligible</span> : null}
               </td>
               <td className="px-5 py-3 text-s-fg">
-                <Rating value={r.rating} provisional={r.provisional} />
+                <Rating value={r.rating} provisional={r.provisional} digits={draws ? 3 : 2} />
               </td>
               <td className="px-5 py-3 text-right tabular-nums font-semibold text-s-fg">{Number(r.lp).toFixed(2)}</td>
               <td className="px-5 py-3 text-right tabular-nums text-s-muted">{r.matches}</td>
               <td className="px-5 py-3 text-right tabular-nums text-s-muted">{r.wins}</td>
+              {draws ? <td className="px-5 py-3 text-right tabular-nums text-s-muted">{r.draws ?? 0}</td> : null}
               <td className="px-5 py-3 text-right tabular-nums text-s-muted">{Number(r.win_rate).toFixed(1)}%</td>
             </tr>
           ))}
@@ -304,7 +329,7 @@ function SeasonTable({ rows }: { rows: SeasonRow[] }) {
   );
 }
 
-function EventTable({ rows }: { rows: EventRow[] }) {
+function EventTable({ rows, draws }: { rows: EventRow[]; draws?: boolean }) {
   return (
     <div className="mt-4 rounded-[28px] bg-s-surface ring-1 ring-s-line/[0.07] overflow-x-auto">
       <table className="w-full min-w-[620px] text-sm">
@@ -316,6 +341,7 @@ function EventTable({ rows }: { rows: EventRow[] }) {
             <th className="px-5 py-3 font-semibold text-right">LP</th>
             <th className="px-5 py-3 font-semibold text-right">Matches</th>
             <th className="px-5 py-3 font-semibold text-right">Wins</th>
+            {draws ? <th className="px-5 py-3 font-semibold text-right">Draws</th> : null}
             <th className="px-5 py-3 font-semibold text-right">Win rate</th>
           </tr>
         </thead>
@@ -328,11 +354,12 @@ function EventTable({ rows }: { rows: EventRow[] }) {
                 {r.prorated ? <span className="ml-2 text-[10px] font-semibold uppercase text-s-muted">Prorated</span> : null}
               </td>
               <td className="px-5 py-3 text-s-fg">
-                <Rating value={r.rating} provisional={r.provisional} />
+                <Rating value={r.rating} provisional={r.provisional} digits={draws ? 3 : 2} />
               </td>
               <td className="px-5 py-3 text-right tabular-nums font-semibold text-s-fg">{Number(r.lp).toFixed(2)}</td>
               <td className="px-5 py-3 text-right tabular-nums text-s-muted">{r.matches}</td>
               <td className="px-5 py-3 text-right tabular-nums text-s-muted">{r.wins}</td>
+              {draws ? <td className="px-5 py-3 text-right tabular-nums text-s-muted">{r.draws ?? 0}</td> : null}
               <td className="px-5 py-3 text-right tabular-nums text-s-muted">{r.win_rate == null ? "—" : `${Number(r.win_rate).toFixed(1)}%`}</td>
             </tr>
           ))}

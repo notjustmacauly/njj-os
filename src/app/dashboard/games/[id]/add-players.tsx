@@ -7,24 +7,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { SKILLS, type Skill } from "../logic";
+import { SKILLS } from "../logic";
+
+type Level = string;
+type LevelOpt = { value: string; label: string };
 
 type Player = { id: string; display_name: string; email: string | null; rating: number; seed_rating: number | null };
 type Pass = { id: string; holder_name: string | null; buyer_email: string | null; ticket_type_name: string };
 
 /** A player's first Rally & Rank game needs a level pick: it sets their starting rating. */
-function LevelPick({ value, onChange }: { value: Skill | ""; onChange: (s: Skill) => void }) {
+function LevelPick({ value, onChange, levels }: { value: Level | ""; onChange: (s: Level) => void; levels: LevelOpt[] }) {
   return (
     <select
       aria-label="Level"
       value={value}
-      onChange={(e) => onChange(e.target.value as Skill)}
+      onChange={(e) => onChange(e.target.value)}
       className={cn("h-8 rounded-md border px-1.5 text-xs", value ? "border-border text-ink" : "border-coral text-coral")}
     >
       <option value="" disabled>
         Level
       </option>
-      {SKILLS.map((s) => (
+      {levels.map((s) => (
         <option key={s.value} value={s.value}>
           {s.label}
         </option>
@@ -41,21 +44,31 @@ export function AddPlayers({
   busy,
   onAdd,
   onCreate,
+  levels,
+  isSeeded,
+  ratingOf,
 }: {
   master: Player[];
   passes: Pass[];
   inSession: Set<string>;
   hasEvent: boolean;
   busy: boolean;
-  onAdd: (playerId: string, level: Skill | null) => void;
-  onCreate: (name: string, email: string, level: Skill) => void;
+  onAdd: (playerId: string, level: Level | null) => void;
+  onCreate: (name: string, email: string, level: Level) => void;
+  /** Level options (defaults to the badminton levels). */
+  levels?: LevelOpt[];
+  /** Whether a player already has a starting rating for this sport. */
+  isSeeded?: (p: Player) => boolean;
+  /** Rating shown next to seeded players. */
+  ratingOf?: (p: Player) => number;
 }) {
   const [tab, setTab] = React.useState<"passes" | "search" | "new">(passes.length ? "passes" : "search");
   const [q, setQ] = React.useState("");
   const [newName, setNewName] = React.useState("");
   const [newEmail, setNewEmail] = React.useState("");
-  const [skill, setSkill] = React.useState<Skill | "">("");
-  const [levels, setLevels] = React.useState<Record<string, Skill>>({});
+  const [skill, setSkill] = React.useState<Level | "">("");
+  const [levelPick, setLevels] = React.useState<Record<string, Level>>({});
+  const opts = levels ?? SKILLS;
   const byEmail = new Map(master.filter((p) => p.email).map((p) => [p.email!.toLowerCase(), p]));
 
   const passList = passes
@@ -66,7 +79,7 @@ export function AddPlayers({
     .filter((p) => !q.trim() || `${p.display_name} ${p.email ?? ""}`.toLowerCase().includes(q.trim().toLowerCase()))
     .slice(0, 12);
 
-  const needsLevel = (p?: Player) => !p || p.seed_rating == null;
+  const needsLevel = (p?: Player) => !p || !(isSeeded ? isSeeded(p) : p.seed_rating != null);
 
   return (
     <section className="rounded-3xl bg-white ring-1 ring-border shadow-card overflow-hidden">
@@ -95,7 +108,7 @@ export function AddPlayers({
         ) : (
           <ul className="divide-y divide-border max-h-72 overflow-y-auto">
             {passList.map((t) => {
-              const lv = levels[t.id] ?? "";
+              const lv = levelPick[t.id] ?? "";
               const need = needsLevel(t.player);
               return (
                 <li key={t.id} className="flex items-center gap-2 px-4 py-2 text-sm">
@@ -103,12 +116,12 @@ export function AddPlayers({
                     <div className="truncate text-ink">{t.player?.display_name ?? t.holder_name ?? "Guest"}</div>
                     <div className="truncate text-xs text-inkSoft">{t.ticket_type_name}</div>
                   </div>
-                  {need ? <LevelPick value={lv} onChange={(s) => setLevels((x) => ({ ...x, [t.id]: s }))} /> : null}
+                  {need ? <LevelPick levels={opts} value={lv} onChange={(s) => setLevels((x) => ({ ...x, [t.id]: s }))} /> : null}
                   <Button
                     size="sm"
                     disabled={busy || (need && !lv)}
                     onClick={() =>
-                      t.player ? onAdd(t.player.id, need ? (lv as Skill) : null) : onCreate(t.holder_name ?? "Guest", t.buyer_email ?? "", lv as Skill)
+                      t.player ? onAdd(t.player.id, need ? (lv) : null) : onCreate(t.holder_name ?? "Guest", t.buyer_email ?? "", lv)
                     }
                   >
                     <Plus className="w-3.5 h-3.5" /> Add
@@ -128,17 +141,17 @@ export function AddPlayers({
           </div>
           <ul className="divide-y divide-border max-h-64 overflow-y-auto">
             {results.map((p) => {
-              const lv = levels[p.id] ?? "";
+              const lv = levelPick[p.id] ?? "";
               const need = needsLevel(p);
               return (
                 <li key={p.id} className="flex items-center gap-2 py-2 text-sm">
                   <span className="flex-1 min-w-0 truncate text-ink">{p.display_name}</span>
                   {need ? (
-                    <LevelPick value={lv} onChange={(s) => setLevels((x) => ({ ...x, [p.id]: s }))} />
+                    <LevelPick levels={opts} value={lv} onChange={(s) => setLevels((x) => ({ ...x, [p.id]: s }))} />
                   ) : (
-                    <span className="text-xs text-inkSoft tabular-nums">{Number(p.rating).toFixed(2)}</span>
+                    <span className="text-xs text-inkSoft tabular-nums">{Number(ratingOf ? ratingOf(p) : p.rating).toFixed(2)}</span>
                   )}
-                  <Button size="sm" disabled={busy || (need && !lv)} onClick={() => onAdd(p.id, need ? (lv as Skill) : null)}>
+                  <Button size="sm" disabled={busy || (need && !lv)} onClick={() => onAdd(p.id, need ? (lv) : null)}>
                     <Plus className="w-3.5 h-3.5" />
                   </Button>
                 </li>
@@ -175,11 +188,11 @@ export function AddPlayers({
             <Label htmlFor="np_skill" required>
               Level
             </Label>
-            <Select id="np_skill" value={skill} onChange={(e) => setSkill(e.target.value as Skill)}>
+            <Select id="np_skill" value={skill} onChange={(e) => setSkill(e.target.value)}>
               <option value="" disabled>
                 Pick a level
               </option>
-              {SKILLS.map((s) => (
+              {opts.map((s: LevelOpt) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
                 </option>
