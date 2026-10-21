@@ -13,6 +13,7 @@ const NAV: Array<{ label: string; href: string }> = [
   { label: "Home", href: "/" },
   { label: "Shop", href: "/shop" },
   { label: "Events", href: "/events" },
+  { label: "Leaderboard", href: "/leaderboard" },
   { label: "Community", href: "/#community" },
   { label: "Partners", href: "/#partners" },
 ];

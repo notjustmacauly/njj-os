@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import type { PublicEvent } from "../../../_components/events";
-import { PassCheckout, type PassLine } from "./pass-checkout";
+import { PassCheckout, type PassLine, type PassPrices } from "./pass-checkout";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Get passes", robots: { index: false } };
@@ -32,5 +32,12 @@ export default async function PassCheckoutPage({
   const passCount = lines.reduce((a, l) => a + l.qty, 0);
   const paddles = event.paddle_price == null ? 0 : Math.min(Math.max(parseInt(searchParams.paddles ?? "0", 10) || 0, 0), passCount);
 
-  return <PassCheckout event={event} lines={lines} paddles={paddles} />;
+  const { data: priceData } = await supabase.rpc("web_pass_prices");
+  const p = (priceData ?? {}) as Partial<PassPrices>;
+  const prices: PassPrices = {
+    pass_price: Number(p.pass_price ?? event.pass_price ?? 255),
+    bundle_size: Number(p.bundle_size ?? 4),
+    bundle_price: Number(p.bundle_price ?? 980),
+  };
+  return <PassCheckout event={event} lines={lines} paddles={paddles} prices={prices} />;
 }

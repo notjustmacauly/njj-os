@@ -346,15 +346,9 @@ export function EventEditor({
 
       <div className="grid sm:grid-cols-4 gap-3 items-end">
         <div className="space-y-1">
-          <Label htmlFor="ev_price">Pass price</Label>
-          <NumberInput
-            id="ev_price"
-            prefix="₱"
-            min="0"
-            step="1"
-            value={String(d.pass_price)}
-            onChange={(e) => set("pass_price", Number(e.target.value))}
-          />
+          <span className="text-sm font-medium text-ink">Pass price</span>
+          {/* One price for every event (web_pass_settings); the database keeps it in sync. */}
+          <div className="h-[38px] flex items-center text-sm text-inkSoft">₱255 flat, every event</div>
         </div>
         <div className="space-y-1">
           <label className="text-sm text-ink flex items-center gap-2 select-none cursor-pointer h-[38px]">

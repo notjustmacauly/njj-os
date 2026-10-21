@@ -37,13 +37,24 @@ export default async function GameSessionPage({ params }: { params: { id: string
     session.event_id
       ? supabase
           .from("tickets")
-          .select("id, holder_name, buyer_email, ticket_type_name, checked_in_at")
+          .select("id, holder_name, holder_email, buyer_name, buyer_email, ticket_type_name, checked_in_at")
           .eq("event_id", session.event_id)
           .not("pass_token", "is", null)
           .is("deleted_at", null)
           .not("checked_in_at", "is", null)
       : Promise.resolve({ data: [] }),
   ]);
+
+  // The player is the pass holder: a friend's pass carries their own email (or
+  // none), never the buyer's.
+  type PassRow = { id: string; holder_name: string | null; holder_email: string | null; buyer_name: string | null; buyer_email: string | null; ticket_type_name: string; checked_in_at: string };
+  const playerPasses = ((passes ?? []) as PassRow[]).map((t) => ({
+    id: t.id,
+    holder_name: t.holder_name ?? t.buyer_name,
+    buyer_email: t.holder_email ?? (!t.holder_name || t.holder_name === t.buyer_name ? t.buyer_email : null),
+    ticket_type_name: t.ticket_type_name,
+    checked_in_at: t.checked_in_at,
+  }));
 
   if (session.ruleset === "spike_chill") {
     const [{ data: vbRoster }, { data: vbMatches }, { data: ratings }] = await Promise.all([
@@ -66,7 +77,7 @@ export default async function GameSessionPage({ params }: { params: { id: string
       matches: (vbMatches ?? []) as unknown as VolleyData["matches"],
       master: (master ?? []) as unknown as VolleyData["master"],
       ratings: (ratings ?? []) as unknown as VolleyData["ratings"],
-      passes: (passes ?? []) as VolleyData["passes"],
+      passes: playerPasses,
     };
     return <VolleyBoard data={vb} />;
   }
@@ -83,7 +94,7 @@ export default async function GameSessionPage({ params }: { params: { id: string
     roster: (roster ?? []) as unknown as BoardData["roster"],
     matches: (matches ?? []) as BoardData["matches"],
     master: (master ?? []) as BoardData["master"],
-    passes: (passes ?? []) as BoardData["passes"],
+    passes: playerPasses,
   };
   return <GameBoard data={data} />;
 }

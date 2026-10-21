@@ -148,8 +148,12 @@ async function PassesReceipt({ r, rejected }: { r: CheckoutReceipt; rejected: bo
       <Header
         r={r}
         rejected={rejected}
-        title="You're in."
-        body={`Payment completed for ${r.reference}. Show these QR codes at the door, one per player. A copy went to ${r.email}.`}
+        title={e ? "You're in." : "Passes added."}
+        body={
+          e
+            ? `${r.total > 0 ? `Payment completed for ${r.reference}.` : `Booked with your passes (${r.reference}).`} Show these QR codes at the door, one per player. A copy went to ${r.email}.`
+            : `${Number(r.bundle_passes ?? 0)} passes are in your account (${r.reference}). Use them on any event, for you or a friend.`
+        }
       />
 
       {e ? (
@@ -183,6 +187,7 @@ async function PassesReceipt({ r, rejected }: { r: CheckoutReceipt; rejected: bo
                 Pass {i + 1} of {r.passes.length}
               </p>
               <p className="font-semibold text-s-fg mt-0.5">{p.sport}</p>
+              {p.holder ? <p className="text-sm text-s-muted">{p.holder}</p> : null}
               <div className="mx-auto mt-4 w-48 h-48 rounded-[16px] overflow-hidden bg-white p-2" dangerouslySetInnerHTML={{ __html: qrs[i] }} />
               <p className="mt-3 text-xs text-s-muted font-mono">{p.code}</p>
               {p.checked_in ? <p className="mt-1 text-xs font-semibold text-s-fg">Checked in</p> : null}
@@ -208,7 +213,7 @@ async function PassesReceipt({ r, rejected }: { r: CheckoutReceipt; rejected: bo
 
       <div className="mt-10">
         <Link href="/events" className="text-sm font-semibold text-s-fg underline underline-offset-4">
-          More events
+          {e ? "More events" : "Find an event"}
         </Link>
       </div>
     </Container>

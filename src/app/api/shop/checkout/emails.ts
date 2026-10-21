@@ -4,7 +4,7 @@ import { COMPANY } from "@/lib/company";
 import { formatPHP } from "@/lib/utils";
 
 export type ShopItem = { name: string; cans: number; deliveries: number; price: number; mix: Record<string, number> };
-export type PassItem = { kind: "pass" | "paddle"; name: string; qty: number; price: number; sport_id?: string };
+export type PassItem = { kind: "pass" | "paddle" | "bundle" | "credit"; name: string; qty: number; price: number; sport_id?: string };
 
 export type CheckoutReceipt = {
   kind: "shop" | "passes";
@@ -28,7 +28,8 @@ export type CheckoutReceipt = {
     maps_url: string | null;
     image: string | null;
   } | null;
-  passes: Array<{ code: string; sport: string; token: string; checked_in: boolean }>;
+  passes: Array<{ code: string; sport: string; token: string; holder?: string | null; checked_in: boolean }>;
+  bundle_passes?: number;
 };
 
 export function fmtTime(t: string | null): string {
@@ -90,6 +91,31 @@ export async function sendCheckoutEmails(
     auth: { user, pass },
   });
 
+  // Bundle bought on its own (no event): passes went to the wallet.
+  if (r.kind === "passes" && !r.event) {
+    const n = Number(r.bundle_passes ?? 0);
+    await transport.sendMail({
+      from: `"${COMPANY.brandName}" <${user}>`,
+      to: r.email,
+      replyTo: COMPANY.email,
+      subject: `${n} passes added to your account (${r.reference})`,
+      html: `<div style="font-family:Helvetica,Arial,sans-serif;color:#1A1A2E;max-width:520px">
+  <h2 style="margin:0 0 4px">Thanks, ${esc(r.name.split(" ")[0])}!</h2>
+  <p style="margin:0 0 16px;color:#5C5C6E">${n} event passes are in your NotJust account (${r.reference}, ${formatPHP(r.total)}). Use them on any event, for you or a friend. They never expire.</p>
+  <p style="margin:20px 0"><a href="${site()}/events" style="background:#A62655;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">Find an event</a></p></div>`,
+      text: `${n} event passes are in your NotJust account (${r.reference}). Book any event: ${site()}/events`,
+    });
+    if (!teamCopy) return;
+    await transport.sendMail({
+      from: `"${COMPANY.brandName} Website" <${user}>`,
+      to: COMPANY.email,
+      subject: `🎟️ Pass bundle ${r.reference} — ${formatPHP(r.total)} (verify payment)`,
+      text: `${r.name} (${r.email}) bought ${n} passes. Screenshot is waiting in Website studio → Orders.
+${site()}/dashboard/website/orders`,
+    });
+    return;
+  }
+
   if (r.kind === "passes" && r.event) {
     const e = r.event;
     const when = `${fmtDate(e.date)}${e.start_time ? ", " + fmtTime(e.start_time) : ""}${e.end_time ? " – " + fmtTime(e.end_time) : ""}`;
@@ -112,7 +138,8 @@ export async function sendCheckoutEmails(
       html,
       text: `You're in! ${r.reference}: ${e.name}, ${when} at ${e.venue ?? ""}. Your QR passes: ${link}`,
     });
-    if (!teamCopy) return;
+    // Wallet-only bookings have nothing to verify.
+    if (!teamCopy || r.total === 0) return;
     await transport.sendMail({
       from: `"${COMPANY.brandName} Website" <${user}>`,
       to: COMPANY.email,

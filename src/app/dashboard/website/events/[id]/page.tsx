@@ -15,7 +15,7 @@ export default async function EditEventPage({ params }: { params: { id: string }
     loadEditorContext(supabase),
     supabase
       .from("tickets")
-      .select("id, external_id, holder_name, buyer_email, ticket_type_name, event_sport_id, pass_token, checked_in_at, checked_in_by_name, notes, web_checkout_id")
+      .select("id, external_id, holder_name, holder_email, holder_user_id, buyer_name, buyer_email, ticket_type_name, event_sport_id, pass_token, checked_in_at, checked_in_by_name, notes, web_checkout_id")
       .eq("event_id", params.id)
       .is("deleted_at", null)
       .order("created_at"),

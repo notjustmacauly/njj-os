@@ -72,7 +72,8 @@ export function SignOutButton() {
 }
 
 /** Prefill checkout fields from the signed-in customer's profile (no-op for guests). */
-export function useMemberPrefill(apply: (p: { name: string; email: string; phone: string }) => void) {
+export type MemberPrefill = { name: string; email: string; phone: string; wallet: number; confirmed: boolean };
+export function useMemberPrefill(apply: (p: MemberPrefill) => void) {
   const applied = React.useRef(false);
   React.useEffect(() => {
     let alive = true;
@@ -85,8 +86,8 @@ export function useMemberPrefill(apply: (p: { name: string; email: string; phone
       const { data } = await supabase.rpc("member_me");
       if (!alive || !data || applied.current) return;
       applied.current = true;
-      const me = data as { email: string; full_name: string | null; phone: string | null };
-      apply({ name: me.full_name ?? "", email: me.email ?? "", phone: me.phone ?? "" });
+      const me = data as { email: string; full_name: string | null; phone: string | null; wallet?: number; email_confirmed?: boolean };
+      apply({ name: me.full_name ?? "", email: me.email ?? "", phone: me.phone ?? "", wallet: Number(me.wallet ?? 0), confirmed: !!me.email_confirmed });
     })();
     return () => {
       alive = false;

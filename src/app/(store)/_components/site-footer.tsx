@@ -8,6 +8,7 @@ const LINKS: Array<{ label: string; href: string }> = [
   { label: "Home", href: "/" },
   { label: "Shop", href: "/shop" },
   { label: "Events", href: "/events" },
+  { label: "Pass bundles", href: "/passes" },
   { label: "Community", href: "/#community" },
   { label: "Leaderboard", href: "/leaderboard" },
   { label: "Partners", href: "/#partners" },

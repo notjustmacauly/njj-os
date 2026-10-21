@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn, formatPHP } from "@/lib/utils";
 import type { PublicEvent } from "../../_components/events";
@@ -51,6 +52,12 @@ export function PassPicker({ event }: { event: PublicEvent }) {
         <span className="font-display text-4xl font-semibold tracking-[-0.03em] tabular-nums text-s-fg">{formatPHP(price)}</span>
         <span className="text-sm text-s-muted">per pass, one sport</span>
       </div>
+      <p className="mt-1 text-sm text-s-muted">
+        Same price at every event. Play often?{" "}
+        <Link href="/passes" className="font-semibold text-s-fg underline underline-offset-4">
+          Save with a pass bundle
+        </Link>
+      </p>
 
       {event.sports.length === 0 ? (
         <p className="mt-5 text-s-muted">Passes open soon.</p>
@@ -88,7 +95,7 @@ export function PassPicker({ event }: { event: PublicEvent }) {
           <Btn onClick={go} disabled={!passes} arrow={passes > 0} className={cn("mt-5 w-full", passes > 0 && "justify-between")}>
             {passes ? `Get ${passes} pass${passes === 1 ? "" : "es"}` : "Choose a sport"}
           </Btn>
-          <p className="mt-3 text-xs text-s-muted text-center">QR passes are emailed right after payment.</p>
+          <p className="mt-3 text-xs text-s-muted text-center">Booking for friends too? Add their names at checkout. QR passes are emailed right away.</p>
         </>
       )}
     </div>

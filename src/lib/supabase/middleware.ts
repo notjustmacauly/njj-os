@@ -58,6 +58,7 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/shop") ||
     path.startsWith("/events") ||
     path.startsWith("/leaderboard") ||
+    path.startsWith("/passes") ||
     // Customer accounts: sign-in pages are public; /account itself checks the session.
     path.startsWith("/account");
 

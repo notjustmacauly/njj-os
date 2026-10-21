@@ -14,6 +14,9 @@ function LoginForm() {
   const [password, setPassword] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(params.get("error"));
+  // Only same-site paths (no protocol-relative "//evil" redirects).
+  const nextRaw = params.get("next") ?? "";
+  const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/account";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,13 +35,13 @@ function LoginForm() {
             : err.message,
       );
     }
-    router.push("/account");
+    router.push(next);
     router.refresh();
   }
 
   return (
     <AuthShell title="Sign in" lede="See your passes, orders and deliveries in one place.">
-      <GoogleButton />
+      <GoogleButton next={next} />
       <OrDivider />
       <form onSubmit={submit} className="grid gap-5" noValidate>
         <Field label="Email">

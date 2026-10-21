@@ -114,13 +114,16 @@ export function ConfirmingOverlay() {
  * the "confirming" moment on screen for at least ~1.8 s. Returns the order
  * token or throws a shopper-readable message.
  */
-export async function submitWithProof(endpoint: string, payload: unknown, file: File): Promise<string> {
+export async function submitWithProof(endpoint: string, payload: unknown, file: File | null): Promise<string> {
   const started = Date.now();
-  const upload = await shrinkImage(file);
-  if (upload.size > 5.5 * 1024 * 1024) throw new Error("That image is too large. Send a regular screenshot instead.");
   const body = new FormData();
   body.append("payload", JSON.stringify(payload));
-  body.append("proof", upload);
+  // No file = nothing to pay (e.g. passes from the wallet).
+  if (file) {
+    const upload = await shrinkImage(file);
+    if (upload.size > 5.5 * 1024 * 1024) throw new Error("That image is too large. Send a regular screenshot instead.");
+    body.append("proof", upload);
+  }
   let res: Response;
   try {
     res = await fetch(endpoint, { method: "POST", body });
