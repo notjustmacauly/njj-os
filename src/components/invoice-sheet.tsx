@@ -37,7 +37,12 @@ export type InvoiceView = {
 
 export function InvoiceSheet({ data }: { data: InvoiceView }) {
   const { bill, partner, lines, adjustments } = data;
+  // Legal bill-to name for the invoice; the partner's own name is the
+  // branch/location label — shown underneath so two sites sharing one
+  // registered business name are told apart.
   const billToName = partner.registered_business_name || partner.name || "—";
+  const branchName =
+    partner.name && partner.name !== partner.registered_business_name ? partner.name : null;
 
   return (
     <div className="max-w-3xl mx-auto my-6 bg-white border border-border rounded-xl shadow-card overflow-hidden print:my-0 print:border-0 print:shadow-none print:rounded-none">
@@ -75,6 +80,7 @@ export function InvoiceSheet({ data }: { data: InvoiceView }) {
           <div>
             <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft mb-1">Bill to</div>
             <div className="font-semibold text-ink">{billToName}</div>
+            {branchName ? <div className="text-ink">{branchName}</div> : null}
             {partner.tin ? <div className="text-inkSoft">TIN: {partner.tin}</div> : null}
             {partner.address ? <div className="text-inkSoft whitespace-pre-line">{partner.address}</div> : null}
             {partner.email ? <div className="text-inkSoft">{partner.email}</div> : null}
