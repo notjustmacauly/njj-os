@@ -82,12 +82,16 @@ function phToday(): string {
 export function TasksClient({
   currentUserId,
   canAssign,
+  canManageAll = false,
   tasks,
   members,
   templates,
 }: {
   currentUserId: string;
   canAssign: boolean;
+  // Can manage ANY task (edit/delete/status on tasks they don't own) + recurring
+  // templates. Marketing can assign but only manages its own tasks.
+  canManageAll?: boolean;
   tasks: TaskRow[];
   members: Member[];
   templates: TaskTemplate[];
@@ -146,7 +150,7 @@ export function TasksClient({
           <p className="text-sm text-inkSoft mt-1">Your portfolio, the team&rsquo;s operations, and marketing — all in one place.</p>
         </div>
         <div className="flex gap-2">
-          {canAssign ? (
+          {canManageAll ? (
             <Button variant="ghost" onClick={() => setShowRecurring(true)}><Repeat className="w-4 h-4 mr-1.5" /> Recurring</Button>
           ) : null}
           <Button onClick={startNew}><Plus className="w-4 h-4" /> {newLabel}</Button>
@@ -223,6 +227,7 @@ export function TasksClient({
           members={members}
           currentUserId={currentUserId}
           canAssign={canAssign}
+          canManageAll={canManageAll}
           nameOf={nameOf}
           onClose={() => setOpenTask(null)}
         />
@@ -467,9 +472,9 @@ function TaskFormModal({
 type Comment = { id: string; author_user_id: string; body: string; created_at: string };
 
 function TaskDetailModal({
-  task, members, currentUserId, canAssign, nameOf, onClose,
+  task, members, currentUserId, canAssign, canManageAll = false, nameOf, onClose,
 }: {
-  task: TaskRow; members: Member[]; currentUserId: string; canAssign: boolean;
+  task: TaskRow; members: Member[]; currentUserId: string; canAssign: boolean; canManageAll?: boolean;
   nameOf: (id: string | null) => string; onClose: () => void;
 }) {
   const router = useRouter();
@@ -484,9 +489,11 @@ function TaskDetailModal({
   const [acked, setAcked] = React.useState<string | null>(task.acknowledged_at);
 
   const deleted = !!task.deleted_at;
-  const canChangeStatus = !deleted && (canAssign || task.assigned_to_user_id === currentUserId || task.assigned_by_user_id === currentUserId);
-  const canEdit = !deleted && (canAssign || task.assigned_by_user_id === currentUserId || task.assigned_to_user_id === currentUserId);
-  const canDelete = canAssign || task.assigned_by_user_id === currentUserId || task.assigned_to_user_id === currentUserId;
+  // Edit/status/delete: managers on any task; everyone else only on tasks they
+  // created or are assigned (matches what the RPCs permit).
+  const canChangeStatus = !deleted && (canManageAll || task.assigned_to_user_id === currentUserId || task.assigned_by_user_id === currentUserId);
+  const canEdit = !deleted && (canManageAll || task.assigned_by_user_id === currentUserId || task.assigned_to_user_id === currentUserId);
+  const canDelete = canManageAll || task.assigned_by_user_id === currentUserId || task.assigned_to_user_id === currentUserId;
   const canAck = !deleted && !task.is_private && task.assigned_to_user_id === currentUserId && !acked;
 
   React.useEffect(() => {

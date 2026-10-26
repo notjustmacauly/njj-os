@@ -20,7 +20,10 @@ export default async function TasksPage() {
   const role = roleRow?.role as Role | null;
   if (!role || !TRACKER_ROLES.includes(role)) redirect("/dashboard");
 
-  const canAssign = role === "owner" || role === "partner" || role === "manager";
+  // Marketing (Chrissia, Alex) can now create + assign tasks; managers+ can also
+  // manage anyone's tasks and set up recurring templates.
+  const canAssign = role === "owner" || role === "partner" || role === "manager" || role === "marketing";
+  const canManageAll = role === "owner" || role === "partner" || role === "manager";
 
   const [{ data: tasks }, { data: members }, templatesRes] = await Promise.all([
     supabase
@@ -30,7 +33,7 @@ export default async function TasksPage() {
       )
       .order("created_at", { ascending: false }),
     supabase.rpc("list_team_names"),
-    canAssign
+    canManageAll
       ? supabase
           .from("task_templates")
           .select("id, board, title, description, assigned_to_user_id, priority, cadence, weekday, day_of_month, lead_days, active")
@@ -43,6 +46,7 @@ export default async function TasksPage() {
     <TasksClient
       currentUserId={user.id}
       canAssign={canAssign}
+      canManageAll={canManageAll}
       tasks={(tasks ?? []) as TaskRow[]}
       members={(members ?? []) as Member[]}
       templates={(templatesRes.data ?? []) as TaskTemplate[]}
