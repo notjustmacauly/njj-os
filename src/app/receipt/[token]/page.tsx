@@ -1,4 +1,6 @@
 import Image from "next/image";
+import { headers } from "next/headers";
+import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
 import { COMPANY } from "@/lib/company";
 import { formatPHP, formatDate } from "@/lib/utils";
@@ -12,26 +14,18 @@ type Receipt = {
     order_date: string | null;
     delivery_date: string | null;
     channel: string | null;
+    payment_status: string | null;
+    fulfillment_status: string | null;
     delivery_fee: number | string | null;
     discount: number | string | null;
     subtotal: number | string | null;
     total: number | string | null;
   };
   partner: { name: string | null; registered_business_name: string | null };
-  items: Array<{
-    sku_code: string;
-    sku_name: string;
-    qty: number;
-    unit_price: number | string;
-    subtotal: number | string;
-  }>;
+  items: Array<{ sku_code: string; sku_name: string; qty: number; unit_price: number | string; subtotal: number | string }>;
 };
 
-export default async function DeliveryReceiptPage({
-  params,
-}: {
-  params: { token: string };
-}) {
+export default async function DeliveryReceiptPage({ params }: { params: { token: string } }) {
   const supabase = await createClient();
   const { data } = await supabase.rpc("get_delivery_receipt", { p_token: params.token });
   const receipt = (data ?? null) as Receipt | null;
@@ -41,45 +35,71 @@ export default async function DeliveryReceiptPage({
       <div className="min-h-screen bg-cream flex items-center justify-center p-6">
         <div className="text-center">
           <p className="text-lg font-semibold text-ink">Delivery not found</p>
-          <p className="text-sm text-inkSoft mt-1">
-            This link may be expired or incorrect. Please contact {COMPANY.email}.
-          </p>
+          <p className="text-sm text-inkSoft mt-1">This link may be expired or incorrect. Please contact {COMPANY.email}.</p>
         </div>
       </div>
     );
   }
 
   const o = receipt.order;
-  // Legal name is the bill-to; the partner's own name is the branch/location —
-  // shown underneath so two sites sharing a registered name are told apart.
   const legalName = receipt.partner.registered_business_name || receipt.partner.name || "Customer";
   const branch =
-    receipt.partner.name && receipt.partner.name !== receipt.partner.registered_business_name
-      ? receipt.partner.name
-      : null;
+    receipt.partner.name && receipt.partner.name !== receipt.partner.registered_business_name ? receipt.partner.name : null;
+  const paid = o.payment_status === "Paid";
+
+  // Verify QR → this same page (live digital record + status).
+  const h = headers();
+  const host = h.get("host") ?? "";
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  const selfUrl = `${proto}://${host}/receipt/${params.token}`;
+  const qrSvg = await QRCode.toString(selfUrl, {
+    type: "svg", margin: 0, width: 120, color: { dark: "#121212", light: "#ffffff" },
+  });
 
   return (
     <div className="min-h-screen bg-cream py-8 px-4 print:bg-white print:p-0">
-      {/* Prints on whatever small sheet you select — A6 or 4x6 in (quarter of
-          A4). `size: auto` follows the printer's chosen paper; the slip fills it. */}
+      {/* Prints on whatever small sheet you select — A6 or 4x6 in (quarter of A4). */}
       <style>{`@media print { @page { size: auto; margin: 5mm; } html, body { background: #fff; } }`}</style>
 
       <div className="mx-auto flex justify-center mb-3 print:hidden">
         <PrintButton />
       </div>
 
-      {/* The slip. ~A6 width on screen; fills the A6 page on print. */}
+      {/* Online-only status + how-to-pay (not printed on the slip). */}
+      <div className="print:hidden mx-auto w-[105mm] max-w-full mb-3 space-y-2">
+        <div className="flex items-center gap-2 text-xs">
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${paid ? "bg-greenBg text-green" : "bg-yellowBg text-yellow"}`}>
+            Payment: {o.payment_status ?? "—"}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold bg-creamDk text-inkSoft">
+            {o.fulfillment_status ?? "—"}
+          </span>
+        </div>
+        {!paid ? (
+          <div className="bg-white border border-border rounded-md p-3 text-xs">
+            <div className="font-semibold text-ink mb-2">How to pay</div>
+            <div className="flex gap-3">
+              {COMPANY.payQrSrc ? (
+                <Image src={COMPANY.payQrSrc} alt="Payment QR" width={96} height={96} className="w-24 h-24 object-contain shrink-0" />
+              ) : null}
+              <div className="space-y-1.5">
+                {COMPANY.paymentAccounts.map((a) => (
+                  <div key={a.accountNumber}>
+                    <div className="font-medium text-ink">{a.label} · {a.bank}</div>
+                    <div className="text-inkSoft">{a.accountName} — <span className="font-mono">{a.accountNumber}</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* The printable slip. */}
       <div className="mx-auto bg-white text-ink w-[105mm] max-w-full border border-border rounded-md p-4 print:border-0 print:rounded-none print:p-0 print:w-auto text-[11px] leading-snug">
         {/* Header: logo + company, then title + order no */}
         <div className="flex items-center justify-between gap-2 pb-2">
-          <Image
-            src={COMPANY.logoSrc}
-            alt={COMPANY.brandName}
-            width={300}
-            height={150}
-            priority
-            className="w-24 h-auto"
-          />
+          <Image src={COMPANY.logoSrc} alt={COMPANY.brandName} width={300} height={150} priority className="w-24 h-auto" />
           <div className="text-right text-[9px] text-inkSoft leading-tight">
             {COMPANY.tin ? <div>TIN: {COMPANY.tin}</div> : null}
             {COMPANY.email ? <div>{COMPANY.email}</div> : null}
@@ -156,9 +176,15 @@ export default async function DeliveryReceiptPage({
           </div>
         </div>
 
-        <div className="text-center text-[9px] text-inkSoft mt-3">
-          {COMPANY.brandName} · {COMPANY.email}
+        {/* Verify QR */}
+        <div className="mt-3 pt-2 border-t border-border flex items-center gap-2">
+          <div className="w-[18mm] h-[18mm] shrink-0" dangerouslySetInnerHTML={{ __html: qrSvg }} />
+          <div className="text-[9px] text-inkSoft">
+            Scan to view &amp; verify this order online — shows the live payment status.
+          </div>
         </div>
+
+        <div className="text-center text-[9px] text-inkSoft mt-2">{COMPANY.brandName} · {COMPANY.email}</div>
       </div>
     </div>
   );
