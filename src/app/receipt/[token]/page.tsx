@@ -1,7 +1,7 @@
-import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { COMPANY } from "@/lib/company";
 import { formatPHP, formatDate } from "@/lib/utils";
+import { PrintedAt, PrintButton } from "./print-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -49,101 +49,107 @@ export default async function DeliveryReceiptPage({
   }
 
   const o = receipt.order;
-  const partnerName = receipt.partner.registered_business_name || receipt.partner.name || "Customer";
+  // Legal name is the bill-to; the partner's own name is the branch/location —
+  // shown underneath so two sites sharing a registered name are told apart.
+  const legalName = receipt.partner.registered_business_name || receipt.partner.name || "Customer";
+  const branch =
+    receipt.partner.name && receipt.partner.name !== receipt.partner.registered_business_name
+      ? receipt.partner.name
+      : null;
 
   return (
-    <div className="min-h-screen bg-cream py-10 px-4 print:bg-white print:py-0">
-      <div className="max-w-2xl mx-auto bg-white border border-border rounded-xl shadow-card overflow-hidden print:border-0 print:shadow-none">
-        {/* Brand band */}
-        <div className="bg-salmon">
-          <Image
-            src={COMPANY.logoSrc}
-            alt={COMPANY.brandName}
-            width={480}
-            height={240}
-            priority
-            className="w-40 h-auto p-4"
-          />
+    <div className="min-h-screen bg-cream py-8 px-4 print:bg-white print:p-0">
+      {/* A6 (quarter of A4) when printed; feed a pre-cut quarter sheet. */}
+      <style>{`@media print { @page { size: A6 portrait; margin: 6mm; } html, body { background: #fff; } }`}</style>
+
+      <div className="mx-auto flex justify-center mb-3 print:hidden">
+        <PrintButton />
+      </div>
+
+      {/* The slip. ~A6 width on screen; fills the A6 page on print. */}
+      <div className="mx-auto bg-white text-ink w-[105mm] max-w-full border border-border rounded-md p-4 print:border-0 print:rounded-none print:p-0 print:w-auto text-[11px] leading-snug">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
+          <div>
+            <div className="font-bold text-[13px] tracking-tight">DELIVERY RECEIPT</div>
+            <div className="font-mono text-[12px] font-semibold">{o.external_id ?? "—"}</div>
+          </div>
+          <div className="text-right">
+            <div className="font-bold text-ink">{COMPANY.brandName}</div>
+            {COMPANY.tin ? <div className="text-inkSoft text-[10px]">TIN: {COMPANY.tin}</div> : null}
+          </div>
         </div>
 
-        <div className="p-6 space-y-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
-                Delivery receipt
-              </div>
-              <div className="text-lg font-bold text-ink font-mono">{o.external_id ?? "—"}</div>
-            </div>
-            <div className="text-right text-sm">
-              <div className="text-inkSoft">Delivered to</div>
-              <div className="font-semibold text-ink">{partnerName}</div>
-            </div>
+        {/* Parties + dates */}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1 py-2 border-b border-border">
+          <div className="col-span-2">
+            <span className="text-inkSoft text-[10px] uppercase tracking-smallcaps">Delivered to</span>
+            <div className="font-semibold">{legalName}</div>
+            {branch ? <div>{branch}</div> : null}
           </div>
+          <div>
+            <span className="text-inkSoft text-[10px]">Order date</span>
+            <div>{formatDate(o.order_date)}</div>
+          </div>
+          <div>
+            <span className="text-inkSoft text-[10px]">Printed</span>
+            <div><PrintedAt /></div>
+          </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div className="text-xs text-inkSoft">Order date</div>
-              <div className="text-ink">{formatDate(o.order_date)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-inkSoft">Delivery date</div>
-              <div className="text-ink">{o.delivery_date ? formatDate(o.delivery_date) : "—"}</div>
-            </div>
-          </div>
+        {/* Items */}
+        <table className="w-full my-2">
+          <thead className="text-inkSoft text-[10px]">
+            <tr className="border-b border-border">
+              <th className="text-left font-semibold py-1">Item</th>
+              <th className="text-right font-semibold py-1">Qty</th>
+              <th className="text-right font-semibold py-1">Unit</th>
+              <th className="text-right font-semibold py-1">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {receipt.items.map((it, i) => (
+              <tr key={`${it.sku_code}-${i}`} className="border-b border-border/60">
+                <td className="py-1 pr-1">{it.sku_name}</td>
+                <td className="py-1 text-right font-mono tabular-nums">{it.qty}</td>
+                <td className="py-1 text-right font-mono tabular-nums">{formatPHP(it.unit_price)}</td>
+                <td className="py-1 text-right font-mono tabular-nums">{formatPHP(it.subtotal)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-          {/* Items */}
-          <div className="border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-cream text-inkSoft">
-                <tr>
-                  <th className="text-left font-semibold px-3 py-2">Item</th>
-                  <th className="text-right font-semibold px-3 py-2">Qty</th>
-                  <th className="text-right font-semibold px-3 py-2">Unit</th>
-                  <th className="text-right font-semibold px-3 py-2">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {receipt.items.map((it, i) => (
-                  <tr key={`${it.sku_code}-${i}`}>
-                    <td className="px-3 py-2 text-ink">{it.sku_name}</td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">{it.qty}</td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">{formatPHP(it.unit_price)}</td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">{formatPHP(it.subtotal)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Totals */}
+        <div className="ml-auto w-full max-w-[60mm] space-y-0.5">
+          {Number(o.delivery_fee ?? 0) > 0 ? (
+            <div className="flex justify-between text-inkSoft"><span>Delivery fee</span><span className="font-mono tabular-nums">{formatPHP(o.delivery_fee)}</span></div>
+          ) : null}
+          {Number(o.discount ?? 0) > 0 ? (
+            <div className="flex justify-between text-inkSoft"><span>Discount</span><span className="font-mono tabular-nums">− {formatPHP(o.discount)}</span></div>
+          ) : null}
+          <div className="flex justify-between font-bold border-t border-border pt-1">
+            <span>Total</span><span className="font-mono tabular-nums">{formatPHP(o.total)}</span>
           </div>
+        </div>
 
-          {/* Totals */}
-          <div className="ml-auto w-full max-w-xs text-sm space-y-1">
-            <Row label="Subtotal" value={formatPHP(o.subtotal)} />
-            {Number(o.delivery_fee ?? 0) > 0 ? (
-              <Row label="Delivery fee" value={formatPHP(o.delivery_fee)} />
-            ) : null}
-            {Number(o.discount ?? 0) > 0 ? (
-              <Row label="Discount" value={`− ${formatPHP(o.discount)}`} />
-            ) : null}
-            <div className="flex items-center justify-between border-t border-border pt-1.5 mt-1.5 font-bold text-ink">
-              <span>Total</span>
-              <span className="font-mono tabular-nums">{formatPHP(o.total)}</span>
-            </div>
+        {/* Pen fields: delivery date + signature */}
+        <div className="mt-3 pt-2 border-t border-border grid grid-cols-2 gap-x-4 gap-y-3">
+          <div>
+            <div className="h-4" />
+            <div className="border-t border-ink" />
+            <div className="text-[10px] text-inkSoft mt-0.5">Delivery date</div>
           </div>
+          <div>
+            <div className="h-4" />
+            <div className="border-t border-ink" />
+            <div className="text-[10px] text-inkSoft mt-0.5">Received by (name &amp; signature)</div>
+          </div>
+        </div>
 
-          <div className="text-center text-xs text-inkSoft pt-2 border-t border-border">
-            {COMPANY.brandName} · {COMPANY.email}
-          </div>
+        <div className="text-center text-[9px] text-inkSoft mt-3">
+          {COMPANY.brandName} · {COMPANY.email}
         </div>
       </div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between text-inkSoft">
-      <span>{label}</span>
-      <span className="font-mono tabular-nums text-ink">{value}</span>
     </div>
   );
 }

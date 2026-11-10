@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Trash2 } from "lucide-react";
+import { MoreVertical, Trash2, Printer } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ import { DeliverOrderModal, type DeliverBatchOption } from "./deliver-order-moda
 type OrderRecord = {
   id: string;
   external_id: string | null;
+  public_token: string | null;
   order_date: string;
   channel: "B2B" | "Retail" | "Online" | "Event";
   partner_id: string | null;
@@ -384,6 +385,18 @@ export function OrderDetailClient({
             </div>
           </div>
 
+          <div className="flex items-center gap-1.5 shrink-0">
+          {order.public_token ? (
+            <a
+              href={`/receipt/${order.public_token}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-cream"
+              title="Open a printable delivery receipt for this order"
+            >
+              <Printer className="w-3.5 h-3.5" /> Delivery receipt
+            </a>
+          ) : null}
           {canDelete ? (
             <div className="relative">
               <button
@@ -417,6 +430,7 @@ export function OrderDetailClient({
               ) : null}
             </div>
           ) : null}
+          </div>
         </div>
 
         {(showUpdateFulfillment || showMarkPaid) && (
