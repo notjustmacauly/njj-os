@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { COMPANY } from "@/lib/company";
 import { formatPHP, formatDate } from "@/lib/utils";
@@ -69,16 +70,24 @@ export default async function DeliveryReceiptPage({
 
       {/* The slip. ~A6 width on screen; fills the A6 page on print. */}
       <div className="mx-auto bg-white text-ink w-[105mm] max-w-full border border-border rounded-md p-4 print:border-0 print:rounded-none print:p-0 print:w-auto text-[11px] leading-snug">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
-          <div>
-            <div className="font-bold text-[13px] tracking-tight">DELIVERY RECEIPT</div>
-            <div className="font-mono text-[12px] font-semibold">{o.external_id ?? "—"}</div>
+        {/* Header: logo + company, then title + order no */}
+        <div className="flex items-center justify-between gap-2 pb-2">
+          <Image
+            src={COMPANY.logoSrc}
+            alt={COMPANY.brandName}
+            width={300}
+            height={150}
+            priority
+            className="w-24 h-auto"
+          />
+          <div className="text-right text-[9px] text-inkSoft leading-tight">
+            {COMPANY.tin ? <div>TIN: {COMPANY.tin}</div> : null}
+            {COMPANY.email ? <div>{COMPANY.email}</div> : null}
           </div>
-          <div className="text-right">
-            <div className="font-bold text-ink">{COMPANY.brandName}</div>
-            {COMPANY.tin ? <div className="text-inkSoft text-[10px]">TIN: {COMPANY.tin}</div> : null}
-          </div>
+        </div>
+        <div className="flex items-center justify-between border-b border-border pb-2">
+          <div className="font-bold text-[13px] tracking-tight">DELIVERY RECEIPT</div>
+          <div className="font-mono text-[12px] font-semibold">{o.external_id ?? "—"}</div>
         </div>
 
         {/* Parties + dates */}
