@@ -59,8 +59,9 @@ export default async function DeliveryReceiptPage({
 
   return (
     <div className="min-h-screen bg-cream py-8 px-4 print:bg-white print:p-0">
-      {/* A6 (quarter of A4) when printed; feed a pre-cut quarter sheet. */}
-      <style>{`@media print { @page { size: A6 portrait; margin: 6mm; } html, body { background: #fff; } }`}</style>
+      {/* Prints on whatever small sheet you select — A6 or 4x6 in (quarter of
+          A4). `size: auto` follows the printer's chosen paper; the slip fills it. */}
+      <style>{`@media print { @page { size: auto; margin: 5mm; } html, body { background: #fff; } }`}</style>
 
       <div className="mx-auto flex justify-center mb-3 print:hidden">
         <PrintButton />
