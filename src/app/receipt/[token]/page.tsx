@@ -178,7 +178,7 @@ export default async function DeliveryReceiptPage({ params }: { params: { token:
 
         {/* Verify QR */}
         <div className="mt-3 pt-2 border-t border-border flex items-center gap-2">
-          <div className="w-[18mm] h-[18mm] shrink-0" dangerouslySetInnerHTML={{ __html: qrSvg }} />
+          <div className="w-[22mm] h-[22mm] shrink-0 [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: qrSvg }} />
           <div className="text-[9px] text-inkSoft">
             Scan to view &amp; verify this order online — shows the live payment status.
           </div>
