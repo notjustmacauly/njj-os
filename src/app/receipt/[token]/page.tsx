@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { COMPANY } from "@/lib/company";
 import { formatPHP, formatDate } from "@/lib/utils";
 import { PrintedAt, PrintButton } from "./print-controls";
-import { AcceptDelivery } from "./accept-delivery";
+import { AcceptanceGate } from "./acceptance-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +58,11 @@ export default async function DeliveryReceiptPage({ params }: { params: { token:
     receipt.partner.name && receipt.partner.name !== receipt.partner.registered_business_name ? receipt.partner.name : null;
   const paid = o.payment_status === "Paid";
 
+  // Gate for the RECEIVER (anon scan) only — staff opening from the OS can view
+  // and print without being forced to accept.
+  const { data: { user } } = await supabase.auth.getUser();
+  const requireAccept = !user && !o.received_at;
+
   // Verify QR → this same page (live digital record + status).
   const h = headers();
   const host = h.get("host") ?? "";
@@ -72,13 +77,20 @@ export default async function DeliveryReceiptPage({ params }: { params: { token:
       {/* Prints on whatever small sheet you select — A6 or 4x6 in (quarter of A4). */}
       <style>{`@media print { @page { size: auto; margin: 5mm; } html, body { background: #fff; } }`}</style>
 
+      <AcceptanceGate
+        token={params.token}
+        orderId={o.external_id}
+        initialName={o.received_by_name}
+        initialAt={o.received_at}
+        requireAccept={requireAccept}
+      >
+
       <div className="mx-auto flex justify-center mb-3 print:hidden">
         <PrintButton />
       </div>
 
-      {/* Online-only: accept delivery + status + how-to-pay (not printed). */}
+      {/* Online-only: status + how-to-pay (not printed). */}
       <div className="print:hidden mx-auto w-[105mm] max-w-full mb-3 space-y-2">
-        <AcceptDelivery token={params.token} initialName={o.received_by_name} initialAt={o.received_at} />
         <div className="flex items-center gap-2 text-xs">
           <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${paid ? "bg-greenBg text-green" : "bg-yellowBg text-yellow"}`}>
             Payment: {o.payment_status ?? "—"}
@@ -198,16 +210,19 @@ export default async function DeliveryReceiptPage({ params }: { params: { token:
           </div>
         </div>
 
-        {/* Verify QR */}
+        {/* Accept QR */}
         <div className="mt-3 pt-2 border-t border-border flex items-center gap-2">
-          <div className="w-[15mm] h-[15mm] shrink-0 [&>svg]:w-full [&>svg]:h-full [&>svg]:block" dangerouslySetInnerHTML={{ __html: qrSvg }} />
-          <div className="text-[9px] text-inkSoft">
-            Scan to view &amp; verify this order online — shows the live payment status.
+          <div className="w-[18mm] h-[18mm] shrink-0 [&>svg]:w-full [&>svg]:h-full [&>svg]:block" dangerouslySetInnerHTML={{ __html: qrSvg }} />
+          <div>
+            <div className="font-bold text-[11px] leading-tight">SCAN TO ACCEPT THIS DELIVERY</div>
+            <div className="text-[9px] text-inkSoft mt-0.5">Receiver confirms with their name — date &amp; time are recorded automatically.</div>
           </div>
         </div>
 
         <div className="text-center text-[9px] text-inkSoft mt-2">{COMPANY.brandName} · {COMPANY.email}</div>
       </div>
+
+      </AcceptanceGate>
     </div>
   );
 }

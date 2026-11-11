@@ -61,6 +61,8 @@ type OrderRecord = {
   wpm_qty: number;
   payment_status: string;
   fulfillment_status: string;
+  received_by_name: string | null;
+  received_at: string | null;
   notes: string | null;
 };
 
@@ -333,7 +335,10 @@ export function OrderDetailClient({
 
   // What action buttons to show
   const showUpdateFulfillment =
-    canManage && order.fulfillment_status !== "Delivered" && order.fulfillment_status !== "Cancelled";
+    canManage &&
+    order.fulfillment_status !== "Delivered" &&
+    order.fulfillment_status !== "Received" &&
+    order.fulfillment_status !== "Cancelled";
   const showDeliver = showUpdateFulfillment && items.length > 0;
   // Non-B2B can be marked paid any time. B2B can be marked paid directly only
   // when the partner is flagged pays-on-delivery AND the order is delivered
@@ -383,6 +388,16 @@ export function OrderDetailClient({
               </span>
               <StatusBadge status={order.payment_status} />
             </div>
+            {order.received_at ? (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-greenBg/60 border border-green/30 px-2.5 py-1 text-xs text-ink">
+                <span className="text-green font-semibold">✓ Received</span>
+                <span>by {order.received_by_name}</span>
+                <span className="text-inkSoft">·</span>
+                <span className="text-inkSoft">
+                  {new Date(order.received_at).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                </span>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">

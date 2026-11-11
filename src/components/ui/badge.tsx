@@ -61,6 +61,8 @@ const STATUS_TONE: Record<string, Tone> = {
   paid: "green",
   Delivered: "green",
   delivered: "green",
+  Received: "berry",
+  received: "berry",
   "Checked in": "green",
   checked_in: "green",
   Active: "green",
