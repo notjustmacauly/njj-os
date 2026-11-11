@@ -5,8 +5,17 @@ import { createClient } from "@/lib/supabase/server";
 import { COMPANY } from "@/lib/company";
 import { formatPHP, formatDate } from "@/lib/utils";
 import { PrintedAt, PrintButton } from "./print-controls";
+import { AcceptDelivery } from "./accept-delivery";
 
 export const dynamic = "force-dynamic";
+
+function fmtDateTime(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-US", {
+    timeZone: "Asia/Manila",
+    month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
 
 type Receipt = {
   order: {
@@ -16,6 +25,8 @@ type Receipt = {
     channel: string | null;
     payment_status: string | null;
     fulfillment_status: string | null;
+    received_by_name: string | null;
+    received_at: string | null;
     delivery_fee: number | string | null;
     discount: number | string | null;
     subtotal: number | string | null;
@@ -65,8 +76,9 @@ export default async function DeliveryReceiptPage({ params }: { params: { token:
         <PrintButton />
       </div>
 
-      {/* Online-only status + how-to-pay (not printed on the slip). */}
+      {/* Online-only: accept delivery + status + how-to-pay (not printed). */}
       <div className="print:hidden mx-auto w-[105mm] max-w-full mb-3 space-y-2">
+        <AcceptDelivery token={params.token} initialName={o.received_by_name} initialAt={o.received_at} />
         <div className="flex items-center gap-2 text-xs">
           <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${paid ? "bg-greenBg text-green" : "bg-yellowBg text-yellow"}`}>
             Payment: {o.payment_status ?? "—"}
@@ -170,9 +182,19 @@ export default async function DeliveryReceiptPage({ params }: { params: { token:
             <div className="text-[10px] text-inkSoft mt-0.5">Delivery date</div>
           </div>
           <div>
-            <div className="h-4" />
-            <div className="border-t border-ink" />
-            <div className="text-[10px] text-inkSoft mt-0.5">Received by (name &amp; signature)</div>
+            {o.received_at ? (
+              <>
+                <div className="font-semibold leading-tight">{o.received_by_name}</div>
+                <div className="border-t border-ink mt-1" />
+                <div className="text-[10px] text-green mt-0.5">✓ Accepted · {fmtDateTime(o.received_at)}</div>
+              </>
+            ) : (
+              <>
+                <div className="h-4" />
+                <div className="border-t border-ink" />
+                <div className="text-[10px] text-inkSoft mt-0.5">Received by (name &amp; signature)</div>
+              </>
+            )}
           </div>
         </div>
 
