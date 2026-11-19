@@ -71,6 +71,7 @@ export type BoardData = {
     status: "open" | "closed" | "finalized" | "cancelled";
     ruleset: "casual" | "rally_rank";
     title: string | null;
+    target_points?: number | null;
     format: "classic" | "team" | "double" | "rivalry" | null;
     event_id: string | null;
     events: { name: string } | null;
@@ -113,6 +114,7 @@ export function GameBoard({ data }: { data: BoardData }) {
   const isTeam = ranked && session.format === "team";
   const open = session.status === "open";
   const need = session.team_size * 2;
+  const points = session.target_points === 31 ? 31 : 21;
   const [busy, setBusy] = React.useState(false);
   const [selected, setSelected] = React.useState<Loc | null>(null);
   const [shuffleIdx, setShuffleIdx] = React.useState<Record<string, number>>({});
@@ -174,6 +176,11 @@ export function GameBoard({ data }: { data: BoardData }) {
     if (m.winner === "a") squadRecord[sa].w++;
     else squadRecord[sb].w++;
   }
+
+  // Squad table (team nights), same order as rr_finalize_session: win rate, point diff per game, wins.
+  const squadTable = SQUADS.map((sq) => ({ squad: sq, ...squadRecord[sq] }))
+    .filter((r) => data.roster.some((p) => p.squad === r.squad))
+    .sort((x, y) => (y.g ? y.w / y.g : -1) - (x.g ? x.w / x.g : -1) || (y.g ? y.pd / y.g : 0) - (x.g ? x.pd / x.g : 0) || y.w - x.w);
 
   // Opening the board tops up the Up next list (one lineup per court).
   const needsFill = open && general.length >= need && queued.length < session.courts;
@@ -489,6 +496,29 @@ export function GameBoard({ data }: { data: BoardData }) {
     setFinalizing(false);
   }
 
+  /** Points to win a game (21 or 31) for this session. */
+  async function setPoints(t: number) {
+    const { error } = await createClient().from("game_sessions").update({ target_points: t }).eq("id", session.id);
+    if (error) throw new Error(error.message);
+  }
+
+  /** Team nights: rebuild a waiting game as a different squad matchup (fairest available players). */
+  async function rematch(m: Match, mu: [Squad, Squad]) {
+    const free = new Set([...general.map((p) => p.id), ...m.team_a, ...m.team_b]);
+    const pool = data.roster.filter((r) => r.active && free.has(r.player_id)).map(fair);
+    const pickTwo = (sq: Squad) => {
+      const f = fairOrder(pool.filter((p) => p.squad === sq));
+      if (f.length < 2) return null;
+      const mate = f[0].pair_no != null ? f.find((p) => p !== f[0] && p.pair_no === f[0].pair_no) : undefined;
+      return [f[0], mate ?? f[1]].map((p) => p.id);
+    };
+    const a = pickTwo(mu[0]);
+    const b = pickTwo(mu[1]);
+    if (!a || !b) throw new Error(`Not enough free players in squad ${!a ? mu[0] : mu[1]} right now.`);
+    const { error } = await createClient().from("game_matches").update({ team_a: a, team_b: b }).eq("id", m.id).eq("status", "queued");
+    if (error) throw new Error(error.message);
+  }
+
   /** Add or drop a court mid-session. A court with a game on can't be dropped. */
   async function setCourts(n: number) {
     if (n < 1 || n > 8) return;
@@ -567,8 +597,24 @@ export function GameBoard({ data }: { data: BoardData }) {
         )}
         {ranked ? (
           <span className="rounded-full bg-cream ring-1 ring-border px-2.5 py-0.5 text-xs text-inkSoft">
-            Games to 21 · LP = {session.format === "double" ? "2 × " : ""}(20 + 80 × win rate)
+            LP = {session.format === "double" ? "2 × " : ""}(20 + 80 × win rate)
           </span>
+        ) : null}
+        {ranked ? (
+          <div className="inline-flex items-center gap-0.5 rounded-full bg-white p-0.5 ring-1 ring-border" title="Points to win a game">
+            <span className="pl-2 pr-1 text-xs text-inkSoft">Games to</span>
+            {[21, 31].map((t) => (
+              <button
+                key={t}
+                type="button"
+                disabled={!open || busy}
+                onClick={() => t !== points && run(() => setPoints(t), `Games to ${t}`, { noRefill: true })}
+                className={cn("rounded-full px-2.5 py-1 text-xs font-bold tabular-nums transition", points === t ? "bg-ink text-white" : "text-inkSoft hover:text-ink")}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         ) : null}
         {open ? (
           <div className="inline-flex items-center rounded-full bg-white ring-1 ring-border">
@@ -836,6 +882,24 @@ export function GameBoard({ data }: { data: BoardData }) {
                         <Shuffle className="w-3.5 h-3.5" /> Reshuffle
                       </button>
                     ) : null}
+                    {open && isTeam ? (
+                      <div className="flex gap-0.5 rounded-full bg-white p-0.5 ring-1 ring-border" title="Change which squads play this game">
+                        {MATCHUPS.map((mu) => {
+                          const cur = matchupKey(squadOf(m.team_a[0]), squadOf(m.team_b[0])) === matchupKey(mu[0], mu[1]);
+                          return (
+                            <button
+                              key={mu.join("")}
+                              type="button"
+                              disabled={busy || cur}
+                              onClick={() => run(() => rematch(m, mu), `Now ${mu[0]} v ${mu[1]}`, { noRefill: true })}
+                              className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold transition", cur ? "bg-ink text-white" : "text-inkSoft hover:text-ink")}
+                            >
+                              {mu[0]}v{mu[1]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="mt-2 flex flex-col items-center gap-0.5">
                     <div className="flex flex-wrap justify-center gap-1">
@@ -877,6 +941,28 @@ export function GameBoard({ data }: { data: BoardData }) {
 
         {/* Side panel (a row of cards under the courts on narrower screens) */}
         <div className={cn("grid gap-4 content-start md:grid-cols-2", session.courts >= 3 ? "xl:grid-cols-3 2xl:grid-cols-1" : "xl:grid-cols-1")}>
+          {isTeam && data.roster.some((r) => r.squad) ? (
+            <section className="rounded-3xl bg-white ring-1 ring-border shadow-card p-4">
+              <div className="flex items-baseline justify-between">
+                <h2 className="font-serif font-bold text-lg text-ink">Squad standings</h2>
+                <span className="text-xs text-inkSoft">{done.length} games</span>
+              </div>
+              <ol className="mt-2 grid gap-1.5">
+                {squadTable.map((r, i) => (
+                  <li key={r.squad} className={cn("flex items-center gap-3 rounded-xl px-3 py-2", i === 0 && r.g ? "bg-[#FDF1DC]" : "bg-cream/60")}>
+                    <span className={cn("w-5 text-center font-bold tabular-nums", i === 0 && r.g ? "text-[#BA7517]" : "text-inkSoft")}>{i + 1}</span>
+                    <span className="flex-1 font-serif font-bold text-ink">Squad {r.squad}</span>
+                    <span className="text-xs text-inkSoft tabular-nums">
+                      {r.w}W {r.g - r.w}L · {r.g ? Math.round((100 * r.w) / r.g) : 0}% · {r.pd > 0 ? "+" : ""}
+                      {r.pd}
+                    </span>
+                    <span className="w-12 text-right text-xs font-bold tabular-nums text-ink">{r.g ? (i === 0 ? "+10 LP" : i === 1 ? "+5 LP" : "") : ""}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-2 text-[11px] text-inkSoft">Ranked by win rate, then point difference. Top squad +10 LP, second +5 (added at finalize).</p>
+            </section>
+          ) : null}
           {open ? (
             <AddPlayers
               master={data.master}
@@ -1030,6 +1116,7 @@ export function GameBoard({ data }: { data: BoardData }) {
 
       <ScoreModal
         target={scoring}
+        points={points}
         ranked={ranked}
         nameOf={nameOf}
         busy={busy}

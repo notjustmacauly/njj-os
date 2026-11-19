@@ -45,11 +45,13 @@ export function tierOf(rating: number): Skill {
 }
 
 // ---------------------------------------------------------------- scores
-/** Badminton: 21, win by 2, cap 30. "Timed" = time called, any lead counts. */
-export function validScore(winner: number, loser: number, finish: "target" | "timed"): boolean {
-  if (!Number.isInteger(winner) || !Number.isInteger(loser) || loser < 0 || winner <= loser || winner > 30) return false;
+/** Badminton: first to `target` (21 or 31), win by 2, capped at target + 9 (30 or 40). "Timed" = time called, any lead counts. */
+export const scoreCap = (target = 21) => target + 9;
+export function validScore(winner: number, loser: number, finish: "target" | "timed", target = 21): boolean {
+  const cap = scoreCap(target);
+  if (!Number.isInteger(winner) || !Number.isInteger(loser) || loser < 0 || winner <= loser || winner > cap) return false;
   if (finish === "timed") return true;
-  return (winner === 21 && loser <= 19) || (winner >= 22 && winner <= 30 && loser === winner - 2) || (winner === 30 && loser === 29);
+  return (winner === target && loser <= target - 2) || (winner > target && winner <= cap && loser === winner - 2) || (winner === cap && loser === cap - 1);
 }
 
 // ---------------------------------------------------------------- league points

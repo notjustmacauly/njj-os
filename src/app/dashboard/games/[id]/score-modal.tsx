@@ -5,7 +5,7 @@ import { Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
-import { validScore } from "../logic";
+import { scoreCap, validScore } from "../logic";
 import { shortName } from "./player-token";
 
 export type ScoreTarget = {
@@ -20,12 +20,13 @@ export type ScoreTarget = {
 };
 
 /**
- * Quick score pad. Staff tap Won on a side, the winner gets 21, then one tap
+ * Quick score pad. Staff tap Won on a side, the winner gets 21 (or 31), then one tap
  * on the loser's score. Rally & Rank needs a valid score; casual sessions may
  * save the winner only.
  */
 export function ScoreModal({
   target,
+  points = 21,
   ranked,
   nameOf,
   busy,
@@ -33,6 +34,8 @@ export function ScoreModal({
   onSave,
 }: {
   target: ScoreTarget | null;
+  /** Points to win (21 or 31). */
+  points?: number;
   ranked: boolean;
   nameOf: (id: string) => string;
   busy: boolean;
@@ -40,7 +43,8 @@ export function ScoreModal({
   onSave: (winner: "a" | "b", scoreA: number | null, scoreB: number | null, finish: "target" | "timed") => void;
 }) {
   const [winner, setWinner] = React.useState<"a" | "b">("a");
-  const [w, setW] = React.useState("21");
+  const cap = scoreCap(points);
+  const [w, setW] = React.useState(String(points));
   const [l, setL] = React.useState("");
   const [timed, setTimed] = React.useState(false);
   const loserRef = React.useRef<HTMLInputElement>(null);
@@ -50,7 +54,7 @@ export function ScoreModal({
     setWinner(target.winner);
     const ws = target.winner === "a" ? target.scoreA : target.scoreB;
     const ls = target.winner === "a" ? target.scoreB : target.scoreA;
-    setW(ws != null ? String(ws) : "21");
+    setW(ws != null ? String(ws) : String(points));
     setL(ls != null ? String(ls) : "");
     setTimed(target.finish === "timed");
     setTimeout(() => loserRef.current?.focus(), 50);
@@ -60,14 +64,14 @@ export function ScoreModal({
   const wn = Number(w);
   const ln = Number(l);
   const hasScore = w.trim() !== "" && l.trim() !== "";
-  const ok = hasScore && validScore(wn, ln, timed ? "timed" : "target");
+  const ok = hasScore && validScore(wn, ln, timed ? "timed" : "target", points);
   const canSave = ranked ? ok : !hasScore || wn > ln;
   const team = (side: "a" | "b") => (side === "a" ? target.teamA : target.teamB).map((id) => shortName(nameOf(id))).join(" & ");
 
-  // After deuce the winner's score follows the loser's (22–20, 23–21 … 30–29).
+  // After deuce the winner's score follows the loser's (22–20 … 30–29 for 21; 32–30 … 40–39 for 31).
   function pickLoser(n: number) {
     setL(String(n));
-    if (!timed) setW(String(n >= 20 ? Math.min(30, n + 2) : 21));
+    if (!timed) setW(String(n >= points - 1 ? Math.min(cap, n + 2) : points));
   }
 
   function save() {
@@ -82,7 +86,7 @@ export function ScoreModal({
       open
       onClose={onClose}
       title={`Court ${target.court} result`}
-      description={ranked ? "Games to 21, win by 2, up to 30." : "Score is optional for casual games."}
+      description={ranked ? `Games to ${points}, win by 2, up to ${cap}.` : "Score is optional for casual games."}
       footer={
         <div className="flex items-center justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
@@ -143,8 +147,8 @@ export function ScoreModal({
 
         <div>
           <div className="text-[11px] font-bold uppercase tracking-smallcaps text-inkSoft">Losing score</div>
-          <div className="mt-1.5 grid grid-cols-8 gap-1">
-            {Array.from({ length: 30 }, (_, n) => n).map((n) => (
+          <div className={`mt-1.5 grid gap-1 ${points > 21 ? "grid-cols-10" : "grid-cols-8"}`}>
+            {Array.from({ length: cap }, (_, n) => n).map((n) => (
               <button
                 key={n}
                 type="button"
@@ -167,7 +171,7 @@ export function ScoreModal({
 
         {hasScore && !ok && ranked ? (
           <p className="text-sm text-coral">
-            {wn <= ln ? "The winning side needs the higher score." : "Not a valid finish. 21 needs a 2 point lead (21–19), after that win by 2 up to 30–29."}
+            {wn <= ln ? "The winning side needs the higher score." : `Not a valid finish. ${points} needs a 2 point lead (${points}–${points - 2}), after that win by 2 up to ${cap}–${cap - 1}.`}
           </p>
         ) : null}
         <button type="submit" className="hidden" />
