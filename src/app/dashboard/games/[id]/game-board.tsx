@@ -137,7 +137,9 @@ export function GameBoard({ data }: { data: BoardData }) {
   const squadOf = (id: string) => rosterById.get(id)?.squad ?? null;
 
   const playing = data.matches.filter((m) => m.status === "playing");
-  const queued = data.matches.filter((m) => m.status === "queued");
+  // "Up next": one shared list of lineups (court 0), first = the next game on whichever court frees up.
+  const queued = data.matches.filter((m) => m.status === "queued").sort((a, b) => a.started_at.localeCompare(b.started_at) || a.id.localeCompare(b.id));
+  const freeCourts = Array.from({ length: session.courts }, (_, i) => i + 1).filter((c) => !data.matches.some((m) => m.status === "playing" && m.court === c));
   const done = data.matches.filter((m) => m.status === "done");
   const inLineup = new Set([...playing, ...queued].flatMap((m) => [...m.team_a, ...m.team_b]));
   const onCourt = new Set(playing.flatMap((m) => [...m.team_a, ...m.team_b]));
@@ -173,8 +175,8 @@ export function GameBoard({ data }: { data: BoardData }) {
     else squadRecord[sb].w++;
   }
 
-  // Opening the board fills any court that has no "next" lineup yet.
-  const needsFill = open && general.length >= need && Array.from({ length: session.courts }, (_, i) => i + 1).some((c) => !queued.some((q) => q.court === c));
+  // Opening the board tops up the Up next list (one lineup per court).
+  const needsFill = open && general.length >= need && queued.length < session.courts;
   const filledOnce = React.useRef(false);
   React.useEffect(() => {
     if (!needsFill || filledOnce.current) return;
@@ -200,7 +202,7 @@ export function GameBoard({ data }: { data: BoardData }) {
     }
   }
 
-  /** Give every court without a "next" lineup one, in fairness order (spec section 5). */
+  /** Top up the shared Up next list to one lineup per court, in fairness order (spec section 5). */
   async function refill(courts = session.courts) {
     if (!open) return;
     const supabase = createClient();
@@ -240,8 +242,8 @@ export function GameBoard({ data }: { data: BoardData }) {
       return [first, mate ?? f[1]];
     };
 
-    for (let court = 1; court <= courts; court++) {
-      if (matches.some((m) => m.court === court && m.status === "queued")) continue;
+    let waiting = matches.filter((m) => m.status === "queued").length;
+    while (waiting < courts) {
       let lineup: [typeof pool, typeof pool] | null = null;
       if (isTeam) {
         const order = MATCHUPS.map((mu, i) => ({ mu, i, c: matchupGames.get(matchupKey(mu[0], mu[1])) ?? 0 })).sort((x, y) => x.c - y.c || x.i - y.i);
@@ -261,22 +263,25 @@ export function GameBoard({ data }: { data: BoardData }) {
       }
       if (!lineup) break;
       const [a, b] = lineup;
+      // court 0 = not on a court yet; created_at order (started_at) is the queue order.
       const { error } = await supabase
         .from("game_matches")
-        .insert({ session_id: session.id, court, status: "queued", team_a: a.map((p) => p.id), team_b: b.map((p) => p.id) });
-      if (error && error.code !== "23505") throw new Error(error.message);
+        .insert({ session_id: session.id, court: 0, status: "queued", team_a: a.map((p) => p.id), team_b: b.map((p) => p.id), started_at: new Date(Date.now() + waiting).toISOString() });
+      if (error) throw new Error(error.message);
+      waiting++;
       const used = new Set([...a, ...b].map((p) => p.id));
       pool = pool.filter((p) => !used.has(p.id));
     }
   }
 
-  async function startQueued(m: Pick<Match, "id" | "court">) {
+  /** Put an Up next lineup on a court. */
+  async function startQueued(m: Pick<Match, "id">, court: number) {
     const { error } = await createClient()
       .from("game_matches")
-      .update({ status: "playing", started_at: new Date().toISOString() })
+      .update({ status: "playing", court, started_at: new Date().toISOString() })
       .eq("id", m.id)
       .eq("status", "queued");
-    if (error) throw new Error(error.code === "23505" ? `Court ${m.court} already has a game on.` : error.message);
+    if (error) throw new Error(error.code === "23505" ? `Court ${court} already has a game on.` : error.message);
   }
 
   async function saveResult(t: ScoreTarget, winner: "a" | "b", a: number | null, b: number | null, finish: "target" | "timed") {
@@ -290,9 +295,9 @@ export function GameBoard({ data }: { data: BoardData }) {
     });
     if (error) throw new Error(error.message);
     setScoring(null);
-    // The court's next four walk straight on.
-    const next = wasLive ? queued.find((q) => q.court === t.court) : undefined;
-    if (next) await startQueued(next);
+    // The top Up next lineup walks straight onto the court that just finished.
+    const next = wasLive ? queued[0] : undefined;
+    if (next) await startQueued(next, t.court);
   }
 
   async function voidGame(m: Match) {
@@ -490,7 +495,9 @@ export function GameBoard({ data }: { data: BoardData }) {
     const supabase = createClient();
     if (n < session.courts) {
       if (playing.some((m) => m.court > n)) throw new Error(`Court ${session.courts} has a game on. Finish it first.`);
-      await supabase.from("game_matches").delete().eq("session_id", session.id).eq("status", "queued").gt("court", n);
+      // Fewer courts = fewer lineups waiting; the newest go back to the queue.
+      const extra = queued.slice(n).map((m) => m.id);
+      if (extra.length) await supabase.from("game_matches").delete().in("id", extra).eq("status", "queued");
     }
     const { error } = await supabase.from("game_sessions").update({ courts: n }).eq("id", session.id);
     if (error) throw new Error(error.message);
@@ -690,12 +697,12 @@ export function GameBoard({ data }: { data: BoardData }) {
           session.courts >= 3 ? "2xl:grid-cols-[minmax(0,1fr)_360px]" : "xl:grid-cols-[minmax(0,1fr)_360px]",
         )}
       >
+        <div className="min-w-0 space-y-5">
         {/* Courts */}
         <div className={cn("grid gap-4 content-start sm:grid-cols-2", session.courts >= 3 ? "lg:grid-cols-3" : "")}>
           {Array.from({ length: session.courts }, (_, i) => i + 1).map((court) => {
             const live = playing.find((m) => m.court === court);
-            const next = queued.find((m) => m.court === court);
-            const shown = live ?? next;
+            const first = queued[0];
             const waitingFor = Math.max(0, need - general.length);
             return (
               <section key={court} className="min-w-0 rounded-3xl bg-white ring-1 ring-border shadow-card p-3">
@@ -713,10 +720,10 @@ export function GameBoard({ data }: { data: BoardData }) {
                 {/* The court */}
                 <div className="relative mx-auto aspect-[3/4] w-full max-w-[400px] overflow-hidden rounded-2xl">
                   <CourtArt sport={session.sport} />
-                  {shown ? (
-                    <div className={cn("absolute inset-0 grid grid-rows-2", !live && "bg-white/25")}>
+                  {live ? (
+                    <div className="absolute inset-0 grid grid-rows-2">
                       {(["a", "b"] as const).map((team) => {
-                        const ids = team === "a" ? shown.team_a : shown.team_b;
+                        const ids = team === "a" ? live.team_a : live.team_b;
                         const label = teamLabel(ids);
                         return (
                           <div
@@ -729,11 +736,11 @@ export function GameBoard({ data }: { data: BoardData }) {
                                 <PlayerToken
                                   key={id}
                                   size={ids.length > 2 ? "sm" : "md"}
-                                  {...tokenProps({ kind: "match", matchId: shown.id, team, idx }, id, true)}
+                                  {...tokenProps({ kind: "match", matchId: live.id, team, idx }, id, true)}
                                 />
                               ))}
                             </div>
-                            {live && open ? (
+                            {open ? (
                               <button
                                 type="button"
                                 onClick={() => setScoring({ matchId: live.id, court, teamA: live.team_a, teamB: live.team_b, winner: team })}
@@ -746,92 +753,39 @@ export function GameBoard({ data }: { data: BoardData }) {
                           </div>
                         );
                       })}
-                      {!live ? (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none [&>*]:pointer-events-auto">
-                          {open ? (
-                            <button
-                              type="button"
-                              onClick={() => run(() => startQueued(shown), `Game on court ${court}`)}
-                              disabled={busy}
-                              className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95"
-                            >
-                              <Play className="w-4 h-4" /> Start game
-                            </button>
-                          ) : null}
-                        </div>
-                      ) : null}
                     </div>
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="rounded-full bg-white/90 px-4 py-1.5 text-sm font-semibold text-ink shadow">
-                        {!open
-                          ? "Court free"
-                          : isTeam && !data.roster.some((r) => r.squad)
-                            ? "Generate squads to start"
-                            : waitingFor === 0
-                              ? "Lining up next game"
-                              : `Waiting for ${waitingFor} more player${waitingFor === 1 ? "" : "s"}`}
-                      </span>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/20 px-4 text-center">
+                      {open && first ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => run(() => startQueued(first, court), `Next game on court ${court}`)}
+                            disabled={busy}
+                            className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-bold text-white shadow-lg transition hover:scale-105 active:scale-95"
+                          >
+                            <Play className="w-4 h-4" /> Start next game here
+                          </button>
+                          <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-ink shadow">
+                            {[...first.team_a, ...first.team_b].map((id) => shortName(nameOf(id))).join(", ")}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="rounded-full bg-white/90 px-4 py-1.5 text-sm font-semibold text-ink shadow">
+                          {!open
+                            ? "Court free"
+                            : isTeam && !data.roster.some((r) => r.squad)
+                              ? "Generate squads to start"
+                              : waitingFor === 0
+                                ? "Lining up next game"
+                                : `Waiting for ${waitingFor} more player${waitingFor === 1 ? "" : "s"}`}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
 
-                {shown ? <BalanceRow a={shown.team_a.map(P)} b={shown.team_b.map(P)} label={live ? "On court" : "Up next"} /> : null}
-
-                {/* Next on this court (only while a game is on) */}
-                {live ? (
-                  <div className="mt-2 rounded-2xl bg-cream/70 px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold uppercase tracking-smallcaps text-inkSoft">Next on court {court}</span>
-                      {next && open && !isTeam ? (
-                        <button
-                          type="button"
-                          onClick={() => run(() => reshuffle(next))}
-                          disabled={busy}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-inkSoft hover:text-ink"
-                        >
-                          <Shuffle className="w-3.5 h-3.5" /> Reshuffle
-                        </button>
-                      ) : null}
-                    </div>
-                    {next ? (
-                      <>
-                        <div className="mt-1.5 flex flex-col items-center gap-0.5">
-                          <div className="flex flex-wrap justify-center gap-1">
-                            {next.team_a.map((id, idx) => (
-                              <PlayerToken key={id} size="sm" {...tokenProps({ kind: "match", matchId: next.id, team: "a", idx }, id, false)} />
-                            ))}
-                          </div>
-                          <span className="text-[10px] font-bold uppercase text-inkSoft">
-                            {isTeam ? `${teamLabel(next.team_a) ?? ""} vs ${teamLabel(next.team_b) ?? ""}` : "vs"}
-                          </span>
-                          <div className="flex flex-wrap justify-center gap-1">
-                            {next.team_b.map((id, idx) => (
-                              <PlayerToken key={id} size="sm" {...tokenProps({ kind: "match", matchId: next.id, team: "b", idx }, id, false)} />
-                            ))}
-                          </div>
-                        </div>
-                        <BalanceRow a={next.team_a.map(P)} b={next.team_b.map(P)} compact />
-                      </>
-                    ) : (
-                      <p className="mt-1 text-sm text-inkSoft">{!open ? "None" : waitingFor === 0 ? "Lining up…" : `Waiting for ${waitingFor} more in the queue.`}</p>
-                    )}
-                  </div>
-                ) : null}
-
-                {/* Free court: let staff reshuffle the up-next teams */}
-                {!live && next && open && !isTeam ? (
-                  <div className="mt-1 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => run(() => reshuffle(next))}
-                      disabled={busy}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-inkSoft hover:text-ink"
-                    >
-                      <Shuffle className="w-3.5 h-3.5" /> Reshuffle teams
-                    </button>
-                  </div>
-                ) : null}
+                {live ? <BalanceRow a={live.team_a.map(P)} b={live.team_b.map(P)} label="On court" /> : null}
 
                 {live && open ? (
                   <div className="mt-2 flex justify-end">
@@ -848,6 +802,77 @@ export function GameBoard({ data }: { data: BoardData }) {
               </section>
             );
           })}
+        </div>
+
+        {/* Up next: one shared list. #1 goes to whichever court finishes first. */}
+        <section className="rounded-3xl bg-white ring-1 ring-border shadow-card p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-serif font-bold text-lg text-ink">Up next</h2>
+            <span className="text-xs text-inkSoft">#1 walks onto the first court that finishes. Tap two players to swap.</span>
+          </div>
+          {queued.length === 0 ? (
+            <p className="mt-3 text-sm text-inkSoft">
+              {!open
+                ? "None."
+                : isTeam && !data.roster.some((r) => r.squad)
+                  ? "Generate squads to line up games."
+                  : `Waiting for ${Math.max(1, need - general.length)} more player${Math.max(1, need - general.length) === 1 ? "" : "s"} in the queue.`}
+            </p>
+          ) : (
+            <ol className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {queued.map((m, i) => (
+                <li key={m.id} className={cn("rounded-2xl px-3 py-3", i === 0 ? "bg-greenBg/60 ring-1 ring-green/30" : "bg-cream/70")}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", i === 0 ? "bg-green text-white" : "bg-white text-inkSoft")}>
+                      {i === 0 ? "#1 · next" : `#${i + 1}`}
+                    </span>
+                    {open && !isTeam ? (
+                      <button
+                        type="button"
+                        onClick={() => run(() => reshuffle(m))}
+                        disabled={busy}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-inkSoft hover:text-ink"
+                      >
+                        <Shuffle className="w-3.5 h-3.5" /> Reshuffle
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="mt-2 flex flex-col items-center gap-0.5">
+                    <div className="flex flex-wrap justify-center gap-1">
+                      {m.team_a.map((id, idx) => (
+                        <PlayerToken key={id} size="sm" {...tokenProps({ kind: "match", matchId: m.id, team: "a", idx }, id, false)} />
+                      ))}
+                    </div>
+                    <span className="text-[10px] font-bold uppercase text-inkSoft">
+                      {isTeam ? `${teamLabel(m.team_a) ?? ""} vs ${teamLabel(m.team_b) ?? ""}` : "vs"}
+                    </span>
+                    <div className="flex flex-wrap justify-center gap-1">
+                      {m.team_b.map((id, idx) => (
+                        <PlayerToken key={id} size="sm" {...tokenProps({ kind: "match", matchId: m.id, team: "b", idx }, id, false)} />
+                      ))}
+                    </div>
+                  </div>
+                  <BalanceRow a={m.team_a.map(P)} b={m.team_b.map(P)} compact />
+                  {open && freeCourts.length ? (
+                    <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+                      {freeCourts.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => run(() => startQueued(m, c), `Game on court ${c}`)}
+                          className="inline-flex items-center gap-1 rounded-full bg-ink px-3 py-1 text-xs font-bold text-white transition hover:opacity-90"
+                        >
+                          <Play className="w-3 h-3" /> Court {c}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
         </div>
 
         {/* Side panel (a row of cards under the courts on narrower screens) */}
