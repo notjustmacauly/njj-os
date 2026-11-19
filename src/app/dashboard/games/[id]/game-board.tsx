@@ -332,11 +332,12 @@ export function GameBoard({ data }: { data: BoardData }) {
     const upd = (id: string, v: Record<string, unknown>) =>
       supabase.from("game_session_players").update(v).eq("session_id", session.id).eq("player_id", id);
     if (a.kind === "squad" && b.kind === "squad") {
-      // Swap squads and pairs.
+      // Swap squads and pairs, then rebuild waiting lineups so nobody plays for their old squad.
       const ra = rosterById.get(ia)!;
       const rb = rosterById.get(ib)!;
       await upd(ia, { squad: rb.squad, pair_no: rb.pair_no });
       await upd(ib, { squad: ra.squad, pair_no: ra.pair_no });
+      await supabase.from("game_matches").delete().eq("session_id", session.id).eq("status", "queued");
       return;
     }
     if (a.kind === "queue" && b.kind === "queue") {
@@ -468,12 +469,11 @@ export function GameBoard({ data }: { data: BoardData }) {
   }
 
   async function moveToSquad(playerId: string, s: Squad) {
-    const { error } = await createClient()
-      .from("game_session_players")
-      .update({ squad: s, pair_no: null })
-      .eq("session_id", session.id)
-      .eq("player_id", playerId);
+    const supabase = createClient();
+    const { error } = await supabase.from("game_session_players").update({ squad: s, pair_no: null }).eq("session_id", session.id).eq("player_id", playerId);
     if (error) throw new Error(error.message);
+    // Waiting lineups were built from the old squads: clear them (the refill rebuilds them).
+    await supabase.from("game_matches").delete().eq("session_id", session.id).eq("status", "queued");
   }
 
   async function closeSession() {
