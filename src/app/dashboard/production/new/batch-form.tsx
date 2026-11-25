@@ -81,7 +81,10 @@ export function NewBatchForm({
   const [ph, setPh] = React.useState("");
   const [brix, setBrix] = React.useState("");
   const [qcPassed, setQcPassed] = React.useState<boolean | null>(null);
+  const [tastePassed, setTastePassed] = React.useState<boolean | null>(null);
+  const [qcVerifiedBy, setQcVerifiedBy] = React.useState("");
   const [qcNotes, setQcNotes] = React.useState("");
+  const [leftoverL, setLeftoverL] = React.useState("");
   const [staffName, setStaffName] = React.useState(defaultStaffName);
   const [notes, setNotes] = React.useState("");
   const [inputs, setInputs] = React.useState<BatchInputDraft[]>([]);
@@ -192,6 +195,9 @@ export function NewBatchForm({
       p_brix: brix ? Number(brix) : null,
       p_qc_passed: qcPassed,
       p_qc_notes: qcPassed === false ? qcNotes.trim() || null : null,
+      p_dispenser_ml: leftoverL ? Math.round(Number(leftoverL) * 1000) : 0,
+      p_taste_passed: tastePassed,
+      p_qc_verified_by: qcVerifiedBy.trim() || null,
       p_staff_name: staffName.trim() || null,
       p_notes: notes.trim() || null,
       p_inputs: inputs.map((it) => ({
@@ -371,6 +377,23 @@ export function NewBatchForm({
             ) : null}
           </div>
 
+          <div className="space-y-1">
+            <Label htmlFor="leftover_l">Leftover juice to dispenser (L)</Label>
+            <NumberInput
+              id="leftover_l"
+              min="0"
+              step="0.1"
+              value={leftoverL}
+              onChange={(e) => setLeftoverL(e.target.value)}
+              placeholder="0"
+              disabled={submitting}
+            />
+            <p className="text-xs text-inkSoft mt-1">
+              Juice poured to the dispenser (sold as cups). Its cost is split from this
+              batch so cans aren&apos;t overcharged.
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="ph">pH</Label>
@@ -407,14 +430,38 @@ export function NewBatchForm({
           </div>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label required>QC</Label>
+            <TriStateRadio
+              value={qcPassed}
+              onChange={setQcPassed}
+              trueLabel="Passed"
+              falseLabel="Failed"
+              nullLabel="Not yet checked"
+              disabled={submitting}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Taste check</Label>
+            <TriStateRadio
+              value={tastePassed}
+              onChange={setTastePassed}
+              trueLabel="Passed"
+              falseLabel="Failed"
+              nullLabel="Not yet checked"
+              disabled={submitting}
+            />
+          </div>
+        </div>
+
         <div className="space-y-1">
-          <Label required>QC</Label>
-          <TriStateRadio
-            value={qcPassed}
-            onChange={setQcPassed}
-            trueLabel="Passed"
-            falseLabel="Failed"
-            nullLabel="Not yet checked"
+          <Label htmlFor="qc_verified_by">QC verified by</Label>
+          <Input
+            id="qc_verified_by"
+            value={qcVerifiedBy}
+            onChange={(e) => setQcVerifiedBy(e.target.value)}
+            placeholder="Who checked the quality?"
             disabled={submitting}
           />
         </div>

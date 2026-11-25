@@ -45,7 +45,9 @@ export default async function ReportsPage({
       ? "profit"
       : searchParams?.view === "breakdown"
         ? "breakdown"
-        : "cashflow";
+        : searchParams?.view === "cups"
+          ? "cups"
+          : "cashflow";
 
   const { data: cashData } = await supabase.rpc("report_monthly_cashflow");
   const cashRows = (cashData ?? []) as CashRow[];
@@ -75,7 +77,7 @@ export default async function ReportsPage({
       </header>
 
       <nav className="flex gap-1 border-b border-border">
-        {([["cashflow", "Cash flow"], ["profit", "Profit"], ["breakdown", "Breakdown"]] as const).map(([v, label]) => (
+        {([["cashflow", "Cash flow"], ["profit", "Profit"], ["breakdown", "Breakdown"], ["cups", "Cups"]] as const).map(([v, label]) => (
           <Link
             key={v}
             href={yearQS(v)}
@@ -95,6 +97,8 @@ export default async function ReportsPage({
         <CashflowView rows={cashRows} year={selectedYear} />
       ) : view === "profit" ? (
         <ProfitView supabase={supabase} year={selectedYear} />
+      ) : view === "cups" ? (
+        <CupsView supabase={supabase} year={selectedYear} />
       ) : (
         <BreakdownView supabase={supabase} year={selectedYear} />
       )}
@@ -362,6 +366,141 @@ function MatrixTable({
         </div>
       )}
     </div>
+  );
+}
+
+// ── Cup product view ────────────────────────────────────────────
+type CupRow = {
+  month: string;
+  size: "sm" | "lg";
+  units: number | string;
+  revenue: number | string;
+  cup_cost: number | string;
+  lid_cost: number | string;
+  juice_cost: number | string;
+};
+
+const SIZE_LABEL: Record<string, string> = { sm: "Small (12oz)", lg: "Large (16oz)" };
+
+async function CupsView({
+  supabase,
+  year,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
+  year: string;
+}) {
+  const { data } = await supabase.rpc("report_cup_products");
+  const rows = ((data ?? []) as CupRow[]).filter((r) => r.month.slice(0, 4) === year);
+
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        emoji="🥤"
+        title="No cup sales this year"
+        description="Once Small/Large cups are sold on the POS, their units, revenue, and cost (cup + lid + juice) appear here."
+      />
+    );
+  }
+
+  // Aggregate per size for the year.
+  const bySize = new Map<
+    string,
+    { units: number; revenue: number; cup: number; lid: number; juice: number }
+  >();
+  for (const r of rows) {
+    const agg = bySize.get(r.size) ?? { units: 0, revenue: 0, cup: 0, lid: 0, juice: 0 };
+    agg.units += n(r.units);
+    agg.revenue += n(r.revenue);
+    agg.cup += n(r.cup_cost);
+    agg.lid += n(r.lid_cost);
+    agg.juice += n(r.juice_cost);
+    bySize.set(r.size, agg);
+  }
+
+  const sizes = (["sm", "lg"] as const).filter((s) => bySize.has(s));
+  const totals = sizes.reduce(
+    (t, s) => {
+      const a = bySize.get(s)!;
+      t.units += a.units;
+      t.revenue += a.revenue;
+      t.cogs += a.cup + a.lid + a.juice;
+      return t;
+    },
+    { units: 0, revenue: 0, cogs: 0 },
+  );
+  const tGross = totals.revenue - totals.cogs;
+  const tMargin = totals.revenue > 0 ? Math.round((tGross / totals.revenue) * 1000) / 10 : 0;
+
+  return (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <KpiCard label={`Cups sold · ${year}`} value={totals.units.toLocaleString()} accent="peri" sub="Small + Large" />
+        <KpiCard label="Cup revenue" value={formatPHP(totals.revenue)} accent="green" sub="POS cup sales" />
+        <KpiCard label="Cup COGS" value={formatPHP(totals.cogs)} accent="coral" sub="cup + lid + juice" />
+        <KpiCard label="Gross profit" value={formatPHP(tGross)} accent={tGross >= 0 ? "berry" : "coral"} sub={`${tMargin}% margin`} />
+      </div>
+
+      <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-cream text-inkSoft">
+            <tr className="text-left">
+              <th className="px-4 py-2 font-semibold">Size</th>
+              <th className="px-4 py-2 font-semibold text-right">Units</th>
+              <th className="px-4 py-2 font-semibold text-right">Revenue</th>
+              <th className="px-4 py-2 font-semibold text-right">Cup</th>
+              <th className="px-4 py-2 font-semibold text-right">Lid</th>
+              <th className="px-4 py-2 font-semibold text-right">Juice</th>
+              <th className="px-4 py-2 font-semibold text-right">COGS</th>
+              <th className="px-4 py-2 font-semibold text-right">Gross</th>
+              <th className="px-4 py-2 font-semibold text-right">Margin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sizes.map((s) => {
+              const a = bySize.get(s)!;
+              const cogs = a.cup + a.lid + a.juice;
+              const gross = a.revenue - cogs;
+              const margin = a.revenue > 0 ? Math.round((gross / a.revenue) * 1000) / 10 : null;
+              const perUnit = a.units > 0 ? gross / a.units : null;
+              return (
+                <tr key={s} className="border-t border-border">
+                  <td className="px-4 py-2.5 font-medium">
+                    {SIZE_LABEL[s] ?? s}
+                    {perUnit != null ? (
+                      <span className="text-xs text-inkSoft"> · {formatPHP(perUnit)}/cup</span>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums">{a.units.toLocaleString()}</td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums text-leaf">{formatPHP(a.revenue)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums text-inkSoft">{formatPHP(a.cup)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums text-inkSoft">{formatPHP(a.lid)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums text-inkSoft">{formatPHP(a.juice)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums text-coral">{formatPHP(cogs)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums font-semibold">{formatPHP(gross)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums text-inkSoft">{margin != null ? `${margin}%` : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-border bg-cream/40 font-semibold">
+              <td className="px-4 py-2.5">Total</td>
+              <td className="px-4 py-2.5 text-right font-mono tabular-nums">{totals.units.toLocaleString()}</td>
+              <td className="px-4 py-2.5 text-right font-mono tabular-nums text-leaf">{formatPHP(totals.revenue)}</td>
+              <td className="px-4 py-2.5 text-right font-mono tabular-nums" colSpan={3}></td>
+              <td className="px-4 py-2.5 text-right font-mono tabular-nums text-coral">{formatPHP(totals.cogs)}</td>
+              <td className="px-4 py-2.5 text-right font-mono tabular-nums">{formatPHP(tGross)}</td>
+              <td className="px-4 py-2.5 text-right font-mono tabular-nums text-inkSoft">{tMargin}%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p className="text-[11px] text-inkSoft px-1">
+        Juice is valued at its weighted-average produced cost per ml (from batch leftovers);
+        cups &amp; lids at their weighted-average purchase cost. Small uses 140&nbsp;ml juice, Large 200&nbsp;ml.
+      </p>
+    </>
   );
 }
 

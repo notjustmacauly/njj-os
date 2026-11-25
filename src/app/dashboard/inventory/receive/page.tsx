@@ -37,6 +37,7 @@ export default async function ReceiveSuppliesPage({
       .select("code, name, unit, type")
       .is("deleted_at", null)
       .eq("is_active", true)
+      .neq("code", "JUICE_DISP") // produced in-house, not purchased
       .order("name"),
     supabase
       .from("accounts")

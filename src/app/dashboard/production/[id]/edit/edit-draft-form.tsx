@@ -342,7 +342,10 @@ function FinalizeDraftModal({
   const [ph, setPh] = React.useState("");
   const [brix, setBrix] = React.useState("");
   const [qcPassed, setQcPassed] = React.useState<boolean | null>(null);
+  const [tastePassed, setTastePassed] = React.useState<boolean | null>(null);
+  const [qcVerifiedBy, setQcVerifiedBy] = React.useState("");
   const [qcNotes, setQcNotes] = React.useState("");
+  const [leftoverL, setLeftoverL] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
@@ -352,7 +355,10 @@ function FinalizeDraftModal({
       setPh("");
       setBrix("");
       setQcPassed(null);
+      setTastePassed(null);
+      setQcVerifiedBy("");
       setQcNotes("");
+      setLeftoverL("");
     }
   }, [open, defaultUnitsProduced]);
 
@@ -388,6 +394,9 @@ function FinalizeDraftModal({
       p_brix: brix ? Number(brix) : null,
       p_qc_passed: qcPassed,
       p_qc_notes: qcPassed === false ? qcNotes.trim() || null : null,
+      p_dispenser_ml: leftoverL ? Math.round(Number(leftoverL) * 1000) : 0,
+      p_taste_passed: tastePassed,
+      p_qc_verified_by: qcVerifiedBy.trim() || null,
     });
     setBusy(false);
     if (error) {
@@ -474,16 +483,54 @@ function FinalizeDraftModal({
           </div>
         </div>
 
-        <div className="space-y-1">
-          <Label required>QC</Label>
-          <TriStateRadio
-            value={qcPassed}
-            onChange={setQcPassed}
-            trueLabel="Passed"
-            falseLabel="Failed"
-            nullLabel="Not yet checked"
-            disabled={busy}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label required>QC</Label>
+            <TriStateRadio
+              value={qcPassed}
+              onChange={setQcPassed}
+              trueLabel="Passed"
+              falseLabel="Failed"
+              nullLabel="Not yet checked"
+              disabled={busy}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Taste check</Label>
+            <TriStateRadio
+              value={tastePassed}
+              onChange={setTastePassed}
+              trueLabel="Passed"
+              falseLabel="Failed"
+              nullLabel="Not yet checked"
+              disabled={busy}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="finalize_qc_verified_by">QC verified by</Label>
+            <Input
+              id="finalize_qc_verified_by"
+              value={qcVerifiedBy}
+              onChange={(e) => setQcVerifiedBy(e.target.value)}
+              placeholder="Who checked the quality?"
+              disabled={busy}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="finalize_leftover_l">Leftover juice to dispenser (L)</Label>
+            <NumberInput
+              id="finalize_leftover_l"
+              min="0"
+              step="0.1"
+              value={leftoverL}
+              onChange={(e) => setLeftoverL(e.target.value)}
+              placeholder="0"
+              disabled={busy}
+            />
+          </div>
         </div>
 
         {qcPassed === false ? (

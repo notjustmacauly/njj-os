@@ -38,8 +38,12 @@ type BatchRecord = {
   brix: number | string | null;
   qc_passed: boolean | null;
   qc_notes: string | null;
+  taste_passed: boolean | null;
+  qc_verified_by: string | null;
   staff_name: string | null;
   cogs_total: number | string;
+  dispenser_ml: number | string | null;
+  dispenser_cost: number | string | null;
   notes: string | null;
   is_backfill: boolean | null;
 };
@@ -258,6 +262,10 @@ export function BatchDetailClient({
         : Number(r.cost_per_unit ?? 0);
     return sum + Number(r.qty_used) * cost;
   }, 0);
+  const dispenserCost = Number(batch.dispenser_cost ?? 0);
+  const dispenserMl = Number(batch.dispenser_ml ?? 0);
+  // Cans carry the batch cost less the share moved to dispenser juice.
+  const cannedCost = Math.max(0, realCost - dispenserCost);
   const inputsMissingLot = inputsRows.filter(
     (r) => r.cost_per_unit_at_use == null,
   ).length;
@@ -294,7 +302,7 @@ export function BatchDetailClient({
 
   // Live cost preview on the inputs side. Inputs are read-only in Phase 1,
   // so this just mirrors the saved real cost.
-  const liveCogs = realCost;
+  const liveCogs = cannedCost;
   const producedNum = Number(unitsProduced) || 0;
   const liveCostPerCan = producedNum > 0 ? liveCogs / producedNum : null;
 
@@ -347,6 +355,15 @@ export function BatchDetailClient({
                   QC pending
                 </span>
               )}
+              {batch.taste_passed === true ? (
+                <span className="text-xs font-semibold text-green bg-greenBg px-2 py-0.5 rounded-full">
+                  ✓ Taste Passed
+                </span>
+              ) : batch.taste_passed === false ? (
+                <span className="text-xs font-semibold text-coral bg-salmonBg px-2 py-0.5 rounded-full">
+                  ✕ Taste Failed
+                </span>
+              ) : null}
             </div>
             <div className="mt-2 flex items-center gap-3 flex-wrap text-sm text-inkSoft">
               <span>{formatDate(batch.batch_date)}</span>
@@ -607,7 +624,7 @@ export function BatchDetailClient({
             );
             const perCan =
               Number(batch.units_produced) > 0
-                ? realCost / Number(batch.units_produced)
+                ? cannedCost / Number(batch.units_produced)
                 : null;
             return (
               <div className="overflow-x-auto -mx-2">
@@ -642,6 +659,26 @@ export function BatchDetailClient({
                         {formatPHP(realCost)}
                       </td>
                     </tr>
+                    {dispenserMl > 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 pb-1 text-right text-xs text-inkSoft">
+                          − to dispenser juice ({dispenserMl.toLocaleString()} ml)
+                        </td>
+                        <td className="px-3 pb-1 text-right font-mono text-inkSoft">
+                          − {formatPHP(dispenserCost)}
+                        </td>
+                      </tr>
+                    ) : null}
+                    {dispenserMl > 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 pb-2 text-right text-xs uppercase tracking-smallcaps font-semibold text-inkSoft">
+                          Cost on cans
+                        </td>
+                        <td className="px-3 pb-2 text-right font-mono font-semibold text-ink">
+                          {formatPHP(cannedCost)}
+                        </td>
+                      </tr>
+                    ) : null}
                     {perCan != null ? (
                       <tr>
                         <td colSpan={4} className="px-3 pb-3 text-right text-xs text-inkSoft">
