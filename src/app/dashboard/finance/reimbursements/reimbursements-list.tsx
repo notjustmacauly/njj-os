@@ -27,6 +27,7 @@ export type ReimbursementRow = {
   account_code: string | null;
   status: "pending" | "paid" | "cancelled";
   paid_date: string | null;
+  purchase_date: string | null;
   requested_by_name: string | null;
   notes: string | null;
 };
@@ -82,6 +83,7 @@ export function ReimbursementsList({
   allowedAccounts: Array<{ code: string; name: string }>;
   initial: ReimbursementRow[];
 }) {
+  const toast = useToast();
   const [rows, setRows] = React.useState<ReimbursementRow[]>(initial);
   const [tab, setTab] = React.useState<TabKey>("pending");
   const [payingRow, setPayingRow] = React.useState<ReimbursementRow | null>(null);
@@ -89,9 +91,21 @@ export function ReimbursementsList({
   // Per matrix + 20260518130000 migration: owner + partner can pay reimbursements.
   const canPay = role === "owner" || role === "partner";
 
+  // Bulk pay (pending tab only, owner/partner).
+  const showSelect = canPay && tab === "pending";
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [showBulkPay, setShowBulkPay] = React.useState(false);
+  const [bulkAccount, setBulkAccount] = React.useState<string>(allowedAccounts[0]?.code ?? "");
+  const [bulkPaidDate, setBulkPaidDate] = React.useState<string>(todayIso());
+  const [busy, setBusy] = React.useState(false);
+
   React.useEffect(() => {
     setRows(initial);
   }, [initial]);
+
+  React.useEffect(() => {
+    setSelected(new Set());
+  }, [tab]);
 
   const refetch = React.useCallback(async () => {
     const supabase = createClient();
@@ -101,7 +115,7 @@ export function ReimbursementsList({
     const { data } = await supabase
       .from("payments")
       .select(
-        "id, external_id, created_at, type, purpose, payee, category, amount, account_code, status, paid_date, requested_by_name, notes",
+        "id, external_id, created_at, type, purpose, payee, category, amount, account_code, status, paid_date, purchase_date, requested_by_name, notes",
       )
       .eq("type", "reimbursement")
       .is("deleted_at", null)
@@ -137,6 +151,51 @@ export function ReimbursementsList({
 
   const filtered = rows.filter((r) => isInTab(r, tab));
 
+  const selectableIds = showSelect ? filtered.map((r) => r.id) : [];
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+  const selectedIds = filtered.filter((r) => selected.has(r.id)).map((r) => r.id);
+  const selectedTotal = filtered
+    .filter((r) => selected.has(r.id))
+    .reduce((s, r) => s + Number(r.amount ?? 0), 0);
+
+  function toggleRow(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(selectableIds));
+  }
+
+  async function runBulkPay() {
+    if (busy || selectedIds.length === 0) return;
+    if (!bulkAccount) {
+      toast.push("Pick the company account that's paying these back.", "error");
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("pay_payments_bulk", {
+      p_ids: selectedIds,
+      p_paid_date: bulkPaidDate,
+      p_account_code: bulkAccount,
+    });
+    setBusy(false);
+    if (error) return toast.push(error.message, "error");
+    const res = (data ?? {}) as { ok?: number; failed?: number };
+    toast.push(
+      `Paid back ${res.ok ?? 0} reimbursement${(res.ok ?? 0) === 1 ? "" : "s"}` +
+        (res.failed ? ` · ${res.failed} skipped` : ""),
+      res.failed ? "error" : "success",
+    );
+    setShowBulkPay(false);
+    setSelected(new Set());
+    refetch();
+  }
+
   return (
     <div className="space-y-4">
       <PagerPublisher entity="reimbursements" segments={filtered.map((r) => r.id)} />
@@ -166,10 +225,45 @@ export function ReimbursementsList({
         ))}
       </div>
 
+      {showSelect && selectedIds.length > 0 ? (
+        <div className="sticky top-14 lg:top-0 z-10 flex flex-wrap items-center gap-3 bg-berry text-white rounded-lg shadow-card px-4 py-3">
+          <span className="font-semibold text-sm">
+            {selectedIds.length} selected · {formatPHP(selectedTotal)}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowBulkPay(true)}
+            disabled={busy}
+            className="ml-auto"
+          >
+            {`Pay ${selectedIds.length} back →`}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="text-xs text-white/80 hover:text-white underline"
+          >
+            Clear
+          </button>
+        </div>
+      ) : null}
+
       <div className="bg-white border border-border rounded-lg shadow-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-cream text-inkSoft">
             <tr className="text-left">
+              {showSelect ? (
+                <th className="pl-4 pr-1 py-2 w-8">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="w-4 h-4 accent-berry cursor-pointer"
+                  />
+                </th>
+              ) : null}
               <th className="px-4 py-2 font-semibold w-28">Created</th>
               <th className="px-4 py-2 font-semibold w-32">Ref</th>
               <th className="px-4 py-2 font-semibold w-32">Person</th>
@@ -184,13 +278,30 @@ export function ReimbursementsList({
           <tbody>
             {filtered.length === 0 ? (
               <tr className="border-t border-border">
-                <td colSpan={9} className="px-4 py-8 text-center text-sm text-inkSoft">
+                <td colSpan={showSelect ? 10 : 9} className="px-4 py-8 text-center text-sm text-inkSoft">
                   No reimbursements in this tab.
                 </td>
               </tr>
             ) : (
               filtered.map((r) => (
-                <tr key={r.id} className="border-t border-border hover:bg-cream/30">
+                <tr
+                  key={r.id}
+                  className={cn(
+                    "border-t border-border hover:bg-cream/30",
+                    selected.has(r.id) && "bg-berryBg/40",
+                  )}
+                >
+                  {showSelect ? (
+                    <td className="pl-4 pr-1 py-2.5">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${r.external_id ?? r.purpose}`}
+                        checked={selected.has(r.id)}
+                        onChange={() => toggleRow(r.id)}
+                        className="w-4 h-4 accent-berry cursor-pointer"
+                      />
+                    </td>
+                  ) : null}
                   <td className="px-4 py-2.5 text-xs text-inkSoft whitespace-nowrap">
                     {formatDate(r.created_at)}
                   </td>
@@ -211,6 +322,11 @@ export function ReimbursementsList({
                     >
                       {r.purpose}
                     </Link>
+                    {r.purchase_date ? (
+                      <span className="block text-[11px] text-inkSoft">
+                        bought {formatDate(r.purchase_date)}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono font-semibold text-coral tabular-nums">
                     {formatPHP(r.amount)}
@@ -267,6 +383,62 @@ export function ReimbursementsList({
           onClose={() => setPayingRow(null)}
         />
       ) : null}
+
+      <Modal
+        open={showBulkPay}
+        onClose={busy ? () => {} : () => setShowBulkPay(false)}
+        title={`Pay back ${selectedIds.length} reimbursement${selectedIds.length === 1 ? "" : "s"} · ${formatPHP(selectedTotal)}`}
+        description="All are paid from the same company account on the same date. Each creates its own expense automatically."
+        size="md"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setShowBulkPay(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button onClick={runBulkPay} disabled={busy || !bulkAccount}>
+              {busy ? "Posting…" : `Confirm & Pay ${selectedIds.length} →`}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="bulk_rb_account" required>
+              Which company account is paying these back?
+            </Label>
+            {allowedAccounts.length === 0 ? (
+              <p className="text-sm text-coral bg-salmonBg/50 border border-coral/30 rounded-md px-3 py-2">
+                You don&rsquo;t have access to any accounts. Ask the owner to grant access.
+              </p>
+            ) : (
+              <Select
+                id="bulk_rb_account"
+                value={bulkAccount}
+                onChange={(e) => setBulkAccount(e.target.value)}
+                disabled={busy}
+              >
+                <option value="">— pick an account —</option>
+                {allowedAccounts.map((a) => (
+                  <option key={a.code} value={a.code}>
+                    {a.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="bulk_rb_date" required>
+              Paid date
+            </Label>
+            <DateInput
+              id="bulk_rb_date"
+              value={bulkPaidDate}
+              onChange={(e) => setBulkPaidDate(e.target.value)}
+              disabled={busy}
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

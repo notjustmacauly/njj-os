@@ -2493,6 +2493,7 @@ export type Database = {
           paid_by_user_id: string | null
           paid_date: string | null
           payee: string | null
+          purchase_date: string | null
           purpose: string
           requested_by_name: string | null
           requested_by_user_id: string | null
@@ -2522,6 +2523,7 @@ export type Database = {
           paid_by_user_id?: string | null
           paid_date?: string | null
           payee?: string | null
+          purchase_date?: string | null
           purpose: string
           requested_by_name?: string | null
           requested_by_user_id?: string | null
@@ -2551,6 +2553,7 @@ export type Database = {
           paid_by_user_id?: string | null
           paid_date?: string | null
           payee?: string | null
+          purchase_date?: string | null
           purpose?: string
           requested_by_name?: string | null
           requested_by_user_id?: string | null
@@ -5067,9 +5070,14 @@ export type Database = {
           p_notes?: string
           p_payee?: string
           p_payment_id: string
+          p_purchase_date?: string
           p_purpose?: string
         }
         Returns: undefined
+      }
+      approve_payments_bulk: {
+        Args: { p_account_code?: string; p_ids: string[]; p_notes?: string }
+        Returns: Json
       }
       approve_payroll_run: { Args: { p_run_id: string }; Returns: undefined }
       auto_close_stale_shifts: { Args: never; Returns: Json }
@@ -5261,6 +5269,7 @@ export type Database = {
           p_idempotency_key: string
           p_notes?: string
           p_payee?: string
+          p_purchase_date?: string
           p_purpose: string
           p_requested_by_name?: string
           p_transfer_to_account_code?: string
@@ -5589,6 +5598,10 @@ export type Database = {
           p_payment_id: string
         }
         Returns: undefined
+      }
+      pay_payments_bulk: {
+        Args: { p_account_code?: string; p_ids: string[]; p_paid_date?: string }
+        Returns: Json
       }
       receive_supplies: {
         Args: {

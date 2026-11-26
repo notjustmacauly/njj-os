@@ -35,7 +35,7 @@ export default async function PaymentDetailPage({
     supabase
       .from("payments")
       .select(
-        "id, external_id, created_at, type, purpose, payee, category, amount, account_code, transfer_to_account_code, status, approved_at, approved_by_user_id, paid_at, paid_date, paid_by_user_id, requested_by_user_id, requested_by_name, ledger_entry_id_out, ledger_entry_id_in, cancelled_at, cancelled_by_user_id, cancel_reason, notes",
+        "id, external_id, created_at, type, purpose, payee, category, amount, account_code, transfer_to_account_code, status, approved_at, approved_by_user_id, paid_at, paid_date, purchase_date, paid_by_user_id, requested_by_user_id, requested_by_name, ledger_entry_id_out, ledger_entry_id_in, cancelled_at, cancelled_by_user_id, cancel_reason, notes",
       )
       .eq("id", params.id)
       .maybeSingle(),

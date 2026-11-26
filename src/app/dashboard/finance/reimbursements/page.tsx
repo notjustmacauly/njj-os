@@ -34,7 +34,7 @@ export default async function ReimbursementsPage() {
     supabase
       .from("payments")
       .select(
-        "id, external_id, created_at, type, purpose, payee, category, amount, account_code, status, paid_date, requested_by_name, notes",
+        "id, external_id, created_at, type, purpose, payee, category, amount, account_code, status, paid_date, purchase_date, requested_by_name, notes",
       )
       .eq("type", "reimbursement")
       .is("deleted_at", null)

@@ -35,6 +35,7 @@ export type PaymentDetail = {
   approved_by_user_id: string | null;
   paid_at: string | null;
   paid_date: string | null;
+  purchase_date: string | null;
   requested_by_user_id: string | null;
   requested_by_name: string | null;
   ledger_entry_id_out: string | null;
@@ -169,6 +170,7 @@ export function PaymentDetailClient({
   const [approvePayee, setApprovePayee] = React.useState(payment.payee ?? "");
   const [approveCategory, setApproveCategory] = React.useState(payment.category ?? "");
   const [approvePurpose, setApprovePurpose] = React.useState(payment.purpose ?? "");
+  const [approvePurchaseDate, setApprovePurchaseDate] = React.useState(payment.purchase_date ?? "");
   const [approveNotes, setApproveNotes] = React.useState("");
   const [approving, setApproving] = React.useState(false);
   const [approveError, setApproveError] = React.useState<string | null>(null);
@@ -180,6 +182,7 @@ export function PaymentDetailClient({
       setApprovePayee(payment.payee ?? "");
       setApproveCategory(payment.category ?? "");
       setApprovePurpose(payment.purpose ?? "");
+      setApprovePurchaseDate(payment.purchase_date ?? "");
       setApproveNotes("");
       setApproveError(null);
     }
@@ -208,6 +211,7 @@ export function PaymentDetailClient({
       p_payee: isTransfer ? null : approvePayee.trim(),
       p_category: isTransfer ? null : approveCategory,
       p_purpose: approvePurpose.trim(),
+      p_purchase_date: isTransfer ? null : approvePurchaseDate || null,
     });
     setApproving(false);
     if (error) {
@@ -379,6 +383,9 @@ export function PaymentDetailClient({
             </div>
           ) : null}
           {payment.category ? <Row label="Category" value={payment.category} /> : null}
+          {payment.purchase_date ? (
+            <Row label="Purchased" value={formatDate(payment.purchase_date)} />
+          ) : null}
           {payment.notes ? <Row label="Notes" value={payment.notes} /> : null}
           {payment.requested_by_name ? (
             <Row label="Requested by" value={payment.requested_by_name} />
@@ -582,6 +589,21 @@ export function PaymentDetailClient({
               disabled={approving}
             />
           </div>
+
+          {!isTransfer ? (
+            <div className="space-y-1">
+              <Label htmlFor="approve_purchase_date">Purchase date</Label>
+              <DateInput
+                id="approve_purchase_date"
+                value={approvePurchaseDate}
+                onChange={(e) => setApprovePurchaseDate(e.target.value)}
+                disabled={approving}
+              />
+              <p className="text-[11px] text-inkSoft">
+                When it was actually bought (optional). Separate from the paid date.
+              </p>
+            </div>
+          ) : null}
 
           <div className="space-y-1">
             <Label htmlFor="approve_account" required>

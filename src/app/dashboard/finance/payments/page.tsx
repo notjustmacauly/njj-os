@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buttonClasses } from "@/components/ui/button";
 import { PaymentsList, type PaymentRow } from "./payments-list";
 import { OWNER_PARTNER_MANAGER, type Role } from "@/lib/roles";
+import { filterAllowedAccounts } from "@/lib/allowed-accounts";
 
 const READ_ROLES = OWNER_PARTNER_MANAGER;
 
@@ -28,18 +29,20 @@ export default async function PaymentsPage() {
   windowStart.setMonth(windowStart.getMonth() - 12);
   windowStart.setDate(1);
 
-  const [{ data: accounts }, { data: payments }] = await Promise.all([
+  const [{ data: accountsData }, { data: payments }] = await Promise.all([
     supabase.from("accounts").select("code, name").eq("is_active", true).order("name"),
     supabase
       .from("payments")
       .select(
-        "id, external_id, created_at, type, purpose, payee, category, amount, account_code, transfer_to_account_code, status, paid_date, requested_by_name, notes",
+        "id, external_id, created_at, type, purpose, payee, category, amount, account_code, transfer_to_account_code, status, paid_date, purchase_date, requested_by_name, notes",
       )
       .in("type", ["general", "transfer"])
       .is("deleted_at", null)
       .gte("created_at", windowStart.toISOString())
       .order("created_at", { ascending: false }),
   ]);
+  const accounts = (accountsData ?? []) as Array<{ code: string; name: string }>;
+  const allowedAccounts = await filterAllowedAccounts(supabase, role, user.id, accounts);
 
   return (
     <div className="space-y-5">
@@ -63,7 +66,8 @@ export default async function PaymentsPage() {
 
       <PaymentsList
         role={role}
-        accounts={(accounts ?? []) as Array<{ code: string; name: string }>}
+        accounts={accounts}
+        allowedAccounts={allowedAccounts}
         initial={(payments ?? []) as PaymentRow[]}
       />
     </div>

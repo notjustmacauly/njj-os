@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
@@ -69,6 +70,8 @@ export function NewPaymentForm({
     accounts[1]?.code ?? accounts[0]?.code ?? "",
   );
   const [notes, setNotes] = React.useState("");
+  // Optional: when the thing was actually bought (its own field, not a note).
+  const [purchaseDate, setPurchaseDate] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -106,6 +109,7 @@ export function NewPaymentForm({
       p_transfer_to_account_code: type === "transfer" ? transferTo : null,
       p_notes: notes.trim() || null,
       p_requested_by_name: requestedByName,
+      p_purchase_date: type === "transfer" ? null : purchaseDate || null,
     });
     setSubmitting(false);
 
@@ -262,6 +266,19 @@ export function NewPaymentForm({
                 </option>
               ))}
             </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="pay_purchase_date">Purchase date</Label>
+            <DateInput
+              id="pay_purchase_date"
+              value={purchaseDate}
+              onChange={(e) => setPurchaseDate(e.target.value)}
+              disabled={submitting}
+            />
+            <p className="text-[11px] text-inkSoft">
+              Optional — when the item/service was actually bought. Kept as its own
+              record, separate from when it&rsquo;s paid.
+            </p>
           </div>
         </>
       ) : null}

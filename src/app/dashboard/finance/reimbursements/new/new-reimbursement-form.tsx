@@ -59,8 +59,8 @@ export function NewReimbursementForm({
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) return setError("Amount must be > 0.");
 
+    // Purchase date now lives in its own column (p_purchase_date), not in notes.
     const notesBlock = [
-      `Original purchase date: ${originalDate}`,
       receiptUrl.trim() ? `Receipt: ${receiptUrl.trim()}` : null,
       notes.trim() || null,
     ]
@@ -81,6 +81,7 @@ export function NewReimbursementForm({
       p_transfer_to_account_code: null,
       p_notes: notesBlock || null,
       p_requested_by_name: requestedByName,
+      p_purchase_date: originalDate || null,
     });
     setSubmitting(false);
 
@@ -148,7 +149,7 @@ export function NewReimbursementForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label htmlFor="rb_date">Date paid (out of pocket)</Label>
+          <Label htmlFor="rb_date">Original purchase date</Label>
           <DateInput
             id="rb_date"
             value={originalDate}
