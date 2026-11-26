@@ -4,7 +4,6 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { buttonClasses } from "@/components/ui/button";
 import { formatPHP } from "@/lib/utils";
-import { ingredientEmoji } from "@/lib/ingredient-icons";
 import {
   hasRole,
   OWNER_PARTNER,
@@ -130,8 +129,7 @@ export default async function IngredientLotsPage({
 
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-serif font-bold text-3xl text-ink flex items-center gap-2">
-            <span aria-hidden>{ingredientEmoji(code)}</span>
+          <h1 className="font-serif font-bold text-3xl text-ink">
             {ingredient.name}
           </h1>
           <p className="text-xs text-inkSoft mt-1 font-mono">{code} · {ingredient.unit}</p>

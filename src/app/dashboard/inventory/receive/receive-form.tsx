@@ -12,7 +12,6 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { formatPHP } from "@/lib/utils";
-import { ingredientEmoji } from "@/lib/ingredient-icons";
 
 export type IngredientOption = {
   code: string;
@@ -39,10 +38,10 @@ export function ReceiveForm({
   const router = useRouter();
   const toast = useToast();
 
+  // No preselected item on purpose: a wrong default silently files stock
+  // against the wrong product. Only a deep-link (?ingredient=) pre-fills.
   const initialIngredient =
-    (defaultIngredientCode && ingredients.find((i) => i.code === defaultIngredientCode)?.code) ||
-    ingredients[0]?.code ||
-    "";
+    (defaultIngredientCode && ingredients.find((i) => i.code === defaultIngredientCode)?.code) || "";
 
   // Fresh idempotency key per mount; stays stable across re-renders so a
   // double-tap submits as one receipt.
@@ -82,7 +81,7 @@ export function ReceiveForm({
     if (submitting) return;
     setError(null);
 
-    if (!ingredientCode || !ingredient) return setError("Pick an ingredient.");
+    if (!ingredientCode || !ingredient) return setError("Pick an item.");
     if (isSimple) {
       if (!Number.isFinite(convertedQtyNum) || convertedQtyNum <= 0)
         return setError("Quantity must be > 0.");
@@ -140,7 +139,7 @@ export function ReceiveForm({
     >
       <div className="space-y-1">
         <Label htmlFor="rs_ingredient" required>
-          Ingredient
+          Item
         </Label>
         <Select
           id="rs_ingredient"
@@ -148,9 +147,12 @@ export function ReceiveForm({
           onChange={(e) => setIngredientCode(e.target.value)}
           disabled={submitting || ingredients.length === 0}
         >
+          <option value="" disabled>
+            — Choose an item —
+          </option>
           {ingredients.map((i) => (
             <option key={i.code} value={i.code}>
-              {ingredientEmoji(i.code)} {i.name} ({i.unit})
+              {i.name} ({i.unit})
             </option>
           ))}
         </Select>

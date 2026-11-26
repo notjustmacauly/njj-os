@@ -57,7 +57,6 @@ export default async function ReceiveSuppliesPage({
           Back to inventory
         </Link>
         <h1 className="font-serif font-bold text-3xl text-ink">
-          <span aria-hidden className="mr-2">📥</span>
           Log received supplies
         </h1>
         <p className="text-sm text-inkSoft mt-1">
