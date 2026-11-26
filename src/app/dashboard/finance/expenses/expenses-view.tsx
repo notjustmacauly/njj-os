@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
+import { Input } from "@/components/ui/input";
 import { cn, formatDate, formatPHP } from "@/lib/utils";
 import { accountEmoji } from "../account-icons";
 import type { Role } from "@/lib/roles";
@@ -68,6 +69,7 @@ export function ExpensesView({
   const [to, setTo] = React.useState(todayIso());
   const [categories, setCategories] = React.useState<Set<string>>(new Set());
   const [accountCodes, setAccountCodes] = React.useState<Set<string>>(new Set());
+  const [vendorQuery, setVendorQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("active");
   const [showCreate, setShowCreate] = React.useState(false);
   const [openDetail, setOpenDetail] = React.useState<ExpenseRow | null>(null);
@@ -90,10 +92,17 @@ export function ExpensesView({
     return Array.from(set).sort();
   }, [expenses]);
 
+  const availableVendors = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const e of expenses) if (e.vendor?.trim()) set.add(e.vendor.trim());
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [expenses]);
+
   const fromDate = new Date(`${from}T00:00:00+08:00`);
   const toDateExclusive = new Date(`${to}T00:00:00+08:00`);
   toDateExclusive.setDate(toDateExclusive.getDate() + 1);
 
+  const vendorNeedle = vendorQuery.trim().toLowerCase();
   const filtered = expenses.filter((e) => {
     const expDate = new Date(`${e.expense_date}T00:00:00+08:00`);
     if (expDate < fromDate || expDate >= toDateExclusive) return false;
@@ -101,6 +110,7 @@ export function ExpensesView({
     if (statusFilter === "voided" && !e.voided_at) return false;
     if (categories.size > 0 && !categories.has(e.category)) return false;
     if (accountCodes.size > 0 && !accountCodes.has(e.account_code)) return false;
+    if (vendorNeedle && !(e.vendor ?? "").toLowerCase().includes(vendorNeedle)) return false;
     return true;
   });
 
@@ -157,6 +167,36 @@ export function ExpensesView({
               onChange={(e) => setTo(e.target.value)}
               className="h-8 text-xs"
             />
+          </div>
+
+          <div className="flex items-center gap-2 ml-2">
+            <span className="text-[10px] uppercase tracking-smallcaps font-semibold text-inkSoft">
+              Vendor
+            </span>
+            <div className="relative">
+              <Input
+                list="expense-vendors"
+                value={vendorQuery}
+                onChange={(e) => setVendorQuery(e.target.value)}
+                placeholder="Search vendor…"
+                className="h-8 text-xs w-44 pr-6"
+              />
+              {vendorQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setVendorQuery("")}
+                  aria-label="Clear vendor filter"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-inkSoft hover:text-ink text-sm leading-none"
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+            <datalist id="expense-vendors">
+              {availableVendors.map((v) => (
+                <option key={v} value={v} />
+              ))}
+            </datalist>
           </div>
 
           <div className="flex items-center gap-1.5 ml-2">
