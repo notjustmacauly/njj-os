@@ -12,6 +12,7 @@ import { GamesSidebar } from "./games/games-sidebar";
 import { NotificationsBell } from "./notifications-bell";
 import { RegisterSW } from "./register-sw";
 import { VersionWatcher } from "./version-watcher";
+import { DailyBriefing, BriefingButton, type Briefing } from "./daily-briefing";
 
 function displayNameFromEmail(email: string): string {
   const local = (email.split("@")[0] ?? "").replace(/^notjust/i, "");
@@ -36,10 +37,12 @@ export function AppShell({
   role,
   email,
   children,
+  briefing = null,
 }: {
   role: Role;
   email: string;
   children: React.ReactNode;
+  briefing?: Briefing | null;
 }) {
   const pathname = usePathname();
   const [navOpen, setNavOpen] = React.useState(false);
@@ -81,6 +84,7 @@ export function AppShell({
     <div className="min-h-dvh flex flex-col lg:flex-row bg-cream">
       <RegisterSW />
       <VersionWatcher />
+      <DailyBriefing initial={briefing} name={displayName} />
       {/* Mobile top bar — hamburger + brand + role chip. Hidden on lg+. */}
       <header className="lg:hidden fixed top-0 inset-x-0 h-14 bg-white border-b border-border z-30 flex items-center px-3 gap-2">
         <button
@@ -99,6 +103,7 @@ export function AppShell({
           {websiteMode ? "NotJust Website" : gamesMode ? "Game Day" : "NJJ OS"}
         </Link>
         <div className="ml-auto flex items-center gap-1">
+          <BriefingButton />
           <NotificationsBell role={role} />
           <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-cream">
             <span aria-hidden>🐝</span>
@@ -152,7 +157,8 @@ export function AppShell({
 
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Desktop top bar — persistent notifications bell, top-right. */}
-        <div className="hidden lg:flex sticky top-0 z-20 items-center justify-end px-6 h-12 bg-cream/85 backdrop-blur border-b border-border/60">
+        <div className="hidden lg:flex sticky top-0 z-20 items-center justify-end gap-1 px-6 h-12 bg-cream/85 backdrop-blur border-b border-border/60">
+          <BriefingButton />
           <NotificationsBell role={role} />
         </div>
         <main className={cn("w-full mx-auto px-4 pt-20 pb-8 lg:px-6 lg:py-8 lg:pt-8", gamesMode ? "max-w-[1800px]" : "max-w-6xl")}>

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ToastProvider } from "@/components/ui/toast";
 import { AppShell } from "./app-shell";
+import type { Briefing } from "./daily-briefing";
 import type { Role } from "@/lib/roles";
 
 export default async function DashboardLayout({
@@ -25,6 +26,14 @@ export default async function DashboardLayout({
 
   const role = (roleRow?.role as Role | null) ?? null;
 
+  // Daily briefing — read-only check (never writes, so route prefetch is safe).
+  // The client records "seen today" once it actually displays the pop-up.
+  let briefing: Briefing | null = null;
+  if (role) {
+    const { data: b } = await supabase.rpc("get_daily_briefing", { p_force: false });
+    briefing = (b as unknown as Briefing | null) ?? null;
+  }
+
   if (!role) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -40,7 +49,7 @@ export default async function DashboardLayout({
 
   return (
     <ToastProvider>
-      <AppShell role={role} email={user.email ?? ""}>
+      <AppShell role={role} email={user.email ?? ""} briefing={briefing}>
         {children}
       </AppShell>
     </ToastProvider>

@@ -507,6 +507,27 @@ export type Database = {
           },
         ]
       }
+      briefing_state: {
+        Row: {
+          last_shown_date: string | null
+          last_visit_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          last_shown_date?: string | null
+          last_visit_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          last_shown_date?: string | null
+          last_visit_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       calendar_event_attendees: {
         Row: {
           created_at: string
@@ -5053,6 +5074,7 @@ export type Database = {
       approve_payroll_run: { Args: { p_run_id: string }; Returns: undefined }
       auto_close_stale_shifts: { Args: never; Returns: Json }
       billing_summary: { Args: never; Returns: Json }
+      briefing_mark_shown: { Args: never; Returns: undefined }
       cancel_bill: {
         Args: { p_bill_id: string; p_reason?: string }
         Returns: undefined
@@ -5376,6 +5398,7 @@ export type Database = {
         }[]
       }
       get_bill_invoice: { Args: { p_token: string }; Returns: Json }
+      get_daily_briefing: { Args: { p_force?: boolean }; Returns: Json }
       get_delivery_receipt: { Args: { p_token: string }; Returns: Json }
       get_notification_secrets: { Args: never; Returns: Json }
       get_payslip: { Args: { p_token: string }; Returns: Json }
